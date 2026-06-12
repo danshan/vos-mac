@@ -22,9 +22,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.table.TableRowSorter;
-import org.lwjgl.LWJGLException;
-import org.lwjgl.opengl.Display;
-import org.lwjgl.opengl.DisplayMode;
 import org.open2jam.Config;
 import org.open2jam.GameOptions;
 import org.open2jam.GameOptions.ChannelMod;
@@ -37,6 +34,7 @@ import org.open2jam.parsers.BMSWriter;
 import org.open2jam.parsers.Chart;
 import org.open2jam.parsers.ChartList;
 import org.open2jam.render.Render;
+import org.open2jam.render.DisplayMode;
 import org.open2jam.game.judgment.BeatJudgment;
 import org.open2jam.game.judgment.TimeJudgment;
 import org.open2jam.sound.SoundSystemException;
@@ -1038,8 +1036,6 @@ public class MusicSelection extends javax.swing.JPanel
     private void bt_playActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_bt_playActionPerformed
         try {
             if(selected_header == null) return;
-            
-            
             final double hispeed = (Double) js_hispeed.getValue();
 
             final DisplayMode dm;
@@ -1172,6 +1168,10 @@ public class MusicSelection extends javax.swing.JPanel
             new RenderThread(this.getTopLevelAncestor(), r).start();
         } catch (SoundSystemException ex) {
             java.util.logging.Logger.getLogger(MusicSelection.class.getName()).log(Level.SEVERE, "{0}", ex);
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Audio initialization failed", JOptionPane.ERROR_MESSAGE);
+        } catch (LinkageError ex) {
+            java.util.logging.Logger.getLogger(MusicSelection.class.getName()).log(Level.SEVERE, "{0}", ex);
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Native library initialization failed", JOptionPane.ERROR_MESSAGE);
         }
 }//GEN-LAST:event_bt_playActionPerformed
 
@@ -1347,7 +1347,12 @@ public class MusicSelection extends javax.swing.JPanel
     private void initLogic() {
 
         try {
-            List<DisplayMode> list = Arrays.asList(Display.getAvailableDisplayModes());
+            List<DisplayMode> list = new ArrayList<DisplayMode>();
+            list.add(new DisplayMode(800, 600));
+            list.add(new DisplayMode(1024, 768));
+            list.add(new DisplayMode(1280, 720));
+            list.add(new DisplayMode(1280, 800));
+            list.add(new DisplayMode(1440, 900));
 
             Collections.sort(list, new Comparator<DisplayMode>() {
                 @Override
@@ -1375,13 +1380,21 @@ public class MusicSelection extends javax.swing.JPanel
             });
             display_modes = list.toArray(new DisplayMode[list.size()]);
 
-        } catch (LWJGLException ex) {
-            Logger.global.log(Level.WARNING, "Could not get the display modes !! {0}", ex.getMessage());
-            display_modes = new DisplayMode[0];
+        } catch (LinkageError ex) {
+            Logger.global.log(Level.WARNING, "Could not initialize LWJGL native display support: {0}", ex.getMessage());
+            display_modes = getFallbackDisplayModes();
         }
 
         model_songlist = new ChartListTableModel();
         model_chartlist = new ChartTableModel();
+    }
+
+    private DisplayMode[] getFallbackDisplayModes()
+    {
+        GameOptions go = Config.getGameOptions();
+        int width = go.getDisplayWidth() > 0 ? go.getDisplayWidth() : 640;
+        int height = go.getDisplayHeight() > 0 ? go.getDisplayHeight() : 480;
+        return new DisplayMode[]{new DisplayMode(width, height)};
     }
 
     private void loadDir(File dir)

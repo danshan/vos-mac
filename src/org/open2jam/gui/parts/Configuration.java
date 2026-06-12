@@ -1,25 +1,25 @@
 package org.open2jam.gui.parts;
 
 import java.awt.Font;
+import java.awt.BorderLayout;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
+import java.awt.event.KeyEvent;
 import java.io.File;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.table.DefaultTableModel;
-import org.lwjgl.LWJGLException;
-import org.lwjgl.input.Keyboard;
-import org.lwjgl.opengl.Display;
-import org.lwjgl.opengl.DisplayMode;
-import org.lwjgl.opengl.GL11;
 import org.open2jam.Config;
 import org.open2jam.GameOptions;
-import org.open2jam.gui.Interface;
+import org.open2jam.input.Keys;
 import org.open2jam.parsers.Event;
-import org.open2jam.render.lwjgl.TrueTypeFont;
 
 /**
  *
@@ -236,17 +236,13 @@ public class Configuration extends javax.swing.JPanel {
                 });
             }
             private void work() {
-                int lastkey = Keyboard.getKeyIndex(tKeys.getValueAt(row, 1).toString());
+                int lastkey = Keys.getIndex(tKeys.getValueAt(row, 1).toString());
                 int code;
-                try {
-                    code = read_keyboard_key(lastkey);
-                } catch(LWJGLException e) {
-                    return;
-                }
+                code = read_keyboard_key(lastkey);
                 if(kb_map.containsValue(code)) return; //check for duplicates, TODO something informing about the duplicate
                 Event.Channel c = table_map.get(row);
                 kb_map.put(c, code);
-                tKeys.setValueAt(Keyboard.getKeyName(code), row, 1);
+                tKeys.setValueAt(Keys.getName(code), row, 1);
             }
             
         }.start();
@@ -302,7 +298,7 @@ public class Configuration extends javax.swing.JPanel {
         for(Map.Entry<Event.Channel,Integer> entry : kb_map.entrySet())
         {
             tKeys.setValueAt(entry.getKey().toString(), i, 0);
-            tKeys.setValueAt(Keyboard.getKeyName(entry.getValue()), i, 1);
+            tKeys.setValueAt(Keys.getName(entry.getValue()), i, 1);
             table_map.put(i, entry.getKey());
             i++;
         }
@@ -310,53 +306,69 @@ public class Configuration extends javax.swing.JPanel {
     
     private static Font font = new Font("Tahoma", Font.BOLD, 14);
 
-    private int read_keyboard_key(int lastkey) throws LWJGLException
+    private int read_keyboard_key(int lastkey)
     {
+        final int[] code = new int[]{lastkey};
         String place = tKeys.getValueAt(tKeys.getSelectedRow(), 0).toString();
-        if(Display.isCreated())throw new LWJGLException();
-        Display.setDisplayMode(new DisplayMode(220,50));
-        Display.setTitle(place);
-        Display.setVSyncEnabled(true);
-        Display.setIcon(null);
-        Display.create();
-        Display.setLocation(-1, -1);
-
-        // enable textures since we're going to use these for our sprites
-        GL11.glEnable(GL11.GL_TEXTURE_2D);
-
-        // disable the OpenGL depth test since we're rendering 2D graphics
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-
-        // enable apha blending
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glLoadIdentity();
-
-        GL11.glOrtho(0, 220, 50, 0, -1, 1);
-
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glLoadIdentity();
-
-        TrueTypeFont trueTypeFont = new TrueTypeFont(font, false);
-
-        int code;
-        do{
-            Display.update();
-            trueTypeFont.drawString(10, 18, "Press a KEY for " + place, 1, -1);
-            trueTypeFont.drawString(10, 34, "Last assign was " + Keyboard.getKeyName(lastkey), 1, -1);
-            trueTypeFont.drawString(10, 50, "Press ESC or close to cancel", 1, -1);
-            Keyboard.next();
-            if(Display.isCloseRequested() || Keyboard.getEventKey() == Keyboard.KEY_ESCAPE)
-                code = lastkey;
-            else
-                code = Keyboard.getEventKey();
+        final JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(this), place, true);
+        JLabel label = new JLabel(
+                "<html>Press a key for " + place + "<br>Last assign was " + Keys.getName(lastkey) + "<br>Press ESC to cancel</html>");
+        label.setFont(font);
+        dialog.setLayout(new BorderLayout());
+        dialog.add(label, BorderLayout.CENTER);
+        dialog.setSize(260, 100);
+        dialog.setLocationRelativeTo(this);
+        final KeyEventDispatcher dispatcher = new KeyEventDispatcher() {
+            @Override
+            public boolean dispatchKeyEvent(KeyEvent e) {
+                if(!dialog.isShowing() || e.getID() != KeyEvent.KEY_PRESSED) return false;
+                int mapped = mapAwtKey(e);
+                if(mapped != Keys.getIndex("ESCAPE")) code[0] = mapped;
+                dialog.dispose();
+                return true;
+            }
+        };
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(dispatcher);
+        try {
+            dialog.setVisible(true);
+        } finally {
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(dispatcher);
         }
-        while(code == Keyboard.CHAR_NONE);
-        trueTypeFont.destroy();
-        Display.destroy();
-        return code;
+        return code[0];
+    }
+
+    private int mapAwtKey(KeyEvent e) {
+        switch(e.getKeyCode()) {
+            case KeyEvent.VK_ESCAPE: return Keys.getIndex("ESCAPE");
+            case KeyEvent.VK_ENTER: return Keys.getIndex("RETURN");
+            case KeyEvent.VK_SPACE: return Keys.getIndex("SPACE");
+            case KeyEvent.VK_SHIFT: return e.getKeyLocation() == KeyEvent.KEY_LOCATION_RIGHT ? Keys.getIndex("RSHIFT") : Keys.getIndex("LSHIFT");
+            case KeyEvent.VK_CONTROL: return e.getKeyLocation() == KeyEvent.KEY_LOCATION_RIGHT ? Keys.getIndex("RCONTROL") : Keys.getIndex("LCONTROL");
+            case KeyEvent.VK_ALT: return e.getKeyLocation() == KeyEvent.KEY_LOCATION_RIGHT ? Keys.getIndex("RMENU") : Keys.getIndex("LMENU");
+            case KeyEvent.VK_UP: return Keys.getIndex("UP");
+            case KeyEvent.VK_DOWN: return Keys.getIndex("DOWN");
+            case KeyEvent.VK_LEFT: return Keys.getIndex("LEFT");
+            case KeyEvent.VK_RIGHT: return Keys.getIndex("RIGHT");
+            case KeyEvent.VK_TAB: return Keys.getIndex("TAB");
+            case KeyEvent.VK_BACK_SPACE: return Keys.getIndex("BACK");
+            case KeyEvent.VK_DELETE: return Keys.getIndex("DELETE");
+            case KeyEvent.VK_HOME: return Keys.getIndex("HOME");
+            case KeyEvent.VK_END: return Keys.getIndex("END");
+            case KeyEvent.VK_PAGE_UP: return Keys.getIndex("PRIOR");
+            case KeyEvent.VK_PAGE_DOWN: return Keys.getIndex("NEXT");
+            case KeyEvent.VK_MINUS: return Keys.getIndex("MINUS");
+            case KeyEvent.VK_EQUALS: return Keys.getIndex("EQUALS");
+            case KeyEvent.VK_COMMA: return Keys.getIndex("COMMA");
+            case KeyEvent.VK_PERIOD: return Keys.getIndex("PERIOD");
+            case KeyEvent.VK_SLASH: return Keys.getIndex("SLASH");
+            case KeyEvent.VK_SEMICOLON: return Keys.getIndex("SEMICOLON");
+            case KeyEvent.VK_QUOTE: return Keys.getIndex("APOSTROPHE");
+            case KeyEvent.VK_OPEN_BRACKET: return Keys.getIndex("LBRACKET");
+            case KeyEvent.VK_CLOSE_BRACKET: return Keys.getIndex("RBRACKET");
+            case KeyEvent.VK_BACK_SLASH: return Keys.getIndex("BACKSLASH");
+        }
+        String text = KeyEvent.getKeyText(e.getKeyCode()).toUpperCase();
+        int code = Keys.getIndex(text);
+        return code == Keys.NONE ? Keys.getIndex("ESCAPE") : code;
     }
 }

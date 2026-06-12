@@ -4,8 +4,8 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.List;
-import org.lwjgl.opengl.DisplayMode;
 import org.open2jam.parsers.Event;
+import org.open2jam.render.DisplayMode;
 
 /**
  * This class will store game options such as hi-speed and autoplay.

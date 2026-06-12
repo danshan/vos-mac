@@ -1,7 +1,6 @@
 package org.open2jam;
 
 import java.awt.EventQueue;
-import java.io.File;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import javax.swing.UIManager;
@@ -10,20 +9,9 @@ import org.open2jam.util.Logger;
 
 public class Main implements Runnable
 {
-    private static final String LIB_PATH =
-        System.getProperty("user.dir") + File.separator +
-        "lib" + File.separator +
-        "native" + File.separator +
-        getOS();
-    private static final String FMODEX_PATH =
-        System.getProperty("user.dir") + File.separator +
-        "lib" + File.separator +
-        "fmodex";
-
     public static void main(String []args)
     {
-        System.setProperty("org.lwjgl.librarypath", LIB_PATH);
-        System.setProperty("java.library.path", FMODEX_PATH);
+        setupMacOSJava2DCompatibility();
         
         Config.openDB();
         
@@ -32,6 +20,15 @@ public class Main implements Runnable
         trySetLAF();
         
         EventQueue.invokeLater(new Main());
+    }
+
+    private static void setupMacOSJava2DCompatibility()
+    {
+        if(!"macosx".equals(getOS()))return;
+
+        if(System.getProperty("sun.java2d.opengl") == null) {
+            System.setProperty("sun.java2d.opengl", "false");
+        }
     }
     
     @Override
@@ -49,6 +46,8 @@ public class Main implements Runnable
 
     private static void trySetLAF()
     {
+        if("macosx".equals(getOS()))return;
+
         try {
             for(UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels())
             {
@@ -58,7 +57,7 @@ public class Main implements Runnable
                 }
             }
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (Exception e) {
+        } catch (Throwable e) {
             Logger.global.info(e.toString());
         }
     }
@@ -79,5 +78,3 @@ public class Main implements Runnable
         }
     }
 }
-
-

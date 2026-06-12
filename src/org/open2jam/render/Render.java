@@ -7,7 +7,6 @@ import org.open2jam.game.Latency;
 import com.github.dtinth.partytime.Client;
 import com.github.dtinth.partytime.server.Connection;
 import com.github.dtinth.partytime.server.Server;
-import org.open2jam.sound.FmodExSoundSystem;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -21,10 +20,9 @@ import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
-import org.lwjgl.input.Keyboard;
-import org.lwjgl.opengl.DisplayMode;
 import org.open2jam.Config;
 import org.open2jam.GameOptions;
+import org.open2jam.input.Keys;
 import org.open2jam.game.speed.SpeedMultiplier;
 import org.open2jam.game.speed.Speed;
 import org.open2jam.game.position.WSpeed;
@@ -39,11 +37,12 @@ import org.open2jam.game.position.HiSpeed;
 import org.open2jam.game.position.NoteDistanceCalculator;
 import org.open2jam.game.position.RegulSpeed;
 import org.open2jam.game.position.XRSpeed;
-import org.open2jam.render.lwjgl.TrueTypeFont;
+import org.open2jam.render.lwjgl.LWJGLTextRenderer;
 import org.open2jam.sound.Sound;
 import org.open2jam.sound.SoundChannel;
 import org.open2jam.sound.SoundSystem;
 import org.open2jam.sound.SoundSystemException;
+import org.open2jam.sound.OpenALSoundSystem;
 import org.open2jam.util.*;
 
 
@@ -220,7 +219,7 @@ public class Render implements GameWindowCallback
 
     protected Entity judgment_line;
     
-    TrueTypeFont trueTypeFont;
+    TextRenderer trueTypeFont;
 
     /** statistics variable */
     double total_notes = 0;
@@ -301,7 +300,7 @@ public class Render implements GameWindowCallback
         keyboard_misc = Config.getKeyboardMisc();
         window = ResourceFactory.get().getGameWindow();
         
-        soundSystem = new FmodExSoundSystem(opt.getBufferSize());
+        soundSystem = new OpenALSoundSystem();
         soundSystem.setMasterVolume(opt.getMasterVolume());
         soundSystem.setBGMVolume(opt.getBGMVolume());
         soundSystem.setKeyVolume(opt.getKeyVolume());
@@ -611,7 +610,7 @@ public class Render implements GameWindowCallback
 	    }
 	}
 	
-        trueTypeFont = new TrueTypeFont(new Font("Tahoma", Font.BOLD, 14), false);
+        trueTypeFont = new LWJGLTextRenderer(new Font("Tahoma", Font.BOLD, 14), false);
         
         //clean up
         System.gc();
@@ -743,7 +742,7 @@ public class Render implements GameWindowCallback
 
         soundSystem.update();
 	do_autoplay(now);
-        Keyboard.poll();
+        window.pollInput();
         check_keyboard(now);
         
         for(LinkedList<Entity> layer : entities_matrix) // loop over layers
@@ -798,18 +797,18 @@ public class Render implements GameWindowCallback
         int y = 300;
         
         for (String s : statusList) {
-            trueTypeFont.drawString(780, y, s, 1, -1, TrueTypeFont.ALIGN_RIGHT);
+            trueTypeFont.drawString(780, y, s, 1, -1, TextRenderer.ALIGN_RIGHT);
             y += 30;
         }
         
         // TODO: THIS IS SPAGHETTI. IMPROVE SOON.
         y = 64;
         if (server != null) {
-            trueTypeFont.drawString(780, y, "Server: " + server.getStatus(), 1, -1, TrueTypeFont.ALIGN_RIGHT);
+            trueTypeFont.drawString(780, y, "Server: " + server.getStatus(), 1, -1, TextRenderer.ALIGN_RIGHT);
             y += 24;
             for (Connection conn : server.getConnections()) {
                 String s = conn.toString() + ": " + conn.getStatus();
-                trueTypeFont.drawString(780, y, s, 1, -1, TrueTypeFont.ALIGN_RIGHT);
+                trueTypeFont.drawString(780, y, s, 1, -1, TextRenderer.ALIGN_RIGHT);
                 y += 18;
             }
         }
@@ -937,7 +936,7 @@ public class Render implements GameWindowCallback
     public void check_keyboard(double now)
     {
         
-        if (window.isKeyDown(Keyboard.KEY_RETURN) && server != null) {
+        if (window.isKeyDown(Keys.getIndex("RETURN")) && server != null) {
             server.startGame();
             server = null;
         }

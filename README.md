@@ -3,7 +3,7 @@ open2jam
 ========
 open source emulator of [O2Jam](http://o2jam.wikia.com/wiki/O2Jam).
 
-It is written in a combination of java, OpenGL and FMOD Ex, with the objective of being able to play in whatever platform you are.
+It is written in Java with LWJGL 3/OpenGL for rendering and LWJGL 3 OpenAL/STB for audio, with the objective of being able to play on current JDKs and macOS arm64.
 
 We don't have an official roadmap, but we aim to:
 
@@ -12,18 +12,13 @@ We don't have an official roadmap, but we aim to:
 *   Skinnable game interface
 *   Multiplayer similar to o2jam.
 
-FMOD Sound System, copyright © Firelight Technologies Pty, Ltd., 1994-2012.
-
-
 Current Features
 ----------------
 
 * Supports OJN/OJM files and BMS files.
     * Partially supports BGA for BMS files. (Image backgrounds and movie files using VLC)
-* Works on Windows, Mac and Linux.
-    * Tested on several Windows laptops.
-    * Tested on Mac OS X 10.8 with Java 1.6.
-    * Tested on Ubuntu 12.04.
+* Works on current JDKs with Maven-managed LWJGL 3 natives.
+    * Migrated for macOS arm64 with JDK 17.
 * Music directory selection
     * You can put songs in multiple directories. open2jam keeps track of each of them separately.
 * Adjustable KEY/BGM volume.
@@ -47,8 +42,22 @@ For more details, see the full text of the license in the file LICENSE.
 Running from source
 -------------------
 
-Once you have cloned/downloaded the code, you can either you use [ant](http://ant.apache.org/) on the root directory to compile the source, or you can use [netbeans](http://netbeans.org/), which is our editor of choice here.
+You need JDK 17 or later and Maven.
 
-Once compiled, the jar will be in the dist/ directory, to run, `cd` to the `dist` directory, and then run `$ java -jar open2jam.jar`.
+Build the project with:
 
+```
+mvn -s .mvn/settings.xml -DskipTests package
+```
 
+Run the packaged jar on macOS with:
+
+```
+java -jar target/open2jam-0.1.0-SNAPSHOT.jar
+```
+
+Run from source with:
+
+```
+mvn -s .mvn/settings.xml exec:exec
+```

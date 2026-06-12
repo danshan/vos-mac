@@ -3,6 +3,7 @@
 *.obj
 dist/
 build/
+target/
 nbproject/private
 nbproject/genfiles.properties
 nbproject/build-impl.xml

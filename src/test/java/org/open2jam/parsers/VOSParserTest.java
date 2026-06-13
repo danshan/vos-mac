@@ -91,6 +91,23 @@ class VOSParserTest {
     }
 
     @Test
+    void readsLittleEndianVosHeaderAndSegmentAddresses() throws Exception {
+        byte[] bytes = buildFixture(4, true, true, false, "Canon in D");
+        assertEquals(3, bytes[0] & 0xFF);
+        assertEquals(0, bytes[1] & 0xFF);
+        assertEquals(0, bytes[2] & 0xFF);
+        assertEquals(0, bytes[3] & 0xFF);
+
+        File chartFile = new File(tempDir, "little-endian.vos");
+        Files.write(chartFile.toPath(), bytes);
+
+        ChartList charts = ChartParser.parseFile(chartFile);
+
+        assertNotNull(charts);
+        assertEquals("Canon in D", charts.get(0).getTitle());
+    }
+
+    @Test
     void mapsTapNotesToExistingNoteChannels() throws Exception {
         Event.Channel[] expectedChannels = {
             Event.Channel.NOTE_1,
@@ -139,8 +156,20 @@ class VOSParserTest {
     }
 
     @Test
+    void mapsOnlyVosPlayableChannelToEvents() throws Exception {
+        File chartFile = writePlayableChannelFixture("playable-channel.vos", 5);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        EventList events = chart.getEvents();
+
+        assertEquals(1, events.size());
+        assertEquals(Event.Channel.NOTE_3, events.get(0).getChannel());
+        assertEquals(61, events.get(0).getValue(), 0.0001);
+    }
+
+    @Test
     void directoryCanReadRequiresAtLeastOneValidVosHeader() throws Exception {
-        Files.write(new File(tempDir, "invalid.vos").toPath(), new byte[] {0, 0, 0, 4});
+        Files.write(new File(tempDir, "invalid.vos").toPath(), new byte[] {4, 0, 0, 0});
 
         assertFalse(VOSParser.canRead(tempDir));
         assertNull(ChartParser.parseFile(tempDir));
@@ -155,7 +184,7 @@ class VOSParserTest {
 
     @Test
     void malformedVosDoesNotCaptureDirectoryFromBmsParser() throws Exception {
-        Files.write(new File(tempDir, "broken.vos").toPath(), new byte[] {0, 0, 0, 3});
+        Files.write(new File(tempDir, "broken.vos").toPath(), new byte[] {3, 0, 0, 0});
         writeMinimalBms("fallback.bms");
 
         ChartList charts = ChartParser.parseFile(tempDir);
@@ -186,6 +215,14 @@ class VOSParserTest {
 
     private File writeTapNoteFixture(String fileName, int level, int keyboard) throws IOException {
         byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, keyboard);
+        File file = new File(tempDir, fileName);
+        Files.write(file.toPath(), bytes);
+        return file;
+    }
+
+    private File writePlayableChannelFixture(String fileName, int level) throws IOException {
+        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, 0x80,
+                17, 16, true);
         File file = new File(tempDir, fileName);
         Files.write(file.toPath(), bytes);
         return file;
@@ -227,6 +264,14 @@ class VOSParserTest {
     private static byte[] buildFixture(int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride,
             boolean longNoteOnly, int tapKeyboard) throws IOException {
+        return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, noteCountOverride,
+                longNoteOnly, tapKeyboard, 1, 0, false);
+    }
+
+    private static byte[] buildFixture(int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride,
+            boolean longNoteOnly, int tapKeyboard, int channelCount, int playableChannelIndex,
+            boolean includeDistractorNote) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
         writeSegment(out, 0, "INF");
@@ -245,22 +290,45 @@ class VOSParserTest {
         }
         out.write(new byte[1023]);
         if (includeChannelData) {
-            writeInt(out, 1);
-            int noteCount = noteCountOverride == null ? (longNoteOnly || !includeLongNote ? 1 : 2)
-                    : noteCountOverride;
-            writeInt(out, noteCount);
-            out.write(new byte[14]);
-            if (noteCountOverride == null || noteCountOverride > 0) {
-                if (!longNoteOnly) {
-                    writeNote(out, 0x000, 0x000, 0, 60, 100, tapKeyboard, 0x00);
-                }
-                if (includeLongNote || longNoteOnly) {
-                    writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
+            for (int channel = 0; channel < channelCount; channel++) {
+                writeInt(out, channel + 1);
+                int noteCount = noteCountForChannel(channel, playableChannelIndex, noteCountOverride,
+                        includeLongNote, longNoteOnly, includeDistractorNote);
+                writeInt(out, noteCount);
+                out.write(new byte[14]);
+                if (noteCountOverride == null || noteCountOverride > 0) {
+                    if (includeDistractorNote && channel == 0) {
+                        writeNote(out, 0x000, 0x000, 0, 90, 100, 0x80, 0x00);
+                    }
+                    if (channel == playableChannelIndex) {
+                        if (!longNoteOnly) {
+                            int pitch = includeDistractorNote ? 61 : 60;
+                            int keyboard = includeDistractorNote ? 0xA0 : tapKeyboard;
+                            writeNote(out, 0x000, 0x000, 0, pitch, 100, keyboard, 0x00);
+                        }
+                        if (includeLongNote || longNoteOnly) {
+                            writeNote(out, 0x300, 0x172, 0, 62, 100, 0x81, 0x80);
+                        }
+                    }
                 }
             }
         }
 
         return patchSegmentAddresses(out.toByteArray());
+    }
+
+    private static int noteCountForChannel(int channel, int playableChannelIndex, Integer noteCountOverride,
+            boolean includeLongNote, boolean longNoteOnly, boolean includeDistractorNote) {
+        if (noteCountOverride != null) {
+            return channel == playableChannelIndex ? noteCountOverride : 0;
+        }
+        if (includeDistractorNote && channel == 0) {
+            return 1;
+        }
+        if (channel != playableChannelIndex) {
+            return 0;
+        }
+        return longNoteOnly || !includeLongNote ? 1 : 2;
     }
 
     private static byte[] patchSegmentAddresses(byte[] bytes) {
@@ -296,16 +364,16 @@ class VOSParserTest {
     }
 
     private static void writeInt(ByteArrayOutputStream out, int value) throws IOException {
-        out.write((value >>> 24) & 0xFF);
-        out.write((value >>> 16) & 0xFF);
-        out.write((value >>> 8) & 0xFF);
         out.write(value & 0xFF);
+        out.write((value >>> 8) & 0xFF);
+        out.write((value >>> 16) & 0xFF);
+        out.write((value >>> 24) & 0xFF);
     }
 
     private static void writeInt(byte[] bytes, int offset, int value) {
-        bytes[offset] = (byte) ((value >>> 24) & 0xFF);
-        bytes[offset + 1] = (byte) ((value >>> 16) & 0xFF);
-        bytes[offset + 2] = (byte) ((value >>> 8) & 0xFF);
-        bytes[offset + 3] = (byte) (value & 0xFF);
+        bytes[offset] = (byte) (value & 0xFF);
+        bytes[offset + 1] = (byte) ((value >>> 8) & 0xFF);
+        bytes[offset + 2] = (byte) ((value >>> 16) & 0xFF);
+        bytes[offset + 3] = (byte) ((value >>> 24) & 0xFF);
     }
 }

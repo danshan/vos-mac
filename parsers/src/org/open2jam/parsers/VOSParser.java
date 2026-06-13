@@ -16,6 +16,9 @@ class VOSParser {
     private static final Charset VOS_CHARSET = Charset.forName("GB2312");
     private static final int HEADER_MAGIC = 3;
     private static final int INF_PADDING_LENGTH = 1023;
+    private static final int PLAYABLE_CHANNEL_INDEX = 16;
+    private static final int SEQUENCER_TICKS_PER_MEASURE = 0x300;
+    private static final int DURATION_TICKS_PER_MEASURE = 0x2E4;
 
     private static final FileFilter vos_filter = new FileFilter() {
         public boolean accept(File f) {
@@ -182,7 +185,7 @@ class VOSParser {
     }
 
     private static EventList readChannels(Reader reader, int end_address) {
-        EventList events = new EventList();
+        List<VOSChannel> channels = new ArrayList<VOSChannel>();
         while (reader.position() < end_address) {
             if (reader.remainingBefore(end_address) < 22) {
                 throw new IllegalArgumentException("truncated VOS channel");
@@ -194,15 +197,35 @@ class VOSParser {
             }
             reader.skip(14);
 
+            VOSChannel channel = new VOSChannel();
             for (int i = 0; i < note_count; i++) {
                 if (reader.remainingBefore(end_address) < 13) {
                     throw new IllegalArgumentException("truncated VOS note");
                 }
-                events.playableNotes += addNoteEvents(events, readNote(reader));
+                channel.notes.add(readNote(reader));
+            }
+            channels.add(channel);
+        }
+
+        EventList events = new EventList();
+        VOSChannel playable_channel = playableChannel(channels);
+        if (playable_channel != null) {
+            for (VOSNote note : playable_channel.notes) {
+                events.playableNotes += addNoteEvents(events, note);
             }
         }
         Collections.sort(events);
         return events;
+    }
+
+    private static VOSChannel playableChannel(List<VOSChannel> channels) {
+        if (channels.isEmpty()) {
+            return null;
+        }
+        if (channels.size() > PLAYABLE_CHANNEL_INDEX) {
+            return channels.get(PLAYABLE_CHANNEL_INDEX);
+        }
+        return channels.get(channels.size() - 1);
     }
 
     private static VOSNote readNote(Reader reader) {
@@ -226,7 +249,7 @@ class VOSParser {
         int value = Math.max(1, note.pitch);
         if (isLongNote(note)) {
             events.add(new Event(channel, start.measure, start.position, value, Event.Flag.HOLD));
-            Position end = toPosition(note.sequencer + note.duration);
+            Position end = toEndPosition(note.sequencer, note.duration);
             events.add(new Event(channel, end.measure, end.position, value, Event.Flag.RELEASE));
         } else {
             events.add(new Event(channel, start.measure, start.position, value, Event.Flag.NONE));
@@ -261,8 +284,17 @@ class VOSParser {
     }
 
     private static Position toPosition(int sequencer) {
-        int measure = sequencer / 0x300;
-        double position = (sequencer % 0x300) / (double) 0x300;
+        int measure = sequencer / SEQUENCER_TICKS_PER_MEASURE;
+        double position = (sequencer % SEQUENCER_TICKS_PER_MEASURE)
+                / (double) SEQUENCER_TICKS_PER_MEASURE;
+        return new Position(measure, position);
+    }
+
+    private static Position toEndPosition(int sequencer, int duration) {
+        double total_position = sequencer / (double) SEQUENCER_TICKS_PER_MEASURE
+                + duration / (double) DURATION_TICKS_PER_MEASURE;
+        int measure = (int) Math.floor(total_position);
+        double position = total_position - measure;
         return new Position(measure, position);
     }
 
@@ -319,10 +351,10 @@ class VOSParser {
     }
 
     private static int readInt(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xFF) << 24)
-                | ((bytes[offset + 1] & 0xFF) << 16)
-                | ((bytes[offset + 2] & 0xFF) << 8)
-                | (bytes[offset + 3] & 0xFF);
+        return (bytes[offset] & 0xFF)
+                | ((bytes[offset + 1] & 0xFF) << 8)
+                | ((bytes[offset + 2] & 0xFF) << 16)
+                | ((bytes[offset + 3] & 0xFF) << 24);
     }
 
     private static final class Segment {
@@ -353,6 +385,10 @@ class VOSParser {
             this.keyboard = keyboard;
             this.type = type;
         }
+    }
+
+    private static final class VOSChannel {
+        final List<VOSNote> notes = new ArrayList<VOSNote>();
     }
 
     private static final class Position {

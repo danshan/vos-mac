@@ -49,6 +49,15 @@ class ChartDisplayTest {
     }
 
     @Test
+    void levelComparatorSortsNumbersBeforeUnknown() {
+        assertEquals(-1, Integer.signum(ChartDisplay.compareLevels("2", "10")));
+        assertEquals(1, Integer.signum(ChartDisplay.compareLevels("10", "2")));
+        assertEquals(-1, Integer.signum(ChartDisplay.compareLevels("10", "Unknown")));
+        assertEquals(1, Integer.signum(ChartDisplay.compareLevels("Unknown", "2")));
+        assertEquals(0, ChartDisplay.compareLevels("Unknown", "Unknown"));
+    }
+
+    @Test
     void chartTableModelExposesFormatAtColumnOne() {
         ChartTableModel model = new ChartTableModel();
         model.addRow(new StubChart(Chart.TYPE.OJN, 4, 512, 7, "", "", ""));

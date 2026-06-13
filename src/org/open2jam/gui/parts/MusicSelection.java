@@ -27,6 +27,7 @@ import org.open2jam.GameOptions;
 import org.open2jam.GameOptions.ChannelMod;
 import org.open2jam.GameOptions.SpeedType;
 import org.open2jam.GameOptions.VisibilityMod;
+import org.open2jam.gui.ChartDisplay;
 import org.open2jam.gui.ChartListTableModel;
 import org.open2jam.gui.ChartModelLoader;
 import org.open2jam.gui.ChartTableModel;
@@ -156,6 +157,7 @@ public class MusicSelection extends javax.swing.JPanel
             loadDir(cwd);
         
         table_sorter = new TableRowSorter<ChartListTableModel>(model_songlist);
+        table_sorter.setComparator(1, ChartDisplay.levelComparator());
         table_songlist.setRowSorter(table_sorter);
         txt_filter.getDocument().addDocumentListener(new DocumentListener() {
             @Override
@@ -172,6 +174,8 @@ public class MusicSelection extends javax.swing.JPanel
         col = table_songlist.getColumnModel().getColumn(1);
         col.setPreferredWidth(30);
         col = table_songlist.getColumnModel().getColumn(2);
+        col.setPreferredWidth(60);
+        col = table_songlist.getColumnModel().getColumn(3);
         col.setPreferredWidth(80);
 
         table_chartlist.getSelectionModel().addListSelectionListener(new ListSelectionListener() {

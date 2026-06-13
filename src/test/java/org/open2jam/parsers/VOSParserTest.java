@@ -122,9 +122,14 @@ class VOSParserTest {
         File chartFile = writeLongNoteFixture("long.vos", 5);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
-        EventList events = chart.getEvents().getOnlyLongNotes();
+        EventList allEvents = chart.getEvents();
+        assertEquals(2, allEvents.size());
+
+        EventList events = allEvents.getOnlyLongNotes();
 
         assertEquals(2, events.size());
+        assertEquals(Event.Channel.NOTE_1, events.get(0).getChannel());
+        assertEquals(Event.Channel.NOTE_1, events.get(1).getChannel());
         assertEquals(Event.Flag.HOLD, events.get(0).getFlag());
         assertEquals(Event.Flag.RELEASE, events.get(1).getFlag());
         assertEquals(1, events.get(0).getMeasure());

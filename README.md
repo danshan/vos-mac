@@ -49,7 +49,7 @@ Known limitations:
 
 * MP3 sample decoding is not implemented in the new OpenAL backend.
 * BGA video still depends on the existing VLC/VLCJ path and has not been revalidated on every platform.
-* The old bundled LWJGL 2 and FMOD native libraries are no longer the gameplay path for macOS arm64.
+* Legacy LWJGL 2, JInput, FMOD Ex, and old native bundles have been removed from this fork.
 
 Current Features
 ----------------

@@ -205,13 +205,15 @@ class VOSParserTest {
     }
 
     @Test
-    void usesVosDroidFallbackPianoInstrumentForPlayableOnlyLiveMidi() throws Exception {
-        File chartFile = writePlayableChannelFixture("playable-only-live-midi.vos", 5);
+    void usesEmbeddedMidiProgramForPlayableOnlyLiveMidi() throws Exception {
+        File chartFile = writePlayableChannelFixture("playable-only-live-midi.vos", 5,
+                midiWithChannelState(0, 40, 7, 96));
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_3).get(0);
 
-        assertEquals(0, firstProgramChangeForEvent(chart, event));
+        assertEquals(40, firstProgramChangeForEvent(chart, event));
+        assertEquals(96, firstControlChangeForEvent(chart, event, 7));
     }
 
     @Test
@@ -270,6 +272,26 @@ class VOSParserTest {
         return -1;
     }
 
+    private static int firstControlChangeForEvent(VOSChart chart, Event event, int controller) throws Exception {
+        SampleData sample = chart.getSamples().get((int) event.getValue());
+        assertNotNull(sample);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        sample.copyTo(output);
+        Sequence sequence = MidiSystem.getSequence(new java.io.ByteArrayInputStream(output.toByteArray()));
+        for (Track track : sequence.getTracks()) {
+            for (int i = 0; i < track.size(); i++) {
+                if (track.get(i).getMessage() instanceof ShortMessage) {
+                    ShortMessage message = (ShortMessage) track.get(i).getMessage();
+                    if (message.getCommand() == ShortMessage.CONTROL_CHANGE
+                            && message.getData1() == controller) {
+                        return message.getData2();
+                    }
+                }
+            }
+        }
+        return -1;
+    }
+
     private File writeFixture(String fileName, int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote) throws IOException {
         return writeFixture(fileName, level, includeLevel, includeChannelData, includeLongNote, "Canon in D");
@@ -298,8 +320,12 @@ class VOSParserTest {
     }
 
     private File writePlayableChannelFixture(String fileName, int level) throws IOException {
+        return writePlayableChannelFixture(fileName, level, minimalMidi());
+    }
+
+    private File writePlayableChannelFixture(String fileName, int level, byte[] embeddedMidi) throws IOException {
         byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, 0x80,
-                17, 16, true);
+                17, 16, true, embeddedMidi);
         File file = new File(tempDir, fileName);
         Files.write(file.toPath(), bytes);
         return file;
@@ -349,6 +375,14 @@ class VOSParserTest {
             boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride,
             boolean longNoteOnly, int tapKeyboard, int channelCount, int playableChannelIndex,
             boolean includeDistractorNote) throws IOException {
+        return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, noteCountOverride,
+                longNoteOnly, tapKeyboard, channelCount, playableChannelIndex, includeDistractorNote, minimalMidi());
+    }
+
+    private static byte[] buildFixture(int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride,
+            boolean longNoteOnly, int tapKeyboard, int channelCount, int playableChannelIndex,
+            boolean includeDistractorNote, byte[] embeddedMidi) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
         writeSegment(out, 0, "INF");
@@ -392,7 +426,7 @@ class VOSParserTest {
         }
 
         int channelEnd = out.size();
-        out.write(minimalMidi());
+        out.write(embeddedMidi);
         return patchSegmentAddresses(out.toByteArray(), channelEnd);
     }
 
@@ -427,6 +461,40 @@ class VOSParserTest {
         ByteArrayOutputStream track = new ByteArrayOutputStream();
         track.write(0x00);
         track.write(new byte[] {(byte) 0xFF, 0x51, 0x03, 0x07, (byte) 0xA1, 0x20});
+        track.write(0x00);
+        track.write(new byte[] {(byte) 0xFF, 0x2F, 0x00});
+        out.write("MTrk".getBytes(StandardCharsets.US_ASCII));
+        writeIntBE(out, track.size());
+        out.write(track.toByteArray());
+        return out.toByteArray();
+    }
+
+    private static byte[] midiWithChannelState(int channel, int program, int controller, int controllerValue)
+            throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("MThd".getBytes(StandardCharsets.US_ASCII));
+        writeIntBE(out, 6);
+        writeShortBE(out, 1);
+        writeShortBE(out, 1);
+        writeShortBE(out, 480);
+        ByteArrayOutputStream track = new ByteArrayOutputStream();
+        track.write(0x00);
+        track.write(new byte[] {(byte) 0xFF, 0x51, 0x03, 0x07, (byte) 0xA1, 0x20});
+        track.write(0x00);
+        track.write(0xC0 | channel);
+        track.write(program);
+        track.write(0x00);
+        track.write(0xB0 | channel);
+        track.write(controller);
+        track.write(controllerValue);
+        track.write(0x00);
+        track.write(0x90 | channel);
+        track.write(61);
+        track.write(100);
+        track.write(0x60);
+        track.write(0x80 | channel);
+        track.write(61);
+        track.write(0);
         track.write(0x00);
         track.write(new byte[] {(byte) 0xFF, 0x2F, 0x00});
         out.write("MTrk".getBytes(StandardCharsets.US_ASCII));

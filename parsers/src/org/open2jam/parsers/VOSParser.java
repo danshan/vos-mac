@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -236,8 +237,10 @@ class VOSParser {
                 List<LiveNote> live_notes = inferLiveNotes(channels, playable_source_indexes, note, midi);
                 if (live_notes.isEmpty()) {
                     int duration_ms = fallbackDurationMilliseconds(note, midi);
-                    live_notes.add(new LiveNote(0, note.channel & 0x0F, note.pitch,
-                            note.volume, duration_ms));
+                    int start_tick = toStartTick(note, midi.resolution);
+                    ChannelState state = midi.channelStateAt(note.channel & 0x0F, start_tick);
+                    live_notes.add(new LiveNote(state.programOrDefault(0), state.controllers,
+                            note.channel & 0x0F, note.pitch, note.volume, duration_ms));
                 }
                 byte[] live_midi = MidiBuilder.buildLiveNotesMIDI(live_notes);
                 int sample_id = chart.registerMidiSample("live:" + i, live_midi);
@@ -307,10 +310,12 @@ class VOSParser {
             VOSChannel source = channels.get(source_index);
             for (VOSNote note : source.notes) {
                 if (note.sequencer == playable_note.sequencer) {
-                    int duration_ms = midi.durationMilliseconds(toStartTick(note, midi.resolution),
+                    int start_tick = toStartTick(note, midi.resolution);
+                    int duration_ms = midi.durationMilliseconds(start_tick,
                             toDurationTicks(note, midi.resolution));
-                    live_notes.add(new LiveNote(source.instrument, note.channel & 0x0F, note.pitch, note.volume,
-                            duration_ms));
+                    ChannelState state = midi.channelStateAt(note.channel & 0x0F, start_tick);
+                    live_notes.add(new LiveNote(state.programOrDefault(source.instrument), state.controllers,
+                            note.channel & 0x0F, note.pitch, note.volume, duration_ms));
                 }
             }
         }
@@ -510,13 +515,16 @@ class VOSParser {
 
     private static final class LiveNote {
         final int instrument;
+        final Map<Integer, Integer> controllers;
         final int channel;
         final int pitch;
         final int volume;
         final int duration_ms;
 
-        LiveNote(int instrument, int channel, int pitch, int volume, int duration_ms) {
+        LiveNote(int instrument, Map<Integer, Integer> controllers, int channel, int pitch, int volume,
+                int duration_ms) {
             this.instrument = instrument;
+            this.controllers = new LinkedHashMap<Integer, Integer>(controllers);
             this.channel = channel;
             this.pitch = pitch;
             this.volume = volume;
@@ -564,11 +572,14 @@ class VOSParser {
     private static final class MidiModel {
         final int resolution;
         final List<TempoEvent> tempos;
+        final List<ChannelStateEvent> channel_state_events;
         final int note_count;
 
-        MidiModel(int resolution, List<TempoEvent> tempos, int note_count) {
+        MidiModel(int resolution, List<TempoEvent> tempos, List<ChannelStateEvent> channel_state_events,
+                int note_count) {
             this.resolution = resolution;
             this.tempos = tempos;
+            this.channel_state_events = channel_state_events;
             this.note_count = note_count;
         }
 
@@ -605,11 +616,31 @@ class VOSParser {
             return (int) Math.round(elapsed);
         }
 
+        ChannelState channelStateAt(int channel, int target_tick) {
+            ChannelState state = new ChannelState();
+            List<ChannelStateEvent> sorted_events = new ArrayList<ChannelStateEvent>(channel_state_events);
+            Collections.sort(sorted_events);
+            for (ChannelStateEvent event : sorted_events) {
+                if (event.tick > target_tick) {
+                    break;
+                }
+                if (event.channel != channel) {
+                    continue;
+                }
+                if (event.program) {
+                    state.program = event.value;
+                } else {
+                    state.controllers.put(event.controller, event.value);
+                }
+            }
+            return state;
+        }
+
         static MidiModel parseQuietly(byte[] data) {
             try {
                 return parse(data);
             } catch (IllegalArgumentException e) {
-                return new MidiModel(480, new ArrayList<TempoEvent>(), 0);
+                return new MidiModel(480, new ArrayList<TempoEvent>(), new ArrayList<ChannelStateEvent>(), 0);
             }
         }
 
@@ -633,6 +664,7 @@ class VOSParser {
             }
 
             List<TempoEvent> tempos = new ArrayList<TempoEvent>();
+            List<ChannelStateEvent> channel_state_events = new ArrayList<ChannelStateEvent>();
             int note_count = 0;
             for (int i = 0; i < track_count; i++) {
                 if (!"MTrk".equals(reader.readAscii(4))) {
@@ -642,15 +674,18 @@ class VOSParser {
                 byte[] track = reader.readBytes(length);
                 ParsedTrack parsed = parseTrack(track);
                 tempos.addAll(parsed.tempos);
+                channel_state_events.addAll(parsed.channel_state_events);
                 note_count += parsed.note_count;
             }
             Collections.sort(tempos);
-            return new MidiModel(division, tempos, note_count);
+            Collections.sort(channel_state_events);
+            return new MidiModel(division, tempos, channel_state_events, note_count);
         }
 
         private static ParsedTrack parseTrack(byte[] data) {
             Reader reader = new Reader(data);
             List<TempoEvent> tempos = new ArrayList<TempoEvent>();
+            List<ChannelStateEvent> channel_state_events = new ArrayList<ChannelStateEvent>();
             Map<String, Integer> active_notes = new HashMap<String, Integer>();
             int tick = 0;
             int running_status = -1;
@@ -686,9 +721,17 @@ class VOSParser {
                     } else {
                         active_notes.put(key, tick);
                     }
-                } else if ((status >= 0xA0 && status <= 0xBF) || (status >= 0xE0 && status <= 0xEF)) {
+                } else if (status >= 0xB0 && status <= 0xBF) {
+                    int controller = reader.readUnsignedByte();
+                    int value = reader.readUnsignedByte();
+                    channel_state_events.add(ChannelStateEvent.controller(tick, status & 0x0F,
+                            controller, value));
+                } else if ((status >= 0xA0 && status <= 0xAF) || (status >= 0xE0 && status <= 0xEF)) {
                     reader.skip(2);
-                } else if (status >= 0xC0 && status <= 0xDF) {
+                } else if (status >= 0xC0 && status <= 0xCF) {
+                    int program = reader.readUnsignedByte();
+                    channel_state_events.add(ChannelStateEvent.program(tick, status & 0x0F, program));
+                } else if (status >= 0xD0 && status <= 0xDF) {
                     reader.skip(1);
                 } else if (status == 0xFF) {
                     running_status = -1;
@@ -710,7 +753,7 @@ class VOSParser {
                     throw new IllegalArgumentException("unsupported MIDI event");
                 }
             }
-            return new ParsedTrack(tempos, note_count);
+            return new ParsedTrack(tempos, channel_state_events, note_count);
         }
     }
 
@@ -726,7 +769,7 @@ class VOSParser {
             for (LiveNote note : live_notes) {
                 VOSNote raw_note = new VOSNote(0, Math.max(1, note.duration_ms * DURATION_TICKS_PER_MEASURE / 500),
                         note.channel, note.pitch, note.volume, 0, note.duration_ms > 500 ? 0x80 : 0);
-                notes.add(new MidiNote(note.instrument, raw_note));
+                notes.add(new MidiNote(note.instrument, note.controllers, raw_note));
             }
             List<TempoEvent> tempos = new ArrayList<TempoEvent>();
             tempos.add(new TempoEvent(0, 500000));
@@ -812,6 +855,11 @@ class VOSParser {
                     configured_channels.add(channel);
                     events.add(new MidiBuildEvent(0, 0,
                             new int[] {0xC0 | channel, clampMidi(midi_note.instrument)}));
+                    for (Map.Entry<Integer, Integer> controller : midi_note.controllers.entrySet()) {
+                        events.add(new MidiBuildEvent(0, 0,
+                                new int[] {0xB0 | channel, clampMidi(controller.getKey()),
+                                    clampMidi(controller.getValue())}));
+                    }
                 }
                 int start_tick = toStartTick(note, resolution);
                 int duration_ticks = toDurationTicks(note, resolution);
@@ -878,10 +926,18 @@ class VOSParser {
 
     private static final class MidiNote {
         final int instrument;
+        final Map<Integer, Integer> controllers;
         final VOSNote note;
 
         MidiNote(int instrument, VOSNote note) {
             this.instrument = instrument;
+            this.controllers = new LinkedHashMap<Integer, Integer>();
+            this.note = note;
+        }
+
+        MidiNote(int instrument, Map<Integer, Integer> controllers, VOSNote note) {
+            this.instrument = instrument;
+            this.controllers = new LinkedHashMap<Integer, Integer>(controllers);
             this.note = note;
         }
     }
@@ -900,12 +956,51 @@ class VOSParser {
         }
     }
 
+    private static final class ChannelState {
+        Integer program;
+        final Map<Integer, Integer> controllers = new LinkedHashMap<Integer, Integer>();
+
+        int programOrDefault(int fallback) {
+            return program == null ? fallback : program;
+        }
+    }
+
+    private static final class ChannelStateEvent implements Comparable<ChannelStateEvent> {
+        final int tick;
+        final int channel;
+        final boolean program;
+        final int controller;
+        final int value;
+
+        private ChannelStateEvent(int tick, int channel, boolean program, int controller, int value) {
+            this.tick = tick;
+            this.channel = channel;
+            this.program = program;
+            this.controller = controller;
+            this.value = value;
+        }
+
+        static ChannelStateEvent program(int tick, int channel, int value) {
+            return new ChannelStateEvent(tick, channel, true, -1, value);
+        }
+
+        static ChannelStateEvent controller(int tick, int channel, int controller, int value) {
+            return new ChannelStateEvent(tick, channel, false, controller, value);
+        }
+
+        public int compareTo(ChannelStateEvent other) {
+            return tick - other.tick;
+        }
+    }
+
     private static final class ParsedTrack {
         final List<TempoEvent> tempos;
+        final List<ChannelStateEvent> channel_state_events;
         final int note_count;
 
-        ParsedTrack(List<TempoEvent> tempos, int note_count) {
+        ParsedTrack(List<TempoEvent> tempos, List<ChannelStateEvent> channel_state_events, int note_count) {
             this.tempos = tempos;
+            this.channel_state_events = channel_state_events;
             this.note_count = note_count;
         }
     }

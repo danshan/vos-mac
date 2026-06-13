@@ -91,6 +91,37 @@ class VOSParserTest {
     }
 
     @Test
+    void mapsTapNotesToExistingNoteChannels() throws Exception {
+        File chartFile = writeFixture("tap.vos", 5, true, true, false);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        EventList events = chart.getEvents();
+
+        assertEquals(1, events.size());
+        Event event = events.get(0);
+        assertEquals(Event.Channel.NOTE_1, event.getChannel());
+        assertEquals(Event.Flag.NONE, event.getFlag());
+        assertEquals(0, event.getMeasure());
+        assertEquals(0.0, event.getPosition(), 0.0001);
+    }
+
+    @Test
+    void mapsLongNotesToHoldAndReleaseEvents() throws Exception {
+        File chartFile = writeLongNoteFixture("long.vos", 5);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        EventList events = chart.getEvents().getOnlyLongNotes();
+
+        assertEquals(2, events.size());
+        assertEquals(Event.Flag.HOLD, events.get(0).getFlag());
+        assertEquals(Event.Flag.RELEASE, events.get(1).getFlag());
+        assertEquals(1, events.get(0).getMeasure());
+        assertEquals(1, events.get(1).getMeasure());
+        assertEquals(0.0, events.get(0).getPosition(), 0.0001);
+        assertEquals(0.5, events.get(1).getPosition(), 0.0001);
+    }
+
+    @Test
     void directoryCanReadRequiresAtLeastOneValidVosHeader() throws Exception {
         Files.write(new File(tempDir, "invalid.vos").toPath(), new byte[] {0, 0, 0, 4});
 
@@ -129,6 +160,13 @@ class VOSParserTest {
         return file;
     }
 
+    private File writeLongNoteFixture(String fileName, int level) throws IOException {
+        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, true);
+        File file = new File(tempDir, fileName);
+        Files.write(file.toPath(), bytes);
+        return file;
+    }
+
     private File writeFixtureWithNoteCount(String fileName, int noteCount) throws IOException {
         byte[] bytes = buildFixture(4, true, true, false, "Canon in D", noteCount);
         File file = new File(tempDir, fileName);
@@ -151,6 +189,13 @@ class VOSParserTest {
     private static byte[] buildFixture(int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride)
             throws IOException {
+        return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, noteCountOverride,
+                false);
+    }
+
+    private static byte[] buildFixture(int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride,
+            boolean longNoteOnly) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
         writeSegment(out, 0, "INF");
@@ -170,11 +215,15 @@ class VOSParserTest {
         out.write(new byte[1023]);
         if (includeChannelData) {
             writeInt(out, 1);
-            writeInt(out, noteCountOverride == null ? includeLongNote ? 2 : 1 : noteCountOverride);
+            int noteCount = noteCountOverride == null ? (longNoteOnly || !includeLongNote ? 1 : 2)
+                    : noteCountOverride;
+            writeInt(out, noteCount);
             out.write(new byte[14]);
             if (noteCountOverride == null || noteCountOverride > 0) {
-                writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x00);
-                if (includeLongNote) {
+                if (!longNoteOnly) {
+                    writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x00);
+                }
+                if (includeLongNote || longNoteOnly) {
                     writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
                 }
             }

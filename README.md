@@ -1,6 +1,8 @@
 
 # vos-mac
 
+<img src="src/resources/open2jam_icon.png" alt="vos-mac icon" width="48" height="48">
+
 [![Build](https://github.com/danshan/vos-mac/actions/workflows/build.yml/badge.svg)](https://github.com/danshan/vos-mac/actions/workflows/build.yml)
 
 [English](README.md) | [简体中文](README_zh.md)

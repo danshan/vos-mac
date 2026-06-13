@@ -61,16 +61,15 @@ class VOSParserTest {
     }
 
     @Test
-    void parsesDirectoryVosFilesSortedByLevel() throws Exception {
+    void doesNotGroupDirectoryVosFilesIntoOneChartList() throws Exception {
         writeFixture("hard.vos", 9, true, false, false);
         writeFixture("easy.vos", 3, true, false, false);
 
         ChartList charts = ChartParser.parseFile(tempDir);
 
-        assertNotNull(charts);
-        assertEquals(2, charts.size());
-        assertEquals(3, charts.get(0).getLevel());
-        assertEquals(9, charts.get(1).getLevel());
+        assertFalse(VOSParser.canRead(tempDir));
+        assertNull(charts);
+        assertNull(VOSParser.parseFile(tempDir));
     }
 
     @Test

@@ -1,5 +1,6 @@
 package org.open2jam.render;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -54,6 +55,21 @@ class RenderVosKeysoundTest {
         assertTrue(Render.shouldAwaitVOSSample(chart, initial, 1.0));
         assertFalse(Render.shouldAwaitVOSSample(chart, later, 1.0));
         assertFalse(Render.shouldAwaitVOSSample(chart, release, 1.0));
+    }
+
+    @Test
+    void loadingScreenDelayIsShortAndNonNegative() {
+        assertEquals(300, Render.loadingScreenDelayMillis(1000.0, 1000.0));
+        assertEquals(150, Render.loadingScreenDelayMillis(1000.0, 1150.0));
+        assertEquals(0, Render.loadingScreenDelayMillis(1000.0, 1300.0));
+        assertEquals(0, Render.loadingScreenDelayMillis(1000.0, 1600.0));
+    }
+
+    @Test
+    void loadingImageScaleFillsTargetDimension() {
+        assertEquals(2.0f, Render.loadingImageScale(640, 320));
+        assertEquals(1.0f, Render.loadingImageScale(640, 0));
+        assertEquals(1.0f, Render.loadingImageScale(0, 320));
     }
 
     private static Event timedEvent(Event.Channel channel, Event.Flag flag, double time) {

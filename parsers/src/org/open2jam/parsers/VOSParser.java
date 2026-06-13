@@ -36,21 +36,16 @@ class VOSParser {
             return false;
         }
         if (file.isDirectory()) {
-            File[] vos_files = file.listFiles(vos_filter);
-            if (vos_files == null) {
-                return false;
-            }
-            for (File vos_file : vos_files) {
-                if (isStructurallyReadable(vos_file)) {
-                    return true;
-                }
-            }
             return false;
         }
         return file.getName().toLowerCase().endsWith(".vos") && isStructurallyReadable(file);
     }
 
     public static ChartList parseFile(File file) {
+        if (file == null || file.isDirectory()) {
+            return null;
+        }
+
         ChartList list = new ChartList();
         list.source_file = file;
 

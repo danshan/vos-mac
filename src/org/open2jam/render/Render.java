@@ -73,6 +73,8 @@ public class Render implements GameWindowCallback
     private static final int BEATS_PER_MSEC = 4 * 60 * 1000;
     
     private static final double DELAY_TIME = 1500;
+
+    private static final int MIN_LOADING_SCREEN_MILLIS = 300;
     
     /** player options */
     private final GameOptions opt;
@@ -433,6 +435,8 @@ public class Render implements GameWindowCallback
     {
         lastLoopTime = SystemTimer.getTime();
 
+        drawInitialLoadingImageImmediately();
+
         // skin load
         try {
             SkinParser sb = new SkinParser(window.getResolutionWidth(), window.getResolutionHeight());
@@ -619,8 +623,7 @@ public class Render implements GameWindowCallback
         //clean up
         System.gc();
 
-        // wait a bit.. 5 seconds at min
-        SystemTimer.sleep((int) (5000 - (SystemTimer.getTime() - lastLoopTime)));
+        SystemTimer.sleep(loadingScreenDelayMillis(lastLoopTime, SystemTimer.getTime()));
 
         lastLoopTime = SystemTimer.getTime();
         start_time = lastLoopTime + DELAY_TIME;
@@ -674,6 +677,29 @@ public class Render implements GameWindowCallback
             if(loading != null) return loading;
         }
         return chart.getCover();
+    }
+
+    private void drawInitialLoadingImageImmediately() {
+        try {
+            BufferedImage img = getInitialLoadingImage();
+            if(img == null) return;
+            Sprite s = ResourceFactory.get().getSprite(img);
+            s.setScale(loadingImageScale(window.getResolutionWidth(), img.getWidth()),
+                    loadingImageScale(window.getResolutionHeight(), img.getHeight()));
+            s.draw(0, 0);
+            window.update();
+        } catch (RuntimeException e) {
+            Logger.global.log(Level.INFO, "Unable to draw initial loading image early: {0}", e.getMessage());
+        }
+    }
+
+    static int loadingScreenDelayMillis(double loadingStartTime, double currentTime) {
+        return Math.max(0, MIN_LOADING_SCREEN_MILLIS - (int) (currentTime - loadingStartTime));
+    }
+
+    static float loadingImageScale(int targetSize, int imageSize) {
+        if(targetSize <= 0 || imageSize <= 0) return 1f;
+        return targetSize / (float) imageSize;
     }
 
     private BufferedImage loadResourceImage(String resource) {

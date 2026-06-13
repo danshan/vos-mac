@@ -33,13 +33,13 @@ class VOSParser {
                 return false;
             }
             for (File vos_file : vos_files) {
-                if (hasVOSHeader(vos_file)) {
+                if (isStructurallyReadable(vos_file)) {
                     return true;
                 }
             }
             return false;
         }
-        return file.getName().toLowerCase().endsWith(".vos") && hasVOSHeader(file);
+        return file.getName().toLowerCase().endsWith(".vos") && isStructurallyReadable(file);
     }
 
     public static ChartList parseFile(File file) {
@@ -87,6 +87,19 @@ class VOSParser {
             byte[] bytes = readAll(file);
             return bytes.length >= 4 && readInt(bytes, 0) == HEADER_MAGIC;
         } catch (IOException e) {
+            return false;
+        }
+    }
+
+    private static boolean isStructurallyReadable(File file) {
+        if (!hasVOSHeader(file)) {
+            return false;
+        }
+        try {
+            return parseVOS(file) != null;
+        } catch (IOException e) {
+            return false;
+        } catch (IllegalArgumentException e) {
             return false;
         }
     }

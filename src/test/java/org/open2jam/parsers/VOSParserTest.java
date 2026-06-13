@@ -10,6 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -104,6 +105,17 @@ class VOSParserTest {
         assertNull(ChartParser.parseFile(chartFile));
     }
 
+    @Test
+    void malformedVosDoesNotCaptureDirectoryFromBmsParser() throws Exception {
+        Files.write(new File(tempDir, "broken.vos").toPath(), new byte[] {0, 0, 0, 3});
+        writeMinimalBms("fallback.bms");
+
+        ChartList charts = ChartParser.parseFile(tempDir);
+
+        assertNotNull(charts);
+        assertEquals(Chart.TYPE.BMS, charts.get(0).type);
+    }
+
     private File writeFixture(String fileName, int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote) throws IOException {
         return writeFixture(fileName, level, includeLevel, includeChannelData, includeLongNote, "Canon in D");
@@ -121,6 +133,13 @@ class VOSParserTest {
         byte[] bytes = buildFixture(4, true, true, false, "Canon in D", noteCount);
         File file = new File(tempDir, fileName);
         Files.write(file.toPath(), bytes);
+        return file;
+    }
+
+    private File writeMinimalBms(String fileName) throws IOException {
+        File file = new File(tempDir, fileName);
+        String content = "#PLAYER 1\n#TITLE fallback\n#ARTIST test\n#PLAYLEVEL 1\n#00115:01\n";
+        Files.write(file.toPath(), content.getBytes(StandardCharsets.UTF_8));
         return file;
     }
 

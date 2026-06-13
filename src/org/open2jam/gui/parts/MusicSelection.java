@@ -56,8 +56,21 @@ public class MusicSelection extends javax.swing.JPanel
         @Override
         public void run() {
             c.setEnabled(false);
-            r.startRendering();
-            c.setEnabled(true);
+            try {
+                r.startRendering();
+            } catch (RuntimeException ex) {
+                Logger.global.log(Level.SEVERE, "Game rendering failed {0}", ex);
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        JOptionPane.showMessageDialog(MusicSelection.this,
+                                ex.getMessage(), "Game rendering failed",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                });
+            } finally {
+                c.setEnabled(true);
+            }
         }
     }
     

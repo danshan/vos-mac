@@ -1673,7 +1673,7 @@ public class Render implements GameWindowCallback
      */
     @Override
     public void windowClosed() {
-	bgaEntity.release();
+        if(bgaEntity != null) bgaEntity.release();
         soundSystem.release();
 	System.gc();        
         if (syncingLatency != null && autosyncCallback != null) {

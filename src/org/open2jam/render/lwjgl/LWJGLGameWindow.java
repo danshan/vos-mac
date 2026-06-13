@@ -33,6 +33,8 @@ import java.awt.event.WindowEvent;
 import java.lang.reflect.InvocationTargetException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.swing.JFrame;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -45,6 +47,8 @@ import org.open2jam.render.GameWindow;
 import org.open2jam.render.GameWindowCallback;
 
 public class LWJGLGameWindow implements GameWindow {
+    private static final Logger LOG = Logger.getLogger(LWJGLGameWindow.class.getName());
+
     private final Set<Integer> keysDown = new HashSet<Integer>();
     private final Object closeLock = new Object();
     private GameWindowCallback callback;
@@ -53,6 +57,7 @@ public class LWJGLGameWindow implements GameWindow {
     private boolean renderingFrame;
     private boolean closeRequested;
     private boolean closeRequestedNotifyCallback;
+    private volatile Throwable renderingFailure;
     private int width = 800;
     private int height = 600;
     private boolean fullscreen;
@@ -101,9 +106,13 @@ public class LWJGLGameWindow implements GameWindow {
         if(callback == null) throw new RuntimeException("Need callback to start rendering");
         gameRunning = true;
         closed = false;
+        renderingFailure = null;
 
         runOnEventDispatchThread(this::createWindow);
         waitForClose();
+        if(renderingFailure != null) {
+            throw new IllegalStateException("Game window failed", renderingFailure);
+        }
     }
 
     @Override
@@ -293,10 +302,14 @@ public class LWJGLGameWindow implements GameWindow {
             frame = null;
         }
         canvas = null;
-        if(notifyCallback && callback != null) callback.windowClosed();
-
-        synchronized(closeLock) {
-            closeLock.notifyAll();
+        try {
+            if(notifyCallback && callback != null) callback.windowClosed();
+        } catch (Throwable failure) {
+            LOG.log(Level.SEVERE, "Game window close callback failed", failure);
+        } finally {
+            synchronized(closeLock) {
+                closeLock.notifyAll();
+            }
         }
     }
 
@@ -336,8 +349,14 @@ public class LWJGLGameWindow implements GameWindow {
 
         @Override
         public void initGL() {
-            configureOpenGL();
-            callback.initialise();
+            try {
+                configureOpenGL();
+                callback.initialise();
+            } catch (Throwable failure) {
+                renderingFailure = failure;
+                LOG.log(Level.SEVERE, "Game window initialization failed", failure);
+                closeWindow(true);
+            }
         }
 
         @Override
@@ -346,6 +365,12 @@ public class LWJGLGameWindow implements GameWindow {
             try {
                 renderFrame();
                 swapBuffers();
+            } catch (Throwable failure) {
+                renderingFailure = failure;
+                LOG.log(Level.SEVERE, "Game window rendering failed", failure);
+                closeRequested = true;
+                closeRequestedNotifyCallback = true;
+                gameRunning = false;
             } finally {
                 renderingFrame = false;
             }

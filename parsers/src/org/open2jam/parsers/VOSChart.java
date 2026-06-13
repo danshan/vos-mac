@@ -114,6 +114,9 @@ public class VOSChart extends Chart {
     }
 
     public EventList getEvents() {
-        return events == null ? new EventList() : events;
+        if (events == null) {
+            events = new EventList();
+        }
+        return events;
     }
 }

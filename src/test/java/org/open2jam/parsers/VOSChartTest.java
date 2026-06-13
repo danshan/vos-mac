@@ -2,6 +2,7 @@ package org.open2jam.parsers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
@@ -39,5 +40,14 @@ class VOSChartTest {
 
         assertFalse(chart.hasKnownLevel());
         assertEquals(0, chart.getLevel());
+    }
+
+    @Test
+    void cachesEmptyEventList() {
+        VOSChart chart = new VOSChart();
+
+        EventList firstEvents = chart.getEvents();
+
+        assertSame(firstEvents, chart.getEvents());
     }
 }

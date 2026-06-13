@@ -1,6 +1,10 @@
 
 # vos-mac
 
+[![Build](https://github.com/danshan/vos-mac/actions/workflows/build.yml/badge.svg)](https://github.com/danshan/vos-mac/actions/workflows/build.yml)
+
+[English](README.md) | [简体中文](README_zh.md)
+
 vos-mac is a macOS-focused fork of [open2jam](https://github.com/open2jamorg/open2jam), an open source emulator of [O2Jam](http://o2jam.wikia.com/wiki/O2Jam).
 
 This fork keeps the original open2jam gameplay and file-format work, while updating the runtime so the application can build and run on current JDKs and Apple Silicon macOS.
@@ -29,6 +33,10 @@ The main changes in vos-mac are runtime and platform support changes:
 * Updated JNA from the bundled legacy x86-era jar to Maven-managed JNA 5.x.
 * Added an executable shaded jar build with a proper `Main-Class` manifest.
 * Added keyboard handling that supports current key mapping flows, including Space and semicolon.
+* Added VOS chart parsing and playback support, including deterministic MIDI sample rendering for VOS keysounds.
+* Added default VOS song selection and loading visuals for charts that do not include cover art.
+* Hardened gameplay window startup and failure cleanup so rendering initialization failures return control to the song selection UI instead of leaving a blank window.
+* Added GitHub Actions CI for online Maven builds, tests, package creation, and packaged jar artifacts.
 * Removed the need for Rosetta or an x86_64 JDK on Apple Silicon.
 
 Platform support
@@ -56,8 +64,12 @@ Current Features
 
 * Supports OJN/OJM files, VOS files, and BMS files.
     * Partially supports BGA for BMS files. (Image backgrounds and movie files using VLC)
+    * VOS support includes chart parsing, generated MIDI-backed keysounds, default cover/loading visuals, and playback timing fixes.
 * Works on current JDKs with Maven-managed LWJGL 3 natives.
     * Verified for macOS arm64 with JDK 17.
+* GitHub Actions online build:
+    * Runs Maven tests and package verification on pushes and pull requests targeting `master`.
+    * Uploads packaged jar artifacts from successful workflow runs.
 * Music directory selection
     * You can put songs in multiple directories. open2jam keeps track of each of them separately.
 * Adjustable KEY/BGM volume.
@@ -86,7 +98,7 @@ You need JDK 17 or later and Maven.
 Build the project with:
 
 ```
-mvn -s .mvn/settings.xml -DskipTests package
+mvn -s .mvn/settings.xml verify
 ```
 
 Run the packaged jar on macOS with:

@@ -1,0 +1,42 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  maven:
+    name: Maven build
+    runs-on: macos-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Build and test
+        run: mvn --batch-mode -s .mvn/settings.xml verify
+
+      - name: Stage packaged jar
+        run: |
+          mkdir -p staging
+          cp target/open2jam-*.jar staging/
+
+      - name: Upload packaged jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: open2jam-package
+          path: staging/*.jar

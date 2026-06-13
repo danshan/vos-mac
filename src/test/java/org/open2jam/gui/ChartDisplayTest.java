@@ -58,6 +58,15 @@ class ChartDisplayTest {
     }
 
     @Test
+    void levelComparatorUsesStableFallbackOrdering() {
+        assertEquals(-1, Integer.signum(ChartDisplay.compareLevels("7", "abc")));
+        assertEquals(-1, Integer.signum(ChartDisplay.compareLevels("7", null)));
+        assertEquals(-1, Integer.signum(ChartDisplay.compareLevels("Unknown", "abc")));
+        assertEquals(1, Integer.signum(ChartDisplay.compareLevels(null, "7")));
+        assertEquals(0, ChartDisplay.compareLevels(null, null));
+    }
+
+    @Test
     void chartTableModelExposesFormatAtColumnOne() {
         ChartTableModel model = new ChartTableModel();
         model.addRow(new StubChart(Chart.TYPE.OJN, 4, 512, 7, "", "", ""));

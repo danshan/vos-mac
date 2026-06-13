@@ -1537,7 +1537,7 @@ public class MusicSelection extends javax.swing.JPanel
         lbl_title.setText(resizeString(selected_header.getTitle(), 30));
         lbl_filename.setText(resizeString(selected_header.getSource().getName(), 30));
         lbl_genre.setText(resizeString(selected_header.getGenre(), 30));
-        lbl_level.setText(selected_header.getLevel()+"");
+        lbl_level.setText(ChartDisplay.level(selected_header));
         lbl_bpm.setText(bpm_format.format(selected_header.getBPM()));
         lbl_notes.setText(selected_header.getNoteCount()+"");
 	lbl_keys.setText(selected_header.getKeys()+"");

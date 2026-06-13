@@ -79,11 +79,11 @@ git commit -m "test: add junit harness"
 **Files:**
 - Modify: `parsers/src/org/open2jam/parsers/Chart.java`
 - Create: `parsers/src/org/open2jam/parsers/VOSChart.java`
-- Test: `src/test/java/org/open2jam/parsers/VOSParserTest.java`
+- Test: `src/test/java/org/open2jam/parsers/VOSChartTest.java`
 
-- [ ] **Step 1: Write metadata tests**
+- [ ] **Step 1: Write chart metadata tests**
 
-Create `src/test/java/org/open2jam/parsers/VOSParserTest.java`:
+Create `src/test/java/org/open2jam/parsers/VOSChartTest.java`:
 
 ```java
 package org.open2jam.parsers;
@@ -92,27 +92,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.Arrays;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
-class VOSParserTest {
-    @TempDir
-    File tempDir;
-
+class VOSChartTest {
     @Test
-    void parsesKnownLevelMetadata() throws Exception {
-        File chartFile = writeFixture("known.vos", 7, true, false);
+    void storesKnownLevelMetadata() {
+        VOSChart chart = new VOSChart();
+        chart.setSource(new File("known.vos"));
+        chart.setTitle("Canon in D");
+        chart.setArtist("Pachelbel");
+        chart.setGenre("Classical");
+        chart.setNoter("ReVanTis");
+        chart.setDuration(123);
+        chart.setLevel(7);
+        chart.setNoteCount(11);
 
-        ChartList charts = ChartParser.parseFile(chartFile);
-
-        assertEquals(1, charts.size());
-        VOSChart chart = (VOSChart) charts.get(0);
         assertEquals(Chart.TYPE.VOS, chart.type);
         assertEquals("Canon in D", chart.getTitle());
         assertEquals("Pachelbel", chart.getArtist());
@@ -121,102 +116,17 @@ class VOSParserTest {
         assertEquals(123, chart.getDuration());
         assertTrue(chart.hasKnownLevel());
         assertEquals(7, chart.getLevel());
+        assertEquals(11, chart.getNoteCount());
         assertFalse(chart.hasCover());
     }
 
     @Test
-    void parsesMissingLevelAsUnknownLevel() throws Exception {
-        File chartFile = writeFixture("missing-level.vos", 0, false, false);
+    void storesMissingLevelAsUnknownLevel() {
+        VOSChart chart = new VOSChart();
+        chart.markLevelUnknown();
 
-        ChartList charts = ChartParser.parseFile(chartFile);
-
-        assertEquals(1, charts.size());
-        VOSChart chart = (VOSChart) charts.get(0);
         assertFalse(chart.hasKnownLevel());
         assertEquals(0, chart.getLevel());
-    }
-
-    static File writeFixture(String fileName, int level, boolean includeLevel, boolean includeLongNote) throws IOException {
-        byte[] bytes = buildFixture(level, includeLevel, includeLongNote);
-        File file = new File(System.getProperty("java.io.tmpdir"), fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
-    }
-
-    static byte[] buildFixture(int level, boolean includeLevel, boolean includeLongNote) throws IOException {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        writeInt(out, 3);
-        writeSegment(out, 0, "INF");
-        writeSegment(out, 0, "MID");
-        writeSegment(out, 0, "EOF");
-        writeString(out, "Canon in D");
-        writeString(out, "Pachelbel");
-        writeString(out, "");
-        writeString(out, "ReVanTis");
-        out.write(0x09);
-        out.write(0x00);
-        writeInt(out, 123000);
-        if (includeLevel) {
-            out.write(level);
-        }
-        byte[] padding = new byte[1023];
-        out.write(padding);
-        writeInt(out, 1);
-        writeInt(out, includeLongNote ? 2 : 1);
-        out.write(new byte[14]);
-        writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x80);
-        if (includeLongNote) {
-            writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
-        }
-        return patchSegmentAddresses(out.toByteArray());
-    }
-
-    private static byte[] patchSegmentAddresses(byte[] bytes) {
-        int infAddress = 64;
-        int midAddress = bytes.length;
-        writeInt(bytes, 4, infAddress);
-        writeInt(bytes, 24, midAddress);
-        writeInt(bytes, 44, midAddress);
-        return bytes;
-    }
-
-    private static void writeSegment(ByteArrayOutputStream out, int address, String name) throws IOException {
-        writeInt(out, address);
-        byte[] nameBytes = new byte[16];
-        byte[] rawName = name.getBytes(Charset.forName("GB2312"));
-        System.arraycopy(rawName, 0, nameBytes, 0, rawName.length);
-        out.write(nameBytes);
-    }
-
-    private static void writeString(ByteArrayOutputStream out, String value) throws IOException {
-        byte[] bytes = value.getBytes(Charset.forName("GB2312"));
-        out.write(bytes.length);
-        out.write(bytes);
-    }
-
-    private static void writeNote(ByteArrayOutputStream out, int sequencer, int duration, int channel,
-            int pitch, int volume, int keyboard, int type) throws IOException {
-        writeInt(out, sequencer);
-        writeInt(out, duration);
-        out.write(channel);
-        out.write(pitch);
-        out.write(volume);
-        out.write(keyboard);
-        out.write(type);
-    }
-
-    private static void writeInt(ByteArrayOutputStream out, int value) throws IOException {
-        out.write((value >>> 24) & 0xFF);
-        out.write((value >>> 16) & 0xFF);
-        out.write((value >>> 8) & 0xFF);
-        out.write(value & 0xFF);
-    }
-
-    private static void writeInt(byte[] bytes, int offset, int value) {
-        bytes[offset] = (byte) ((value >>> 24) & 0xFF);
-        bytes[offset + 1] = (byte) ((value >>> 16) & 0xFF);
-        bytes[offset + 2] = (byte) ((value >>> 8) & 0xFF);
-        bytes[offset + 3] = (byte) (value & 0xFF);
     }
 }
 ```
@@ -226,7 +136,7 @@ class VOSParserTest {
 Run:
 
 ```bash
-mvn -s .mvn/settings.xml -Dtest=VOSParserTest test
+mvn -s .mvn/settings.xml -Dtest=VOSChartTest test
 ```
 
 Expected: compile fails because `VOSChart` is not defined and `Chart.TYPE.VOS` does not exist.
@@ -360,10 +270,7 @@ public class VOSChart extends Chart {
     }
 
     public EventList getEvents() {
-        if (events == null) {
-            return VOSParser.parseChart(this);
-        }
-        return events;
+        return events == null ? new EventList() : events;
     }
 }
 ```
@@ -373,15 +280,15 @@ public class VOSChart extends Chart {
 Run:
 
 ```bash
-mvn -s .mvn/settings.xml -Dtest=VOSParserTest test
+mvn -s .mvn/settings.xml -Dtest=VOSChartTest test
 ```
 
-Expected: compile fails because `VOSParser` is not defined. This confirms the next task owns parser behavior.
+Expected: `VOSChartTest` passes and the repository remains compileable before parser behavior is added.
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add pom.xml parsers/src/org/open2jam/parsers/Chart.java parsers/src/org/open2jam/parsers/VOSChart.java src/test/java/org/open2jam/parsers/VOSParserTest.java
+git add parsers/src/org/open2jam/parsers/Chart.java parsers/src/org/open2jam/parsers/VOSChart.java src/test/java/org/open2jam/parsers/VOSChartTest.java
 git commit -m "feat: add vos chart metadata model"
 ```
 
@@ -394,7 +301,155 @@ git commit -m "feat: add vos chart metadata model"
 - Modify: `parsers/src/org/open2jam/parsers/ChartParser.java`
 - Test: `src/test/java/org/open2jam/parsers/VOSParserTest.java`
 
-- [ ] **Step 1: Register VOS dispatch**
+- [ ] **Step 1: Write parser metadata tests**
+
+Create `src/test/java/org/open2jam/parsers/VOSParserTest.java`:
+
+```java
+package org.open2jam.parsers;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class VOSParserTest {
+    @TempDir
+    File tempDir;
+
+    @Test
+    void parsesKnownLevelMetadata() throws Exception {
+        File chartFile = writeFixture("known.vos", 7, true, false);
+
+        ChartList charts = ChartParser.parseFile(chartFile);
+
+        assertEquals(1, charts.size());
+        VOSChart chart = (VOSChart) charts.get(0);
+        assertEquals(Chart.TYPE.VOS, chart.type);
+        assertEquals("Canon in D", chart.getTitle());
+        assertEquals("Pachelbel", chart.getArtist());
+        assertEquals("Classical", chart.getGenre());
+        assertEquals("ReVanTis", chart.getNoter());
+        assertEquals(123, chart.getDuration());
+        assertTrue(chart.hasKnownLevel());
+        assertEquals(7, chart.getLevel());
+        assertFalse(chart.hasCover());
+    }
+
+    @Test
+    void parsesMissingLevelAsUnknownLevel() throws Exception {
+        File chartFile = writeFixture("missing-level.vos", 0, false, false);
+
+        ChartList charts = ChartParser.parseFile(chartFile);
+
+        assertEquals(1, charts.size());
+        VOSChart chart = (VOSChart) charts.get(0);
+        assertFalse(chart.hasKnownLevel());
+        assertEquals(0, chart.getLevel());
+    }
+
+    File writeFixture(String fileName, int level, boolean includeLevel, boolean includeLongNote) throws IOException {
+        byte[] bytes = buildFixture(level, includeLevel, includeLongNote);
+        File file = new File(tempDir, fileName);
+        Files.write(file.toPath(), bytes);
+        return file;
+    }
+
+    static byte[] buildFixture(int level, boolean includeLevel, boolean includeLongNote) throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        writeInt(out, 3);
+        writeSegment(out, 0, "INF");
+        writeSegment(out, 0, "MID");
+        writeSegment(out, 0, "EOF");
+        writeString(out, "Canon in D");
+        writeString(out, "Pachelbel");
+        writeString(out, "");
+        writeString(out, "ReVanTis");
+        out.write(0x09);
+        out.write(0x00);
+        writeInt(out, 123000);
+        if (includeLevel) {
+            out.write(level);
+        }
+        out.write(new byte[1023]);
+        writeInt(out, 1);
+        writeInt(out, includeLongNote ? 2 : 1);
+        out.write(new byte[14]);
+        writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x00);
+        if (includeLongNote) {
+            writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
+        }
+        return patchSegmentAddresses(out.toByteArray());
+    }
+
+    private static byte[] patchSegmentAddresses(byte[] bytes) {
+        int infAddress = 64;
+        int midAddress = bytes.length;
+        writeInt(bytes, 4, infAddress);
+        writeInt(bytes, 24, midAddress);
+        writeInt(bytes, 44, midAddress);
+        return bytes;
+    }
+
+    private static void writeSegment(ByteArrayOutputStream out, int address, String name) throws IOException {
+        writeInt(out, address);
+        byte[] nameBytes = new byte[16];
+        byte[] rawName = name.getBytes(Charset.forName("GB2312"));
+        System.arraycopy(rawName, 0, nameBytes, 0, rawName.length);
+        out.write(nameBytes);
+    }
+
+    private static void writeString(ByteArrayOutputStream out, String value) throws IOException {
+        byte[] bytes = value.getBytes(Charset.forName("GB2312"));
+        out.write(bytes.length);
+        out.write(bytes);
+    }
+
+    private static void writeNote(ByteArrayOutputStream out, int sequencer, int duration, int channel,
+            int pitch, int volume, int keyboard, int type) throws IOException {
+        writeInt(out, sequencer);
+        writeInt(out, duration);
+        out.write(channel);
+        out.write(pitch);
+        out.write(volume);
+        out.write(keyboard);
+        out.write(type);
+    }
+
+    private static void writeInt(ByteArrayOutputStream out, int value) throws IOException {
+        out.write((value >>> 24) & 0xFF);
+        out.write((value >>> 16) & 0xFF);
+        out.write((value >>> 8) & 0xFF);
+        out.write(value & 0xFF);
+    }
+
+    private static void writeInt(byte[] bytes, int offset, int value) {
+        bytes[offset] = (byte) ((value >>> 24) & 0xFF);
+        bytes[offset + 1] = (byte) ((value >>> 16) & 0xFF);
+        bytes[offset + 2] = (byte) ((value >>> 8) & 0xFF);
+        bytes[offset + 3] = (byte) (value & 0xFF);
+    }
+}
+```
+
+- [ ] **Step 2: Run parser tests to verify failure**
+
+Run:
+
+```bash
+mvn -s .mvn/settings.xml -Dtest=VOSParserTest test
+```
+
+Expected: tests fail because `ChartParser` does not dispatch `.vos` files yet.
+
+- [ ] **Step 3: Register VOS dispatch**
 
 Modify `parsers/src/org/open2jam/parsers/ChartParser.java`:
 
@@ -410,7 +465,7 @@ public static ChartList parseFile(File file)
 }
 ```
 
-- [ ] **Step 2: Implement parser skeleton with header parsing**
+- [ ] **Step 4: Implement parser skeleton with header parsing**
 
 Create `parsers/src/org/open2jam/parsers/VOSParser.java`:
 
@@ -806,7 +861,7 @@ class VOSParser {
 }
 ```
 
-- [ ] **Step 3: Run metadata tests**
+- [ ] **Step 5: Run metadata tests**
 
 Run:
 
@@ -816,7 +871,7 @@ mvn -s .mvn/settings.xml -Dtest=VOSParserTest test
 
 Expected: `parsesKnownLevelMetadata` and `parsesMissingLevelAsUnknownLevel` pass.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add parsers/src/org/open2jam/parsers/ChartParser.java parsers/src/org/open2jam/parsers/VOSParser.java src/test/java/org/open2jam/parsers/VOSParserTest.java

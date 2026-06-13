@@ -88,13 +88,23 @@ VosDroid 的 note 结构显示每个 note 为 13 bytes:
 - `src/org/open2jam/gui/ChartTableModel.java`.
 - `src/org/open2jam/gui/ChartListTableModel.java`.
 
-当前这两处直接显示 `c.getLevel()`. 新设计应增加一个小型 display helper:
+当前这两处直接显示 `c.getLevel()`. 新设计应增加小型 display helper, 统一处理难度和文件类型显示.
+
+难度显示:
 
 - 非 VOS chart: 返回 `String.valueOf(c.getLevel())`.
 - VOS chart 且 `levelKnown == true`: 返回 `String.valueOf(c.getLevel())`.
 - VOS chart 且 `levelKnown == false`: 返回 `Unknown`.
 
 表格排序仍使用 `Chart.compareTo()` 的 `getLevel()` 数值, 不在第一版引入 UI 层自定义排序.
+
+文件类型显示:
+
+- 在歌曲列表或文件列表中新增格式类型列.
+- OJN/OJM chart 显示 `O2Jam`.
+- VOS chart 显示 `VOS`.
+- BMS, SM, SNP 等已有格式按现有 `Chart.TYPE` 显示稳定的人类可读名称.
+- 该列只表达谱面来源格式, 不影响歌曲排序, 难度选择, 或 gameplay 行为.
 
 ## 默认缩略图
 
@@ -126,6 +136,7 @@ mvn -s .mvn/settings.xml -DskipTests package
 - 把 `.vos` 文件加入歌曲目录后, 歌曲列表能扫描到该 chart.
 - 有 `Level` 的 VOS 显示数值难度.
 - 缺失 `Level` 的 VOS 显示 `Unknown`.
+- 歌曲或文件列表能显示 chart 文件类型, 例如 O2Jam 和 VOS.
 - VOS 无 cover 时显示默认缩略图.
 - 进入游戏后轨道, note, long note, 判定方式保持当前 open2jam 行为.
 

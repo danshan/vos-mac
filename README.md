@@ -54,7 +54,7 @@ Known limitations:
 Current Features
 ----------------
 
-* Supports OJN/OJM files and BMS files.
+* Supports OJN/OJM files, VOS files, and BMS files.
     * Partially supports BGA for BMS files. (Image backgrounds and movie files using VLC)
 * Works on current JDKs with Maven-managed LWJGL 3 natives.
     * Verified for macOS arm64 with JDK 17.

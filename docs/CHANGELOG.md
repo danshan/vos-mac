@@ -1,3 +1,26 @@
+vos-mac macOS arm64 migration
+=============================
+
+This fork is derived from the original open2jam project at https://github.com/open2jamorg/open2jam.
+
+The migration focuses on making the application build and run on current macOS arm64 systems:
+
+* Replaced the Ant/NetBeans build with a Maven/JDK 17 build.
+* Migrated the rendering backend from LWJGL 2 Display APIs to LWJGL 3 OpenGL.
+* Hosted the gameplay OpenGL context in an AWT canvas so it can coexist with the existing Swing UI on macOS.
+* Fixed Retina/HiDPI viewport sizing for gameplay rendering.
+* Replaced FMOD Ex native audio with LWJGL 3 OpenAL and STB Vorbis.
+* Replaced the legacy bundled JNA jar with Maven-managed JNA 5.x.
+* Added an executable shaded jar manifest.
+* Updated keyboard capture and mapping support for current JDKs.
+
+Current verified platform support:
+
+* macOS arm64.
+* JDK 17.
+
+Other platforms are not currently validated by this fork.
+
 Alpha 7
 =======
 

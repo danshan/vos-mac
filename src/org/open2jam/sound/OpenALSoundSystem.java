@@ -39,6 +39,10 @@ import java.nio.ShortBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiSystem;
+import javax.sound.midi.Sequence;
+import javax.sound.midi.Sequencer;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.openal.AL;
 import org.lwjgl.openal.ALC;
@@ -50,6 +54,7 @@ public class OpenALSoundSystem implements SoundSystem {
     private final long context;
     private final List<Integer> buffers = new ArrayList<Integer>();
     private final List<OpenALSoundInstance> activeSources = new ArrayList<OpenALSoundInstance>();
+    private final List<MidiSoundInstance> activeMidi = new ArrayList<MidiSoundInstance>();
     private float masterVolume = 1.0f;
     private float bgmVolume = 1.0f;
     private float keyVolume = 1.0f;
@@ -79,7 +84,10 @@ public class OpenALSoundSystem implements SoundSystem {
             throw new SoundSystemException(e);
         }
 
-        DecodedAudio audio = decode(out.toByteArray(), sample.getType());
+        byte[] data = out.toByteArray();
+        if(sample.getType() == SampleData.Type.MIDI) return new MidiSound(data);
+
+        DecodedAudio audio = decode(data, sample.getType());
         if(audio == null) return new SilentSound();
 
         int buffer = alGenBuffers();
@@ -92,6 +100,9 @@ public class OpenALSoundSystem implements SoundSystem {
     @Override
     public void release() {
         for(OpenALSoundInstance instance : new ArrayList<OpenALSoundInstance>(activeSources)) {
+            instance.stop();
+        }
+        for(MidiSoundInstance instance : new ArrayList<MidiSoundInstance>(activeMidi)) {
             instance.stop();
         }
         for(Integer buffer : buffers) {
@@ -111,6 +122,14 @@ public class OpenALSoundSystem implements SoundSystem {
             if(!instance.isPlaying()) {
                 instance.delete();
                 iterator.remove();
+            }
+        }
+        Iterator<MidiSoundInstance> midiIterator = activeMidi.iterator();
+        while(midiIterator.hasNext()) {
+            MidiSoundInstance instance = midiIterator.next();
+            if(!instance.isPlaying()) {
+                instance.close();
+                midiIterator.remove();
             }
         }
     }
@@ -138,6 +157,9 @@ public class OpenALSoundSystem implements SoundSystem {
         speed = Math.max(0.25f, Math.min(4.0f, factor));
         for(OpenALSoundInstance instance : activeSources) {
             alSourcef(instance.source, AL_PITCH, speed);
+        }
+        for(MidiSoundInstance instance : activeMidi) {
+            instance.setTempoFactor(speed);
         }
     }
 
@@ -255,6 +277,66 @@ public class OpenALSoundSystem implements SoundSystem {
     private static class SilentSoundInstance implements SoundInstance {
         @Override
         public void stop() {
+        }
+    }
+
+    private class MidiSound implements Sound {
+        private final byte[] data;
+
+        private MidiSound(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public SoundInstance play(SoundChannel soundChannel, float volume, float pan) throws SoundSystemException {
+            try {
+                Sequence sequence = MidiSystem.getSequence(new java.io.ByteArrayInputStream(data));
+                Sequencer sequencer = MidiSystem.getSequencer();
+                sequencer.open();
+                sequencer.setSequence(sequence);
+                sequencer.setTempoFactor(speed);
+                MidiSoundInstance instance = new MidiSoundInstance(sequencer);
+                activeMidi.add(instance);
+                sequencer.start();
+                return instance;
+            } catch (InvalidMidiDataException e) {
+                throw new SoundSystemException(e);
+            } catch (javax.sound.midi.MidiUnavailableException e) {
+                throw new SoundSystemException(e);
+            } catch (IOException e) {
+                throw new SoundSystemException(e);
+            }
+        }
+    }
+
+    private class MidiSoundInstance implements SoundInstance {
+        private final Sequencer sequencer;
+
+        private MidiSoundInstance(Sequencer sequencer) {
+            this.sequencer = sequencer;
+        }
+
+        @Override
+        public void stop() {
+            if(sequencer.isOpen()) {
+                sequencer.stop();
+                close();
+            }
+            activeMidi.remove(this);
+        }
+
+        private boolean isPlaying() {
+            return sequencer.isOpen() && sequencer.isRunning();
+        }
+
+        private void setTempoFactor(float factor) {
+            if(sequencer.isOpen()) {
+                sequencer.setTempoFactor(factor);
+            }
+        }
+
+        private void close() {
+            if(sequencer.isOpen()) sequencer.close();
         }
     }
 

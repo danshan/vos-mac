@@ -8,7 +8,7 @@ import java.io.*;
  */
 public class SampleData {
 
-    public enum Type { WAV, WAV_NO_HEADER, OGG, MP3 };
+    public enum Type { WAV, WAV_NO_HEADER, OGG, MP3, MIDI };
     
     private InputStream input;
     private final Type type;

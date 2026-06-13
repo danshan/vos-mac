@@ -102,7 +102,7 @@ class VOSParserTest {
 
         assertFalse(samples.isEmpty());
         assertTrue(samples.containsKey((int) event.getValue()));
-        assertEquals(SampleData.Type.WAV, samples.get((int) event.getValue()).getType());
+        assertEquals(SampleData.Type.MIDI, samples.get((int) event.getValue()).getType());
     }
 
     @Test
@@ -164,10 +164,10 @@ class VOSParserTest {
         assertEquals(Event.Channel.NOTE_1, events.get(1).getChannel());
         assertEquals(Event.Flag.HOLD, events.get(0).getFlag());
         assertEquals(Event.Flag.RELEASE, events.get(1).getFlag());
-        assertEquals(1, events.get(0).getMeasure());
-        assertEquals(1, events.get(1).getMeasure());
-        assertEquals(0.0, events.get(0).getPosition(), 0.0001);
-        assertEquals(0.5, events.get(1).getPosition(), 0.0001);
+        assertEquals(0, events.get(0).getMeasure());
+        assertEquals(0, events.get(1).getMeasure());
+        assertEquals(0.25, events.get(0).getPosition(), 0.0001);
+        assertEquals(0.375, events.get(1).getPosition(), 0.0001);
 
         allEvents.fixEventList(EventList.FixMethod.OPEN2JAM, true);
         EventList fixedEvents = allEvents.getOnlyLongNotes();
@@ -349,7 +349,9 @@ class VOSParserTest {
             }
         }
 
-        return patchSegmentAddresses(out.toByteArray());
+        int channelEnd = out.size();
+        out.write(minimalMidi());
+        return patchSegmentAddresses(out.toByteArray(), channelEnd);
     }
 
     private static int noteCountForChannel(int channel, int playableChannelIndex, Integer noteCountOverride,
@@ -366,11 +368,29 @@ class VOSParserTest {
         return longNoteOnly || !includeLongNote ? 1 : 2;
     }
 
-    private static byte[] patchSegmentAddresses(byte[] bytes) {
+    private static byte[] patchSegmentAddresses(byte[] bytes, int midAddress) {
         writeInt(bytes, 4, 64);
-        writeInt(bytes, 24, bytes.length);
+        writeInt(bytes, 24, midAddress);
         writeInt(bytes, 44, bytes.length);
         return bytes;
+    }
+
+    private static byte[] minimalMidi() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        out.write("MThd".getBytes(StandardCharsets.US_ASCII));
+        writeIntBE(out, 6);
+        writeShortBE(out, 1);
+        writeShortBE(out, 1);
+        writeShortBE(out, 480);
+        ByteArrayOutputStream track = new ByteArrayOutputStream();
+        track.write(0x00);
+        track.write(new byte[] {(byte) 0xFF, 0x51, 0x03, 0x07, (byte) 0xA1, 0x20});
+        track.write(0x00);
+        track.write(new byte[] {(byte) 0xFF, 0x2F, 0x00});
+        out.write("MTrk".getBytes(StandardCharsets.US_ASCII));
+        writeIntBE(out, track.size());
+        out.write(track.toByteArray());
+        return out.toByteArray();
     }
 
     private static void writeSegment(ByteArrayOutputStream out, int address, String name) throws IOException {
@@ -403,6 +423,18 @@ class VOSParserTest {
         out.write((value >>> 8) & 0xFF);
         out.write((value >>> 16) & 0xFF);
         out.write((value >>> 24) & 0xFF);
+    }
+
+    private static void writeIntBE(ByteArrayOutputStream out, int value) throws IOException {
+        out.write((value >>> 24) & 0xFF);
+        out.write((value >>> 16) & 0xFF);
+        out.write((value >>> 8) & 0xFF);
+        out.write(value & 0xFF);
+    }
+
+    private static void writeShortBE(ByteArrayOutputStream out, int value) throws IOException {
+        out.write((value >>> 8) & 0xFF);
+        out.write(value & 0xFF);
     }
 
     private static void writeInt(byte[] bytes, int offset, int value) {

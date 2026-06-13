@@ -89,7 +89,7 @@ class VOSParserTest {
         VOSChart chart = (VOSChart) charts.get(0);
 
         assertEquals(1, chart.getNoteCount());
-        assertEquals(1, chart.getEvents().size());
+        assertEquals(1, chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_1).size());
     }
 
     @Test
@@ -97,7 +97,7 @@ class VOSParserTest {
         File chartFile = writeFixture("samples.vos", 4, true, true, false);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
-        Event event = chart.getEvents().get(0);
+        Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_1).get(0);
         Map<Integer, SampleData> samples = chart.getSamples();
 
         assertFalse(samples.isEmpty());
@@ -138,7 +138,7 @@ class VOSParserTest {
             File chartFile = writeTapNoteFixture("tap-lane-" + (lane + 1) + ".vos", 5, 0x80 + lane * 0x10);
 
             VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
-            EventList events = chart.getEvents();
+            EventList events = chart.getEvents().getEventsFromThisChannel(expectedChannels[lane]);
 
             assertEquals(1, events.size());
             Event event = events.get(0);
@@ -155,7 +155,6 @@ class VOSParserTest {
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList allEvents = chart.getEvents();
-        assertEquals(2, allEvents.size());
 
         EventList events = allEvents.getOnlyLongNotes();
 
@@ -197,9 +196,19 @@ class VOSParserTest {
         EventList events = chart.getEvents();
         EventList autoplayEvents = events.getEventsFromThisChannel(Event.Channel.AUTO_PLAY);
 
-        assertEquals(2, events.size());
         assertEquals(1, autoplayEvents.size());
         assertTrue(chart.getSamples().containsKey((int) autoplayEvents.get(0).getValue()));
+    }
+
+    @Test
+    void mapsEmbeddedMidiTempoToBpmEvents() throws Exception {
+        File chartFile = writeFixture("tempo.vos", 4, true, true, false);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        EventList bpmEvents = chart.getEvents().getEventsFromThisChannel(Event.Channel.BPM_CHANGE);
+
+        assertEquals(1, bpmEvents.size());
+        assertEquals(120.0, bpmEvents.get(0).getValue(), 0.0001);
     }
 
     @Test

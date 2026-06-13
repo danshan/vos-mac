@@ -227,6 +227,7 @@ class VOSParser {
             int sample_id = chart.registerMidiSample("background", background_midi);
             events.add(new Event(Event.Channel.AUTO_PLAY, 0, 0, sample_id, Event.Flag.NONE));
         }
+        addTempoEvents(events, midi);
 
         VOSChannel playable_channel = playableChannel(channels);
         if (playable_channel != null) {
@@ -234,8 +235,10 @@ class VOSParser {
                 VOSNote note = playable_channel.notes.get(i);
                 List<LiveNote> live_notes = inferLiveNotes(channels, playable_source_indexes, note, midi);
                 if (live_notes.isEmpty()) {
+                    int duration_ms = midi.durationMilliseconds(toStartTick(note, midi.resolution),
+                            toDurationTicks(note, midi.resolution));
                     live_notes.add(new LiveNote(playable_channel.instrument, note.channel, note.pitch,
-                            note.volume, note.duration));
+                            note.volume, duration_ms));
                 }
                 byte[] live_midi = MidiBuilder.buildLiveNotesMIDI(live_notes);
                 int sample_id = chart.registerMidiSample("live:" + i, live_midi);
@@ -244,6 +247,14 @@ class VOSParser {
         }
         Collections.sort(events);
         return events;
+    }
+
+    private static void addTempoEvents(EventList events, MidiModel midi) {
+        for (TempoEvent tempo : midi.tempos) {
+            Position position = toPosition(tempo.tick, midi.resolution);
+            events.add(new Event(Event.Channel.BPM_CHANGE, position.measure, position.position,
+                    60000000.0 / Math.max(1, tempo.mpqn), Event.Flag.NONE));
+        }
     }
 
     private static Set<Integer> inferPlayableSourceIndexes(List<VOSChannel> channels) {
@@ -295,8 +306,10 @@ class VOSParser {
             VOSChannel source = channels.get(source_index);
             for (VOSNote note : source.notes) {
                 if (note.sequencer == playable_note.sequencer) {
+                    int duration_ms = midi.durationMilliseconds(toStartTick(note, midi.resolution),
+                            toDurationTicks(note, midi.resolution));
                     live_notes.add(new LiveNote(source.instrument, note.channel, note.pitch, note.volume,
-                            note.duration));
+                            duration_ms));
                 }
             }
         }
@@ -493,14 +506,14 @@ class VOSParser {
         final int channel;
         final int pitch;
         final int volume;
-        final int duration;
+        final int duration_ms;
 
-        LiveNote(int instrument, int channel, int pitch, int volume, int duration) {
+        LiveNote(int instrument, int channel, int pitch, int volume, int duration_ms) {
             this.instrument = instrument;
             this.channel = channel;
             this.pitch = pitch;
             this.volume = volume;
-            this.duration = duration;
+            this.duration_ms = duration_ms;
         }
     }
 
@@ -559,6 +572,30 @@ class VOSParser {
 
         int noteCount() {
             return note_count;
+        }
+
+        int durationMilliseconds(int start_tick, int duration_ticks) {
+            return Math.max(1, millisecondsAtTick(start_tick + duration_ticks) - millisecondsAtTick(start_tick));
+        }
+
+        int millisecondsAtTick(int target_tick) {
+            List<TempoEvent> sorted_tempos = new ArrayList<TempoEvent>(tempos);
+            Collections.sort(sorted_tempos);
+            int current_tick = 0;
+            int current_tempo = 500000;
+            double elapsed = 0.0;
+            for (TempoEvent tempo : sorted_tempos) {
+                if (tempo.tick > target_tick) {
+                    break;
+                }
+                int delta = Math.max(0, tempo.tick - current_tick);
+                elapsed += delta * current_tempo / (resolution * 1000.0);
+                current_tick = tempo.tick;
+                current_tempo = tempo.mpqn;
+            }
+            int remaining = Math.max(0, target_tick - current_tick);
+            elapsed += remaining * current_tempo / (resolution * 1000.0);
+            return (int) Math.round(elapsed);
         }
 
         static MidiModel parseQuietly(byte[] data) {
@@ -680,8 +717,8 @@ class VOSParser {
         static byte[] buildLiveNotesMIDI(List<LiveNote> live_notes) {
             List<MidiNote> notes = new ArrayList<MidiNote>();
             for (LiveNote note : live_notes) {
-                VOSNote raw_note = new VOSNote(0, Math.max(1, note.duration * DURATION_TICKS_PER_MEASURE / 500),
-                        note.channel, note.pitch, note.volume, 0, note.duration > 500 ? 0x80 : 0);
+                VOSNote raw_note = new VOSNote(0, Math.max(1, note.duration_ms * DURATION_TICKS_PER_MEASURE / 500),
+                        note.channel, note.pitch, note.volume, 0, note.duration_ms > 500 ? 0x80 : 0);
                 notes.add(new MidiNote(note.instrument, raw_note));
             }
             List<TempoEvent> tempos = new ArrayList<TempoEvent>();

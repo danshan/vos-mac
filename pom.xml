@@ -137,6 +137,7 @@
 
     <build>
         <sourceDirectory>src</sourceDirectory>
+        <testSourceDirectory>src/test/java</testSourceDirectory>
         <resources>
             <resource>
                 <directory>src</directory>
@@ -173,6 +174,7 @@
                 <configuration>
                     <excludes>
                         <exclude>org/open2jam/Open2jam.java</exclude>
+                        <exclude>test/**</exclude>
                     </excludes>
                 </configuration>
             </plugin>

@@ -15,7 +15,7 @@ import org.open2jam.parsers.ChartList;
 public class ChartListTableModel implements TableModel
 {
     private ArrayList<ChartList> items;
-    private final String[] col_names = new String[] { "Name", "Level", "Genre" };
+    private final String[] col_names = new String[] { "Name", "Level", "Format", "Genre" };
     private int rank;
     
     private final ArrayList<TableModelListener> listeners;
@@ -81,8 +81,9 @@ public class ChartListTableModel implements TableModel
        switch(columnIndex)
         {
             case 0:return String.class;
-            case 1:return Integer.class;
+            case 1:return String.class;
             case 2:return String.class;
+            case 3:return String.class;
         }
        return Object.class;
     }
@@ -109,8 +110,9 @@ public class ChartListTableModel implements TableModel
                 if(items.get(rowIndex).size()-1 < rank)
                     str = "[AUTO-EASY] "+str;
                 return str;
-            case 1:return c.getLevel();
-            case 2:return c.getGenre();
+            case 1:return ChartDisplay.level(c);
+            case 2:return ChartDisplay.format(c);
+            case 3:return c.getGenre();
         }
         return null;
     }

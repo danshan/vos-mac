@@ -15,7 +15,7 @@ import org.open2jam.parsers.ChartList;
 public class ChartTableModel implements TableModel
 {
     private final List<Chart> items;
-    private final String[] col_names = new String[] { "Level", "Notes", "Keys" };
+    private final String[] col_names = new String[] { "Level", "Format", "Notes", "Keys" };
     private ChartList chartlist;
     
     private final List<TableModelListener> listeners;
@@ -68,9 +68,10 @@ public class ChartTableModel implements TableModel
     public Class<?> getColumnClass(int columnIndex) {
        switch(columnIndex)
         {
-            case 0:return Integer.class;
-            case 1:return Integer.class;
+            case 0:return String.class;
+            case 1:return String.class;
             case 2:return Integer.class;
+            case 3:return Integer.class;
         }
        return Object.class;
     }
@@ -83,9 +84,10 @@ public class ChartTableModel implements TableModel
         Chart c = items.get(rowIndex);
         switch(columnIndex)
         {
-            case 0:return c.getLevel();
-            case 1:return c.getNoteCount();
-            case 2:return c.getKeys();
+            case 0:return ChartDisplay.level(c);
+            case 1:return ChartDisplay.format(c);
+            case 2:return c.getNoteCount();
+            case 3:return c.getKeys();
         }
         return null;
     }

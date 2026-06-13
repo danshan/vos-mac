@@ -21,6 +21,8 @@ import org.open2jam.parsers.utils.SampleData;
 */
 public abstract class Chart implements Comparable<Chart>, java.io.Serializable
 {
+    private static final long serialVersionUID = -3821713927463411224L;
+
     public static enum TYPE {NONE, BMS, OJN, VOS, SM, XNT};
     
     public TYPE type = TYPE.NONE;
@@ -158,13 +160,19 @@ public abstract class Chart implements Comparable<Chart>, java.io.Serializable
     
     public BufferedImage getNoImage()
     {
-	URL u = Chart.class.getResource("/resources/no_image.png"); //TODO Change this
+	return getResourceImage("/resources/no_image.png");
+    }
+
+    protected BufferedImage getResourceImage(String resource)
+    {
+	URL u = Chart.class.getResource(resource);
 	if(u == null) return null;
 	
 	try {
-	    return ImageIO.read(new File(u.toURI()));
+	    return ImageIO.read(u);
 	} catch (Exception ex) {
-	    Logger.global.log(Level.WARNING, "Someone deleted or renamed my no_image image file :_ {0}", ex.getMessage());
+	    Logger.global.log(Level.WARNING, "Someone deleted or renamed a chart image resource {0}: {1}",
+                    new Object[] {resource, ex.getMessage()});
 	}
 	return null;
     }

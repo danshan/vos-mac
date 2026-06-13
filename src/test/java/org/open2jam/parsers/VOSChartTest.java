@@ -5,7 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.ObjectOutputStream;
 import org.junit.jupiter.api.Test;
 
 class VOSChartTest {
@@ -49,5 +52,27 @@ class VOSChartTest {
         EventList firstEvents = chart.getEvents();
 
         assertSame(firstEvents, chart.getEvents());
+    }
+
+    @Test
+    void usesVosDefaultCoverResource() {
+        VOSChart chart = new VOSChart();
+
+        BufferedImage cover = chart.getCover();
+
+        assertEquals(1254, cover.getWidth());
+        assertEquals(1254, cover.getHeight());
+    }
+
+    @Test
+    void doesNotSerializeCachedRuntimeEvents() throws Exception {
+        VOSChart chart = new VOSChart();
+        EventList events = new EventList();
+        events.add(new Event(Event.Channel.NOTE_1, 0, 0, 1, Event.Flag.NONE));
+        chart.setEvents(events);
+
+        ObjectOutputStream output = new ObjectOutputStream(new ByteArrayOutputStream());
+
+        output.writeObject(chart);
     }
 }

@@ -9,7 +9,7 @@ import org.open2jam.parsers.utils.SampleData;
 
 public class VOSChart extends Chart {
     private boolean levelKnown;
-    private EventList events;
+    private transient EventList events;
     private final Map<Integer, byte[]> midi_samples = new LinkedHashMap<Integer, byte[]>();
     private final Map<String, Integer> sample_ids = new LinkedHashMap<String, Integer>();
     private int next_sample_id = 1;
@@ -127,7 +127,8 @@ public class VOSChart extends Chart {
     }
 
     public BufferedImage getCover() {
-        return getNoImage();
+        BufferedImage image = getResourceImage("/resources/vos_default_cover.png");
+        return image == null ? getNoImage() : image;
     }
 
     public Map<Integer, SampleData> getSamples() {
@@ -141,8 +142,18 @@ public class VOSChart extends Chart {
 
     public EventList getEvents() {
         if (events == null) {
-            events = new EventList();
+            events = reloadEvents();
         }
         return events;
+    }
+
+    private EventList reloadEvents() {
+        if (source != null && source.exists()) {
+            ChartList charts = VOSParser.parseFile(source);
+            if (charts != null && !charts.isEmpty() && charts.get(0) instanceof VOSChart) {
+                return ((VOSChart) charts.get(0)).getEvents();
+            }
+        }
+        return new EventList();
     }
 }

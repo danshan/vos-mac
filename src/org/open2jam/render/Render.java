@@ -449,7 +449,7 @@ public class Render implements GameWindowCallback
 
         // cover image load
         try{
-            BufferedImage img = chart.getCover();
+            BufferedImage img = getInitialLoadingImage();
             Sprite s = ResourceFactory.get().getSprite(img);
             s.setScale(skin.getScreenScaleX(), skin.getScreenScaleY());
             s.draw(0, 0);
@@ -662,6 +662,26 @@ public class Render implements GameWindowCallback
             
         }
         
+    }
+
+    private BufferedImage getInitialLoadingImage() {
+        if(chart.type == Chart.TYPE.VOS) {
+            BufferedImage loading = loadResourceImage("/resources/vos_loading.png");
+            if(loading != null) return loading;
+        }
+        return chart.getCover();
+    }
+
+    private BufferedImage loadResourceImage(String resource) {
+        URL url = Render.class.getResource(resource);
+        if(url == null) return null;
+        try {
+            return ImageIO.read(url);
+        } catch (Exception ex) {
+            Logger.global.log(Level.WARNING, "Resource image load error {0}: {1}",
+                    new Object[] {resource, ex.getMessage()});
+            return null;
+        }
     }
     
     /**

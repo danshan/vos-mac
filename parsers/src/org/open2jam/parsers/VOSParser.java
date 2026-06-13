@@ -29,7 +29,15 @@ class VOSParser {
         }
         if (file.isDirectory()) {
             File[] vos_files = file.listFiles(vos_filter);
-            return vos_files != null && vos_files.length > 0;
+            if (vos_files == null) {
+                return false;
+            }
+            for (File vos_file : vos_files) {
+                if (hasVOSHeader(vos_file)) {
+                    return true;
+                }
+            }
+            return false;
         }
         return file.getName().toLowerCase().endsWith(".vos") && hasVOSHeader(file);
     }
@@ -168,6 +176,9 @@ class VOSParser {
             }
             reader.readInt();
             int note_count = reader.readInt();
+            if (note_count < 0) {
+                throw new IllegalArgumentException("negative VOS note count");
+            }
             reader.skip(14);
 
             for (int i = 0; i < note_count; i++) {

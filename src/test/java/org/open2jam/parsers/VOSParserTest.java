@@ -3,6 +3,7 @@ package org.open2jam.parsers;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -88,6 +89,21 @@ class VOSParserTest {
         assertEquals(1, chart.getEvents().size());
     }
 
+    @Test
+    void directoryCanReadRequiresAtLeastOneValidVosHeader() throws Exception {
+        Files.write(new File(tempDir, "invalid.vos").toPath(), new byte[] {0, 0, 0, 4});
+
+        assertFalse(VOSParser.canRead(tempDir));
+        assertNull(ChartParser.parseFile(tempDir));
+    }
+
+    @Test
+    void rejectsNegativeChannelNoteCount() throws Exception {
+        File chartFile = writeFixtureWithNoteCount("negative-note-count.vos", -1);
+
+        assertNull(ChartParser.parseFile(chartFile));
+    }
+
     private File writeFixture(String fileName, int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote) throws IOException {
         return writeFixture(fileName, level, includeLevel, includeChannelData, includeLongNote, "Canon in D");
@@ -101,8 +117,21 @@ class VOSParserTest {
         return file;
     }
 
+    private File writeFixtureWithNoteCount(String fileName, int noteCount) throws IOException {
+        byte[] bytes = buildFixture(4, true, true, false, "Canon in D", noteCount);
+        File file = new File(tempDir, fileName);
+        Files.write(file.toPath(), bytes);
+        return file;
+    }
+
     private static byte[] buildFixture(int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote, String title) throws IOException {
+        return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, null);
+    }
+
+    private static byte[] buildFixture(int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride)
+            throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
         writeSegment(out, 0, "INF");
@@ -122,11 +151,13 @@ class VOSParserTest {
         out.write(new byte[1023]);
         if (includeChannelData) {
             writeInt(out, 1);
-            writeInt(out, includeLongNote ? 2 : 1);
+            writeInt(out, noteCountOverride == null ? includeLongNote ? 2 : 1 : noteCountOverride);
             out.write(new byte[14]);
-            writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x00);
-            if (includeLongNote) {
-                writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
+            if (noteCountOverride == null || noteCountOverride > 0) {
+                writeNote(out, 0x000, 0x000, 0, 60, 100, 0x80, 0x00);
+                if (includeLongNote) {
+                    writeNote(out, 0x300, 0x180, 0, 62, 100, 0x81, 0x80);
+                }
             }
         }
 

@@ -21,7 +21,7 @@ import org.open2jam.parsers.utils.SampleData;
 */
 public abstract class Chart implements Comparable<Chart>, java.io.Serializable
 {
-    public static enum TYPE {NONE, BMS, OJN, SM, XNT};
+    public static enum TYPE {NONE, BMS, OJN, VOS, SM, XNT};
     
     public TYPE type = TYPE.NONE;
     

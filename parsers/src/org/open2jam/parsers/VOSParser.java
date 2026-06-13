@@ -150,7 +150,7 @@ class VOSParser {
         }
         reader.skip(INF_PADDING_LENGTH);
 
-        EventList events = readChannels(reader, mid.address);
+        EventList events = readChannels(chart, reader, mid.address);
         chart.setEvents(events);
         chart.setNoteCount(events.playableNotes);
         return chart;
@@ -184,20 +184,20 @@ class VOSParser {
         return null;
     }
 
-    private static EventList readChannels(Reader reader, int end_address) {
+    private static EventList readChannels(VOSChart chart, Reader reader, int end_address) {
         List<VOSChannel> channels = new ArrayList<VOSChannel>();
         while (reader.position() < end_address) {
             if (reader.remainingBefore(end_address) < 22) {
                 throw new IllegalArgumentException("truncated VOS channel");
             }
-            reader.readInt();
+            int instrument = reader.readInt();
             int note_count = reader.readInt();
             if (note_count < 0) {
                 throw new IllegalArgumentException("negative VOS note count");
             }
             reader.skip(14);
 
-            VOSChannel channel = new VOSChannel();
+            VOSChannel channel = new VOSChannel(instrument);
             for (int i = 0; i < note_count; i++) {
                 if (reader.remainingBefore(end_address) < 13) {
                     throw new IllegalArgumentException("truncated VOS note");
@@ -208,14 +208,32 @@ class VOSParser {
         }
 
         EventList events = new EventList();
+        addAutoplayEvents(events, chart, channels);
         VOSChannel playable_channel = playableChannel(channels);
         if (playable_channel != null) {
             for (VOSNote note : playable_channel.notes) {
-                events.playableNotes += addNoteEvents(events, note);
+                events.playableNotes += addPlayableNoteEvents(events, chart, playable_channel.instrument, note);
             }
         }
         Collections.sort(events);
         return events;
+    }
+
+    private static void addAutoplayEvents(EventList events, VOSChart chart, List<VOSChannel> channels) {
+        int autoplay_channels = Math.min(PLAYABLE_CHANNEL_INDEX, channels.size());
+        VOSChannel playable_channel = playableChannel(channels);
+        for (int i = 0; i < autoplay_channels; i++) {
+            VOSChannel channel = channels.get(i);
+            if (channel == playable_channel) {
+                continue;
+            }
+            for (VOSNote note : channel.notes) {
+                int sample_id = chart.registerSample(channel.instrument, note.pitch, note.volume, note.duration);
+                Position start = toPosition(note.sequencer);
+                events.add(new Event(Event.Channel.AUTO_PLAY, start.measure, start.position, sample_id,
+                        Event.Flag.NONE));
+            }
+        }
     }
 
     private static VOSChannel playableChannel(List<VOSChannel> channels) {
@@ -239,14 +257,14 @@ class VOSParser {
         return new VOSNote(sequencer, duration, channel, pitch, volume, keyboard, type);
     }
 
-    private static int addNoteEvents(EventList events, VOSNote note) {
+    private static int addPlayableNoteEvents(EventList events, VOSChart chart, int instrument, VOSNote note) {
         Event.Channel channel = mapKeyboard(note.keyboard);
         if (channel == Event.Channel.NONE) {
             return 0;
         }
 
         Position start = toPosition(note.sequencer);
-        int value = Math.max(1, note.pitch);
+        int value = chart.registerSample(instrument, note.pitch, note.volume, note.duration);
         if (isLongNote(note)) {
             events.add(new Event(channel, start.measure, start.position, value, Event.Flag.HOLD));
             Position end = toEndPosition(note.sequencer, note.duration);
@@ -388,7 +406,12 @@ class VOSParser {
     }
 
     private static final class VOSChannel {
+        final int instrument;
         final List<VOSNote> notes = new ArrayList<VOSNote>();
+
+        VOSChannel(int instrument) {
+            this.instrument = instrument;
+        }
     }
 
     private static final class Position {

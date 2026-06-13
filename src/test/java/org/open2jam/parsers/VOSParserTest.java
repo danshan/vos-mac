@@ -12,8 +12,10 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.open2jam.parsers.utils.SampleData;
 
 class VOSParserTest {
     private static final Charset VOS_CHARSET = Charset.forName("GB2312");
@@ -91,6 +93,19 @@ class VOSParserTest {
     }
 
     @Test
+    void providesGeneratedSamplesForVosEvents() throws Exception {
+        File chartFile = writeFixture("samples.vos", 4, true, true, false);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        Event event = chart.getEvents().get(0);
+        Map<Integer, SampleData> samples = chart.getSamples();
+
+        assertFalse(samples.isEmpty());
+        assertTrue(samples.containsKey((int) event.getValue()));
+        assertEquals(SampleData.Type.WAV, samples.get((int) event.getValue()).getType());
+    }
+
+    @Test
     void readsLittleEndianVosHeaderAndSegmentAddresses() throws Exception {
         byte[] bytes = buildFixture(4, true, true, false, "Canon in D");
         assertEquals(3, bytes[0] & 0xFF);
@@ -153,6 +168,12 @@ class VOSParserTest {
         assertEquals(1, events.get(1).getMeasure());
         assertEquals(0.0, events.get(0).getPosition(), 0.0001);
         assertEquals(0.5, events.get(1).getPosition(), 0.0001);
+
+        allEvents.fixEventList(EventList.FixMethod.OPEN2JAM, true);
+        EventList fixedEvents = allEvents.getOnlyLongNotes();
+        assertEquals(2, fixedEvents.size());
+        assertEquals(Event.Flag.HOLD, fixedEvents.get(0).getFlag());
+        assertEquals(Event.Flag.RELEASE, fixedEvents.get(1).getFlag());
     }
 
     @Test
@@ -161,10 +182,24 @@ class VOSParserTest {
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList events = chart.getEvents();
+        EventList playableEvents = events.getEventsFromThisChannel(Event.Channel.NOTE_3);
 
-        assertEquals(1, events.size());
-        assertEquals(Event.Channel.NOTE_3, events.get(0).getChannel());
-        assertEquals(61, events.get(0).getValue(), 0.0001);
+        assertEquals(1, playableEvents.size());
+        assertEquals(Event.Channel.NOTE_3, playableEvents.get(0).getChannel());
+        assertTrue(chart.getSamples().containsKey((int) playableEvents.get(0).getValue()));
+    }
+
+    @Test
+    void mapsVosSoundChannelsToAutoplayEvents() throws Exception {
+        File chartFile = writePlayableChannelFixture("sound-channel.vos", 5);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        EventList events = chart.getEvents();
+        EventList autoplayEvents = events.getEventsFromThisChannel(Event.Channel.AUTO_PLAY);
+
+        assertEquals(2, events.size());
+        assertEquals(1, autoplayEvents.size());
+        assertTrue(chart.getSamples().containsKey((int) autoplayEvents.get(0).getValue()));
     }
 
     @Test

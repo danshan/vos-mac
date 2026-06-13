@@ -75,4 +75,14 @@ class VOSChartTest {
 
         output.writeObject(chart);
     }
+
+    @Test
+    void doesNotSerializeRuntimeMidiSampleDeduplicationIndex() throws Exception {
+        VOSChart chart = new VOSChart();
+        chart.registerMidiSample(new byte[] {1, 2, 3});
+
+        ObjectOutputStream output = new ObjectOutputStream(new ByteArrayOutputStream());
+
+        output.writeObject(chart);
+    }
 }

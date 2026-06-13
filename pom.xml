@@ -10,7 +10,8 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <lwjgl.version>3.4.0</lwjgl.version>
         <lwjgl.natives>natives-macos-arm64</lwjgl.natives>
         <main.class>org.open2jam.Main</main.class>
@@ -172,6 +173,10 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
+                    <compilerArgs>
+                        <arg>--add-exports</arg>
+                        <arg>java.desktop/com.sun.media.sound=ALL-UNNAMED</arg>
+                    </compilerArgs>
                     <excludes>
                         <exclude>org/open2jam/Open2jam.java</exclude>
                         <exclude>test/**</exclude>
@@ -182,6 +187,9 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
+                <configuration>
+                    <argLine>--add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED</argLine>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -204,6 +212,9 @@
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>${main.class}</mainClass>
+                                    <manifestEntries>
+                                        <Add-Exports>java.desktop/com.sun.media.sound</Add-Exports>
+                                    </manifestEntries>
                                 </transformer>
                             </transformers>
                         </configuration>
@@ -218,6 +229,8 @@
                     <executable>${java.home}/bin/java</executable>
                     <classpathScope>runtime</classpathScope>
                     <arguments>
+                        <argument>--add-exports</argument>
+                        <argument>java.desktop/com.sun.media.sound=ALL-UNNAMED</argument>
                         <argument>-classpath</argument>
                         <classpath/>
                         <argument>${main.class}</argument>

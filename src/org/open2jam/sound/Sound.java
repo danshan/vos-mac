@@ -10,6 +10,12 @@ package org.open2jam.sound;
  */
 public interface Sound {
     
+    default void prepare() throws SoundSystemException {
+    }
+
+    default void awaitPrepared() throws SoundSystemException {
+    }
+
     SoundInstance play(SoundChannel soundChannel, float volume, float pan) throws SoundSystemException;
     
 }

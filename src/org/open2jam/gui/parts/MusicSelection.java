@@ -187,8 +187,10 @@ public class MusicSelection extends javax.swing.JPanel
                 if(lsm.isSelectionEmpty()) return;
                 int selectedRow = lsm.getMinSelectionIndex();
                 if(selectedRow < 0) return;
-                if(selected_chart.get(selectedRow) == selected_header)return;
-                selected_header = selected_chart.get(selectedRow);
+                Chart selectedHeader = resolveChartSelection(selected_chart, selectedRow);
+                if(selectedHeader == null) return;
+                if(selectedHeader == selected_header)return;
+                selected_header = selectedHeader;
 
                 updateInfo();
                 updateRankFromChartSelection();
@@ -1503,15 +1505,34 @@ public class MusicSelection extends javax.swing.JPanel
         }else{
             i = table_songlist.convertRowIndexToModel(i);
         }
-        if(model_songlist.getRow(i) == selected_chart)return;
-        selected_chart = model_songlist.getRow(i);
-        if(selected_chart.size() > rank)selected_header = selected_chart.get(rank);
+        ChartList nextSelectedChart = resolveSelectedChart(model_songlist, i, selected_chart);
+        if(nextSelectedChart == selected_chart)return;
+        selected_chart = nextSelectedChart;
+        selected_header = resolveSelectedHeader(selected_chart, rank);
         if(selected_chart != model_chartlist.getChartList()){
             model_chartlist.clear();
             model_chartlist.setChartList(selected_chart);
         }
         updateChartSelectionFromRank();
         updateInfo();
+    }
+
+    static ChartList resolveSelectedChart(ChartListTableModel model, int modelRow, ChartList currentSelection) {
+        if(model == null || modelRow < 0) return currentSelection;
+        ChartList row = model.getRow(modelRow);
+        return row == null ? currentSelection : row;
+    }
+
+    static Chart resolveSelectedHeader(ChartList selectedChart, int rank) {
+        if(selectedChart == null || selectedChart.isEmpty()) return null;
+        if(rank >= 0 && rank < selectedChart.size()) return selectedChart.get(rank);
+        return selectedChart.get(0);
+    }
+
+    static Chart resolveChartSelection(ChartList selectedChart, int selectedRow) {
+        if(selectedChart == null) return null;
+        if(selectedRow < 0 || selectedRow >= selectedChart.size()) return null;
+        return selectedChart.get(selectedRow);
     }
     
     private void updateChartSelectionFromRank() {

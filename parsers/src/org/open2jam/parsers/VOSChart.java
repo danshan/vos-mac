@@ -3,15 +3,19 @@ package org.open2jam.parsers;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.open2jam.parsers.utils.SampleData;
 
 public class VOSChart extends Chart {
+    private static final long serialVersionUID = 1L;
+
     private boolean levelKnown;
     private transient EventList events;
     private final Map<Integer, byte[]> midi_samples = new LinkedHashMap<Integer, byte[]>();
     private final Map<String, Integer> sample_ids = new LinkedHashMap<String, Integer>();
+    private transient Map<MidiSampleKey, Integer> midi_sample_ids;
     private int next_sample_id = 1;
 
     public VOSChart() {
@@ -73,6 +77,18 @@ public class VOSChart extends Chart {
         if (sample_id == null) {
             sample_id = next_sample_id++;
             sample_ids.put(key, sample_id);
+            midi_samples.put(sample_id, data);
+        }
+        return sample_id;
+    }
+
+    int registerMidiSample(byte[] data) {
+        MidiSampleKey key = new MidiSampleKey(data);
+        Map<MidiSampleKey, Integer> sampleIds = midiSampleIds();
+        Integer sample_id = sampleIds.get(key);
+        if (sample_id == null) {
+            sample_id = next_sample_id++;
+            sampleIds.put(key, sample_id);
             midi_samples.put(sample_id, data);
         }
         return sample_id;
@@ -155,5 +171,33 @@ public class VOSChart extends Chart {
             }
         }
         return new EventList();
+    }
+
+    private Map<MidiSampleKey, Integer> midiSampleIds() {
+        if (midi_sample_ids == null) {
+            midi_sample_ids = new LinkedHashMap<MidiSampleKey, Integer>();
+        }
+        return midi_sample_ids;
+    }
+
+    private static final class MidiSampleKey {
+        private final byte[] data;
+        private final int hash;
+
+        private MidiSampleKey(byte[] data) {
+            this.data = data == null ? new byte[0] : data.clone();
+            this.hash = Arrays.hashCode(this.data);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof MidiSampleKey
+                    && Arrays.equals(data, ((MidiSampleKey) other).data);
+        }
+
+        @Override
+        public int hashCode() {
+            return hash;
+        }
     }
 }

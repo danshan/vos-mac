@@ -7,6 +7,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.InvalidClassException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
@@ -27,6 +28,7 @@ import org.voile.VoileMap;
 public abstract class Config
 {
     private static final File CONFIG_FILE = new File("config.vl");
+    private static final int CHART_CACHE_SCHEMA_VERSION = 2;
     
     private static VoileMap<String, Serializable> VMap;
     private static GameOptions options;
@@ -197,16 +199,23 @@ public abstract class Config
     
     @SuppressWarnings("unchecked")
     public static ArrayList<ChartList> getCache(File dir) {
-        return (ArrayList<ChartList>) get("cache:"+dir.getAbsolutePath());
+        String key = cacheKey(dir);
+        try {
+            return (ArrayList<ChartList>) get(key);
+        } catch (RuntimeException ex) {
+            if(!isStaleCacheFailure(ex)) throw ex;
+            deleteStaleCache(key, ex);
+            return null;
+        }
     }
 
     public static void setCache(File dir, ArrayList<ChartList> data) {
-        delete("cache:"+dir.getAbsolutePath());
-        put("cache:"+dir.getAbsolutePath(),data);
+        String key = cacheKey(dir);
+        put(key,data);
     }
 
     public static void delCache(File dir){
-        delete("cache:"+dir.getAbsolutePath());
+        delete(cacheKey(dir));
     }
     
     private static Serializable get(String key) {
@@ -219,5 +228,28 @@ public abstract class Config
 
     private static void delete(String key) {
         VMap.remove(key);
+    }
+
+    static String cacheKey(File dir) {
+        return "cache:v" + CHART_CACHE_SCHEMA_VERSION + ":" + dir.getAbsolutePath();
+    }
+
+    static boolean isStaleCacheFailure(RuntimeException ex) {
+        Throwable cause = ex;
+        while(cause != null) {
+            if(cause instanceof InvalidClassException) return true;
+            cause = cause.getCause();
+        }
+        return false;
+    }
+
+    private static void deleteStaleCache(String key, RuntimeException original) {
+        try {
+            delete(key);
+        } catch (RuntimeException ex) {
+            if(!isStaleCacheFailure(ex)) throw ex;
+        }
+        Logger.getLogger(Config.class.getName()).log(Level.INFO,
+                "Ignored stale chart cache entry {0}: {1}", new Object[] {key, original.getMessage()});
     }
 }

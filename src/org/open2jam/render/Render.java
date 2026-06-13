@@ -78,6 +78,7 @@ public class Render implements GameWindowCallback
     private final GameOptions opt;
     
     private static final double AUTOPLAY_THRESHOLD = 0;
+    static final double VOS_LIVE_TRIGGER_THRESHOLD = 280;
 
     /** skin info and entities */
     Skin skin;
@@ -609,6 +610,9 @@ public class Render implements GameWindowCallback
 		java.util.logging.Logger.getLogger(Render.class.getName()).log(Level.SEVERE, "{0}", ex);
 	    }
 	}
+
+        prepareVOSSamples(event_list);
+        awaitInitialVOSSamples(event_list);
 	
         trueTypeFont = new LWJGLTextRenderer(new Font("Tahoma", Font.BOLD, 14), false);
         
@@ -988,7 +992,7 @@ public class Render implements GameWindowCallback
                 NoteEntity e = nextNoteKey(c);
                 if(e == null){
                     SampleEntity i = last_sound.get(c);
-                    if(i != null) i.extrasound();
+                    if(i != null && !isVOSChart(chart)) i.extrasound();
                     continue;
                 }
 
@@ -1006,7 +1010,9 @@ public class Render implements GameWindowCallback
                         e.setState(NoteEntity.State.JUDGE);
                     }
                 } else {
-                    e.getSampleEntity().extrasound();
+                    if(shouldTriggerRejectedKeysound(chart, e.getHitTime())) {
+                        e.getSampleEntity().extrasound();
+                    }
                 }
                 
             }else if(!keyDown && keyWasDown) { // key released now
@@ -1028,6 +1034,15 @@ public class Render implements GameWindowCallback
             }
         }
         
+    }
+
+    static boolean shouldTriggerRejectedKeysound(Chart chart, double hitTime) {
+        if(!isVOSChart(chart)) return true;
+        return Math.abs(hitTime) <= VOS_LIVE_TRIGGER_THRESHOLD;
+    }
+
+    static boolean isVOSChart(Chart chart) {
+        return chart != null && chart.type == Chart.TYPE.VOS;
     }
     
     private void autosync(double hit) {
@@ -1371,6 +1386,9 @@ public class Render implements GameWindowCallback
     
     private void assignSample(NoteEntity n, Event e) {
         SampleEntity sampleEntity = createSampleEntity(e, false);
+        if(isVOSChart(chart)) {
+            prepareSample(e.getSample());
+        }
         if(AUTOSOUND) {
             autoSound(sampleEntity);
             sampleEntity.setNote(true);
@@ -1393,6 +1411,79 @@ public class Render implements GameWindowCallback
         SampleEntity s = new SampleEntity(this,e.getSample(),0);
         s.setTime(e.getTime());
         return s;
+    }
+
+    private void prepareSample(Event.SoundSample soundSample) {
+        if(soundSample == null) return;
+        Sound sound = sounds == null ? null : sounds.get(soundSample.sample_id);
+        if(sound == null) return;
+        try {
+            sound.prepare();
+        } catch (SoundSystemException ex) {
+            java.util.logging.Logger.getLogger(Render.class.getName()).log(Level.SEVERE, "{0}", ex);
+        }
+    }
+
+    private void awaitPreparedSample(Event.SoundSample soundSample) {
+        if(soundSample == null) return;
+        Sound sound = sounds == null ? null : sounds.get(soundSample.sample_id);
+        if(sound == null) return;
+        try {
+            sound.awaitPrepared();
+        } catch (SoundSystemException ex) {
+            java.util.logging.Logger.getLogger(Render.class.getName()).log(Level.SEVERE, "{0}", ex);
+        }
+    }
+
+    private void prepareVOSSamples(EventList eventList) {
+        if(!isVOSChart(chart)) return;
+        if(eventList == null) return;
+        Set<Integer> prepared = new HashSet<Integer>();
+        for(Event event : eventList) {
+            if(!shouldPrepareVOSSample(chart, event)) continue;
+            Event.SoundSample sample = event.getSample();
+            if(sample != null && prepared.add(sample.sample_id)) prepareSample(sample);
+        }
+    }
+
+    private void awaitInitialVOSSamples(EventList eventList) {
+        if(!isVOSChart(chart)) return;
+        if(eventList == null) return;
+        Set<Integer> prepared = new HashSet<Integer>();
+        for(Event event : eventList) {
+            if(!shouldAwaitVOSSample(chart, event, buffer_timer)) continue;
+            Event.SoundSample sample = event.getSample();
+            if(sample != null && prepared.add(sample.sample_id)) awaitPreparedSample(sample);
+        }
+    }
+
+    static boolean shouldPrepareVOSSample(Chart chart, Event event) {
+        if(!isVOSChart(chart)) return false;
+        if(event == null) return false;
+        if(event.getFlag() == Event.Flag.RELEASE) return false;
+        return event.getSample() != null;
+    }
+
+    static boolean shouldAwaitVOSSample(Chart chart, Event event, double preparedUntilTime) {
+        if(!shouldPrepareVOSSample(chart, event)) return false;
+        Event.Channel channel = event.getChannel();
+        if(channel == Event.Channel.AUTO_PLAY) return true;
+        return isPrimaryPlayableChannel(channel) && event.getTime() <= preparedUntilTime;
+    }
+
+    private static boolean isPrimaryPlayableChannel(Event.Channel channel) {
+        switch(channel) {
+            case NOTE_1:
+            case NOTE_2:
+            case NOTE_3:
+            case NOTE_4:
+            case NOTE_5:
+            case NOTE_6:
+            case NOTE_7:
+                return true;
+            default:
+                return false;
+        }
     }
 
     private final List<Integer> misc_keys = new LinkedList<Integer>();

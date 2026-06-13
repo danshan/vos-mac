@@ -235,9 +235,8 @@ class VOSParser {
                 VOSNote note = playable_channel.notes.get(i);
                 List<LiveNote> live_notes = inferLiveNotes(channels, playable_source_indexes, note, midi);
                 if (live_notes.isEmpty()) {
-                    int duration_ms = midi.durationMilliseconds(toStartTick(note, midi.resolution),
-                            toDurationTicks(note, midi.resolution));
-                    live_notes.add(new LiveNote(playable_channel.instrument, note.channel, note.pitch,
+                    int duration_ms = fallbackDurationMilliseconds(note, midi);
+                    live_notes.add(new LiveNote(0, note.channel & 0x0F, note.pitch,
                             note.volume, duration_ms));
                 }
                 byte[] live_midi = MidiBuilder.buildLiveNotesMIDI(live_notes);
@@ -299,7 +298,9 @@ class VOSParser {
     private static List<LiveNote> inferLiveNotes(List<VOSChannel> channels, Set<Integer> playable_source_indexes,
             VOSNote playable_note, MidiModel midi) {
         List<LiveNote> live_notes = new ArrayList<LiveNote>();
-        for (Integer source_index : playable_source_indexes) {
+        List<Integer> source_indexes = new ArrayList<Integer>(playable_source_indexes);
+        Collections.sort(source_indexes);
+        for (Integer source_index : source_indexes) {
             if (source_index < 0 || source_index >= channels.size()) {
                 continue;
             }
@@ -308,7 +309,7 @@ class VOSParser {
                 if (note.sequencer == playable_note.sequencer) {
                     int duration_ms = midi.durationMilliseconds(toStartTick(note, midi.resolution),
                             toDurationTicks(note, midi.resolution));
-                    live_notes.add(new LiveNote(source.instrument, note.channel, note.pitch, note.volume,
+                    live_notes.add(new LiveNote(source.instrument, note.channel & 0x0F, note.pitch, note.volume,
                             duration_ms));
                 }
             }
@@ -387,6 +388,12 @@ class VOSParser {
 
     private static int toDurationTicks(VOSNote note, int resolution) {
         return Math.max(1, ceilDiv(note.duration * resolution, DURATION_TICKS_PER_MEASURE));
+    }
+
+    private static int fallbackDurationMilliseconds(VOSNote note, MidiModel midi) {
+        int start_tick = toStartTick(note, midi.resolution);
+        int end_tick = ceilDiv((note.sequencer + note.duration) * midi.resolution, SEQUENCER_TICKS_PER_MEASURE);
+        return Math.max(1, midi.millisecondsAtTick(end_tick) - midi.millisecondsAtTick(start_tick));
     }
 
     private static Position toPosition(int tick, int resolution) {

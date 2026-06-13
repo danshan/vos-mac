@@ -13,6 +13,10 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Map;
+import javax.sound.midi.MidiSystem;
+import javax.sound.midi.Sequence;
+import javax.sound.midi.ShortMessage;
+import javax.sound.midi.Track;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.open2jam.parsers.utils.SampleData;
@@ -201,6 +205,16 @@ class VOSParserTest {
     }
 
     @Test
+    void usesVosDroidFallbackPianoInstrumentForPlayableOnlyLiveMidi() throws Exception {
+        File chartFile = writePlayableChannelFixture("playable-only-live-midi.vos", 5);
+
+        VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
+        Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_3).get(0);
+
+        assertEquals(0, firstProgramChangeForEvent(chart, event));
+    }
+
+    @Test
     void mapsEmbeddedMidiTempoToBpmEvents() throws Exception {
         File chartFile = writeFixture("tempo.vos", 4, true, true, false);
 
@@ -235,6 +249,25 @@ class VOSParserTest {
 
         assertNotNull(charts);
         assertEquals(Chart.TYPE.BMS, charts.get(0).type);
+    }
+
+    private static int firstProgramChangeForEvent(VOSChart chart, Event event) throws Exception {
+        SampleData sample = chart.getSamples().get((int) event.getValue());
+        assertNotNull(sample);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        sample.copyTo(output);
+        Sequence sequence = MidiSystem.getSequence(new java.io.ByteArrayInputStream(output.toByteArray()));
+        for (Track track : sequence.getTracks()) {
+            for (int i = 0; i < track.size(); i++) {
+                if (track.get(i).getMessage() instanceof ShortMessage) {
+                    ShortMessage message = (ShortMessage) track.get(i).getMessage();
+                    if (message.getCommand() == ShortMessage.PROGRAM_CHANGE) {
+                        return message.getData1();
+                    }
+                }
+            }
+        }
+        return -1;
     }
 
     private File writeFixture(String fileName, int level, boolean includeLevel,

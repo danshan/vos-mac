@@ -39,6 +39,11 @@ class ChartDisplayTest {
     }
 
     @Test
+    void displaysOsuFormatAsOsuMania() {
+        assertEquals("osu!mania", ChartDisplay.format(new StubChart(Chart.TYPE.OSU)));
+    }
+
+    @Test
     void displaysEmptyFormatForNullChart() {
         assertEquals("", ChartDisplay.format(null));
     }
@@ -119,6 +124,20 @@ class ChartDisplayTest {
         assertEquals("9", model.getValueAt(0, 1));
         assertEquals("VOS", model.getValueAt(0, 2));
         assertEquals("Genre", model.getValueAt(0, 3));
+    }
+
+    @Test
+    void chartListTableModelDisplaysOsuFormatAndGenre() {
+        ChartList list = new ChartList();
+        list.add(new StubChart(Chart.TYPE.OSU, 7, 1487, 7, "Song", "osu!mania", ""));
+
+        ChartListTableModel model = new ChartListTableModel();
+        ArrayList<ChartList> rows = new ArrayList<ChartList>();
+        rows.add(list);
+        model.setRawList(rows);
+
+        assertEquals("osu!mania", model.getValueAt(0, 2));
+        assertEquals("osu!mania", model.getValueAt(0, 3));
     }
 
     private static final class StubChart extends Chart {

@@ -36,6 +36,7 @@ The main changes in vos-mac are runtime and platform support changes:
 * Added an executable shaded jar build with a proper `Main-Class` manifest.
 * Added keyboard handling that supports current key mapping flows, including Space and semicolon.
 * Added VOS chart parsing and playback support, including deterministic MIDI sample rendering for VOS keysounds.
+* Added osu!mania 7K `.osu` / `.osz` parsing, MP3 background audio decoding, inherited scroll speed handling, and song selection display support.
 * Added default VOS song selection and loading visuals for charts that do not include cover art.
 * Hardened gameplay window startup and failure cleanup so rendering initialization failures return control to the song selection UI instead of leaving a blank window.
 * Added GitHub Actions CI for online Maven builds, tests, package creation, and packaged jar artifacts.
@@ -57,16 +58,16 @@ Expected but not currently verified:
 
 Known limitations:
 
-* MP3 sample decoding is not implemented in the new OpenAL backend.
 * BGA video still depends on the existing VLC/VLCJ path and has not been revalidated on every platform.
 * Legacy LWJGL 2, JInput, FMOD Ex, and old native bundles have been removed from this fork.
 
 Current Features
 ----------------
 
-* Supports OJN/OJM files, VOS files, and BMS files.
+* Supports OJN/OJM files, VOS files, BMS files, and osu!mania 7K `.osu` / `.osz` files.
     * Partially supports BGA for BMS files. (Image backgrounds and movie files using VLC)
     * VOS support includes chart parsing, generated MIDI-backed keysounds, default cover/loading visuals, and playback timing fixes.
+    * osu!mania support is intentionally scoped to 7K mania charts and includes `.osz` archive loading, MP3 background audio decoding, tap notes, hold notes, Unicode metadata, inherited scroll speeds, and custom hit samples.
 * Works on current JDKs with Maven-managed LWJGL 3 natives.
     * Verified for macOS arm64 with JDK 17.
 * GitHub Actions online build:
@@ -107,7 +108,7 @@ mvn -s .mvn/settings.xml verify
 Run the packaged jar on macOS with:
 
 ```
-java -jar target/open2jam-0.1.1.jar
+java -jar target/open2jam-0.1.2.jar
 ```
 
 Do not use `-XstartOnFirstThread` with this fork. The gameplay window is hosted through AWT/Swing rather than GLFW.
@@ -134,7 +135,7 @@ For local manual packaging, build the jar first and use a clean staging director
 mvn -s .mvn/settings.xml clean package
 rm -rf target/package-input target/jpackage
 mkdir -p target/package-input
-cp target/open2jam-0.1.1.jar target/package-input/open2jam.jar
+cp target/open2jam-0.1.2.jar target/package-input/open2jam.jar
 jpackage \
   --type app-image \
   --name VosMac \

@@ -69,9 +69,6 @@ public class Render implements GameWindowCallback
     /** the config xml */
     private static final URL resources_xml = Render.class.getResource("/resources/resources.xml");
 
-    /** 4 beats per minute, 4 * 60 beats per second, 4*60*1000 per millisecond */
-    private static final int BEATS_PER_MSEC = 4 * 60 * 1000;
-    
     private static final double DELAY_TIME = 1500;
 
     private static final int MIN_LOADING_SCREEN_MILLIS = 300;
@@ -251,6 +248,7 @@ public class Render implements GameWindowCallback
     
     /** timing data */
     private TimingData timing = new TimingData();
+    private TimingData visualTiming = new TimingData();
     
     /** status list */
     private StatusList statusList = new StatusList();
@@ -316,7 +314,7 @@ public class Render implements GameWindowCallback
         speed = opt.getSpeedMultiplier();
         speedObj = new SpeedMultiplier(speed);
         
-        distance = new HiSpeed(timing, 385);
+        distance = new HiSpeed(visualTiming, 385);
         
         // TODO: refactor this
         switch(opt.getSpeedType())
@@ -1562,65 +1560,9 @@ public class Render implements GameWindowCallback
 
     private EventList construct_velocity_tree(EventList list)
     {
-        int measure = 0;
-        double timer = DELAY_TIME;
-        double my_bpm = this.bpm;
-        double frac_measure = 1;
-        double measure_pointer = 0;
-        double measure_size = 0.8 * getViewport();
-        double my_note_speed = (my_bpm * measure_size) / BEATS_PER_MSEC;
-        
-	double event_position;
-
-        EventList new_list = new EventList();
-	
-        timing.add(timer, bpm);
-        
-	//there is always a 1st measure
-	Event m = new Event(Event.Channel.MEASURE, measure, 0, 0, Event.Flag.NONE);
-	m.setTime(timer);
-	new_list.add(m);
-
-        for(Event e : list)
-        {
-            while(e.getMeasure() > measure)
-            {
-                timer += (BEATS_PER_MSEC * (frac_measure-measure_pointer)) / my_bpm;
-                m = new Event(Event.Channel.MEASURE, measure, 0, 0, Event.Flag.NONE);
-                m.setTime(timer);
-                new_list.add(m);
-                measure++;
-                frac_measure = 1;
-                measure_pointer = 0;
-            }
-
-	    if(chart.type == Chart.TYPE.OJN) {
-		event_position = e.getPosition();
-	    } else {
-		event_position = e.getPosition() * frac_measure;
-	    }
-            timer += (BEATS_PER_MSEC * (event_position-measure_pointer)) / my_bpm;
-            measure_pointer = event_position;
-
-            switch(e.getChannel())
-            {
-		case STOP:
-                    timing.add(timer, 0);
-		    double stop_time = e.getValue();
-		    if(chart.type == Chart.TYPE.BMS) {
-			stop_time = (e.getValue() / 192) * BEATS_PER_MSEC / my_bpm;
-		    }
-                    timing.add(timer + stop_time, my_bpm);
-		    timer += stop_time;
-		break;
-		case BPM_CHANGE:
-                    my_bpm = e.getValue();
-                    timing.add(timer, my_bpm);
-                break;
-                case TIME_SIGNATURE:
-                    frac_measure = e.getValue();
-                break;
-
+        EventList new_list = RenderTimingCompiler.compile(list, chart.type, bpm, DELAY_TIME, timing, visualTiming);
+        for(Event e : new_list) {
+            switch(e.getChannel()) {
                 case NOTE_1:case NOTE_2:
                 case NOTE_3:case NOTE_4:
                 case NOTE_5:case NOTE_6:case NOTE_7:
@@ -1630,26 +1572,15 @@ public class Render implements GameWindowCallback
                 case NOTE_12:case NOTE_13:case NOTE_14:
                 case NOTE_SC2:
                 case AUTO_PLAY:
-		case BGA:
-                    
+                case BGA:
                     if (!last_sound.containsKey(e.getChannel()) && e.getSample() != null) {
                         last_sound.put(e.getChannel(), createSampleEntity(e, false));
                     }
-                    
-                    e.setTime(timer + e.getOffset());
-		    if(e.getOffset() != 0) System.out.println("offset: "+e.getOffset()+" timer: "+(timer+e.getOffset()));
-                break;
-                    
-                case MEASURE:
-                    Logger.global.log(Level.WARNING, "...THE FUCK? Why is a measure event here?");
-                break;
+                    break;
+                default:
+                    break;
             }
-            
-            new_list.add(e);
         }
-        
-        timing.finish();
-        
         return new_list;
     }
 

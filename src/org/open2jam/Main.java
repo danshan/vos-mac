@@ -8,6 +8,7 @@ import java.util.logging.Level;
 import javax.swing.UIManager;
 import org.open2jam.gui.AppIcon;
 import org.open2jam.gui.Interface;
+import org.open2jam.sound.OsuManiaValidator;
 import org.open2jam.sound.SoundSystemException;
 import org.open2jam.sound.VosAudioValidator;
 import org.open2jam.util.Logger;
@@ -37,9 +38,16 @@ public class Main implements Runnable
         if (args == null || args.length == 0) {
             return -1;
         }
+        if ("--validate-osu-mania".equals(args[0])) {
+            return validateOsuMania(args, out, err);
+        }
         if (!"--validate-vos-audio".equals(args[0])) {
             return -1;
         }
+        return validateVosAudio(args, out, err);
+    }
+
+    private static int validateVosAudio(String[] args, PrintStream out, PrintStream err) {
         if (args.length != 2) {
             err.println("Usage: open2jam --validate-vos-audio <file.vos>");
             return 2;
@@ -63,6 +71,26 @@ public class Main implements Runnable
             return 0;
         } catch (SoundSystemException e) {
             err.println("VOS audio validation failed: " + e.getMessage());
+            return 1;
+        }
+    }
+
+    private static int validateOsuMania(String[] args, PrintStream out, PrintStream err) {
+        if (args.length != 2) {
+            err.println("Usage: open2jam --validate-osu-mania <file-or-directory>");
+            return 2;
+        }
+        try {
+            OsuManiaValidator.Result result = OsuManiaValidator.validate(new File(args[1]));
+            out.println("osu!mania validation OK");
+            out.println("Chart lists: " + result.chartLists);
+            out.println("Charts: " + result.charts);
+            out.println("Playable notes: " + result.playableNotes);
+            out.println("Audio samples: " + result.audioSamples);
+            out.println("Decoded MP3 samples: " + result.decodedMp3Samples);
+            return 0;
+        } catch (SoundSystemException e) {
+            err.println("osu!mania validation failed: " + e.getMessage());
             return 1;
         }
     }

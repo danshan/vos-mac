@@ -29,21 +29,29 @@ public class ChartModelLoader extends SwingWorker<ChartListTableModel,ChartList>
     @Override
     protected ChartListTableModel doInBackground() {
         table_model.clear();
+        ArrayList<ChartList> chartLists = loadChartLists(dir);
+        for (ChartList chartList : chartLists) {
+            publish(chartList);
+        }
+        setProgress(100);
+        return table_model;
+    }
+
+    static ArrayList<ChartList> loadChartLists(File dir) {
+        ArrayList<ChartList> chartLists = new ArrayList<ChartList>();
         ArrayList<File> files = new ArrayList<File>(Arrays.asList(listFilesSafely(dir)));
         double perc = files.size() / 100d;
         for(int i=0;i<files.size();i++)
         {
             ChartList cl = ChartParser.parseFile(files.get(i));
-            if(cl != null)publish(cl);
+            if(cl != null) chartLists.add(cl);
             else if(files.get(i).isDirectory()){
                 List<File> nl = Arrays.asList(listFilesSafely(files.get(i)));
                 files.addAll(nl);
                 perc = files.size() / 100d;
             }
-            if(perc > 0) setProgress(Math.min(99, (int)(i/perc)));
         }
-        setProgress(100);
-        return table_model;
+        return chartLists;
     }
 
     @Override

@@ -11,6 +11,7 @@ public class Event implements Comparable<Event> {
 
         TIME_SIGNATURE, // This channel will hold all the time signature changes
         BPM_CHANGE,     // This channel will hold all the bpm changes
+        SCROLL_SPEED,    // This channel will hold chart-specific scroll speed changes
         STOP,           // This channel will hold all the stops
         MEASURE,        // This will be used when the velocity tree is constructed
 	

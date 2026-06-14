@@ -34,6 +34,8 @@ public final class ChartDisplay {
                 return "SM";
             case XNT:
                 return "XNT";
+            case OSU:
+                return "osu!mania";
             case NONE:
             default:
                 return "";

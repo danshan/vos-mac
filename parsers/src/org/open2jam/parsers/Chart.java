@@ -23,7 +23,7 @@ public abstract class Chart implements Comparable<Chart>, java.io.Serializable
 {
     private static final long serialVersionUID = -3821713927463411224L;
 
-    public static enum TYPE {NONE, BMS, OJN, VOS, SM, XNT};
+    public static enum TYPE {NONE, BMS, OJN, VOS, SM, XNT, OSU};
     
     public TYPE type = TYPE.NONE;
     

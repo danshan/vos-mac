@@ -163,8 +163,21 @@ public class OpenALSoundSystem implements SoundSystem {
 
     private DecodedAudio decode(byte[] data, SampleData.Type type) throws SoundSystemException {
         if(type == SampleData.Type.OGG) return decodeOgg(data);
+        if(type == SampleData.Type.MP3) return decodeMp3(data);
         if(type == SampleData.Type.WAV || type == SampleData.Type.WAV_NO_HEADER) return decodeWav(data);
         return null;
+    }
+
+    private DecodedAudio decodeMp3(byte[] data) throws SoundSystemException {
+        JavaSoundPcmDecoder.DecodedPcm pcm = JavaSoundPcmDecoder.decode(data);
+        ByteBuffer samples = memAlloc(pcm.pcm.length);
+        samples.put(pcm.pcm).flip();
+        int format = openAlFormat(pcm.channels, pcm.bitsPerSample);
+        if(format == 0) {
+            memFree(samples);
+            return null;
+        }
+        return new DecodedAudio(samples, format, pcm.sampleRate, true);
     }
 
     private DecodedAudio decodeOgg(byte[] data) throws SoundSystemException {

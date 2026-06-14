@@ -21,6 +21,18 @@ Current verified platform support:
 
 Other platforms are not currently validated by this fork.
 
+vos-mac 0.1.2
+=============
+
+This release adds focused osu!mania 7K support:
+
+* Added `.osu` and `.osz` parsing for osu!mania charts with `Mode: 3` and 7 keys.
+* Added osu!mania tap note, hold note, timing point, inherited scroll speed, meter, Unicode metadata, and custom hit sample support.
+* Added MP3 decoding in the OpenAL backend so osu!mania background audio can load from packaged `.osz` archives.
+* Added recursive osu!mania chart loading in the Swing song selection UI, including `osu!mania` format and genre display.
+* Added `--validate-osu-mania <file-or-directory>` for packaged jar validation.
+* Added tests using the Project Loved 2025 osu!mania reference set, including packaged CLI validation and render timing smoke coverage.
+
 Alpha 7
 =======
 

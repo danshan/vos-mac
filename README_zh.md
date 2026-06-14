@@ -33,6 +33,7 @@ vos-mac 的主要变化集中在运行时和平台支持:
 * 添加带正确 `Main-Class` manifest 的 executable shaded jar 构建.
 * 添加当前 key mapping 流程可用的键盘处理, 包括 Space 和 semicolon.
 * 添加 VOS chart 解析和播放支持, 包括 VOS keysound 的确定性 MIDI sample 渲染.
+* 添加 osu!mania 7K `.osu` / `.osz` 解析, MP3 背景音频解码, inherited scroll speed 处理, 以及选曲列表显示支持.
 * 为不包含封面图的 VOS chart 添加默认选曲封面和加载视觉.
 * 加固 gameplay window 启动和失败清理逻辑, 渲染初始化失败时会回到选曲 UI, 不再留下空白窗口.
 * 添加 GitHub Actions CI, 在线执行 Maven 构建, 测试, 打包和 jar artifact 上传.
@@ -53,15 +54,15 @@ vos-mac 的主要变化集中在运行时和平台支持:
 
 已知限制:
 
-* 新 OpenAL backend 还没有实现 MP3 sample 解码.
 * BGA video 仍依赖现有 VLC/VLCJ 路径, 尚未在所有平台上重新验证.
 * 旧的 LWJGL 2, JInput, FMOD Ex 和旧 native bundle 已从这个 fork 中移除.
 
 ## 当前功能
 
-* 支持 OJN/OJM 文件, VOS 文件和 BMS 文件.
+* 支持 OJN/OJM 文件, VOS 文件, BMS 文件和 osu!mania 7K `.osu` / `.osz` 文件.
     * 部分支持 BMS 的 BGA. 包括图片背景和通过 VLC 播放的 movie 文件.
     * VOS 支持包括 chart 解析, 基于 MIDI 生成的 keysound, 默认封面/加载视觉, 以及播放 timing 修复.
+    * osu!mania 支持有意限定为 7K mania chart, 包括 `.osz` archive 加载, MP3 背景音频解码, tap note, hold note, Unicode metadata, inherited scroll speed 和 custom hit sample.
 * 支持当前 JDK, native dependency 由 Maven 管理的 LWJGL 3 提供.
     * 已在 macOS arm64 和 JDK 17 上验证.
 * GitHub Actions 在线构建:
@@ -93,7 +94,7 @@ mvn -s .mvn/settings.xml verify
 在 macOS 上运行 packaged jar:
 
 ```bash
-java -jar target/open2jam-0.1.1.jar
+java -jar target/open2jam-0.1.2.jar
 ```
 
 不要在这个 fork 中使用 `-XstartOnFirstThread`. gameplay window 通过 AWT/Swing 承载, 而不是 GLFW.
@@ -119,7 +120,7 @@ Maven `pom.xml` 有意只负责构建 jar. macOS `.app` image 由 GitHub Actions
 mvn -s .mvn/settings.xml clean package
 rm -rf target/package-input target/jpackage
 mkdir -p target/package-input
-cp target/open2jam-0.1.1.jar target/package-input/open2jam.jar
+cp target/open2jam-0.1.2.jar target/package-input/open2jam.jar
 jpackage \
   --type app-image \
   --name VosMac \

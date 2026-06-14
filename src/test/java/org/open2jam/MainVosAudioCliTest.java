@@ -13,6 +13,8 @@ import org.junit.jupiter.api.Test;
 class MainVosAudioCliTest {
     private static final File REFERENCE_VOS = new File(
             "/Users/honghao.shan/workspace/opensource/VosDroid/android/assets/Canon in D.vos");
+    private static final File REFERENCE_OSU_MANIA_DIR = new File(
+            "/Users/honghao.shan/Downloads/L33 - Project Loved_ Best of 2025 (osu!mania)");
 
     @Test
     void validatesVosAudioFromCliWithoutStartingGui() throws Exception {
@@ -44,5 +46,26 @@ class MainVosAudioCliTest {
                 new PrintStream(new ByteArrayOutputStream()));
 
         assertEquals(-1, status);
+    }
+
+    @Test
+    void validatesOsuManiaFromCliWithoutStartingGui() throws Exception {
+        assumeTrue(REFERENCE_OSU_MANIA_DIR.isDirectory(), "osu!mania reference directory is not available");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream error = new ByteArrayOutputStream();
+
+        int status = Main.runCli(new String[] {"--validate-osu-mania", REFERENCE_OSU_MANIA_DIR.getAbsolutePath()},
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                new PrintStream(error, true, StandardCharsets.UTF_8));
+
+        assertEquals(0, status);
+        String text = output.toString(StandardCharsets.UTF_8);
+        assertTrue(text.contains("osu!mania validation OK"));
+        assertTrue(text.contains("Chart lists: 1"));
+        assertTrue(text.contains("Charts: 1"));
+        assertTrue(text.contains("Playable notes: 1487"));
+        assertTrue(text.contains("Audio samples: 1"));
+        assertTrue(text.contains("Decoded MP3 samples: 1"));
+        assertEquals("", error.toString(StandardCharsets.UTF_8));
     }
 }

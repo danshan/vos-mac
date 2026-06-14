@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="VosMac icon candidate C">
+  <defs>
+    <linearGradient id="bg" x1="120" y1="96" x2="860" y2="936" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2b3a4d"/>
+      <stop offset="0.52" stop-color="#101822"/>
+      <stop offset="1" stop-color="#090b0f"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="34%" r="48%">
+      <stop offset="0" stop-color="#7bdcff" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#7bdcff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="lane" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#273348"/>
+      <stop offset="1" stop-color="#080b12"/>
+    </linearGradient>
+    <linearGradient id="noteA" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffeb97"/>
+      <stop offset="1" stop-color="#f0a736"/>
+    </linearGradient>
+    <linearGradient id="noteB" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9f1ff"/>
+      <stop offset="1" stop-color="#42baff"/>
+    </linearGradient>
+    <linearGradient id="noteC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#caffdf"/>
+      <stop offset="1" stop-color="#57d991"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="165%">
+      <feDropShadow dx="0" dy="34" stdDeviation="30" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="lineGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#8ae7ff" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <circle cx="512" cy="350" r="350" fill="url(#halo)"/>
+  <g filter="url(#shadow)">
+    <path d="M244 174h536c28 0 52 23 52 52v550c0 28-24 52-52 52H244c-28 0-52-24-52-52V226c0-29 24-52 52-52Z" fill="#111827"/>
+    <path d="M232 232h560v498H232Z" fill="#050812"/>
+    <path d="M232 730h560v52H232Z" fill="#1b2433"/>
+    <g>
+      <path d="M274 232l-42 498h84l22-498Z" fill="url(#lane)"/>
+      <path d="M354 232l-36 498h76l15-498Z" fill="url(#lane)"/>
+      <path d="M432 232l-24 498h84l7-498Z" fill="url(#lane)"/>
+      <path d="M512 232v498h92l-8-498Z" fill="url(#lane)"/>
+      <path d="M620 232l8 498h84l-24-498Z" fill="url(#lane)"/>
+      <path d="M710 232l26 498h56l-42-498Z" fill="url(#lane)"/>
+    </g>
+    <g filter="url(#lineGlow)">
+      <path d="M252 704h520" stroke="#89e8ff" stroke-width="12" stroke-linecap="round"/>
+      <path d="M274 760h476" stroke="#ffffff" stroke-opacity="0.17" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <g>
+      <rect x="268" y="536" width="74" height="72" rx="16" fill="url(#noteA)"/>
+      <rect x="346" y="372" width="62" height="72" rx="16" fill="url(#noteB)"/>
+      <rect x="424" y="286" width="76" height="72" rx="16" fill="url(#noteA)"/>
+      <rect x="510" y="414" width="90" height="188" rx="18" fill="url(#noteC)"/>
+      <rect x="624" y="326" width="76" height="72" rx="16" fill="url(#noteA)"/>
+      <rect x="708" y="510" width="62" height="72" rx="16" fill="url(#noteB)"/>
+    </g>
+  </g>
+  <path d="M290 194c132-40 276-40 408 0" stroke="#ffffff" stroke-opacity="0.18" stroke-width="26" stroke-linecap="round"/>
+</svg>

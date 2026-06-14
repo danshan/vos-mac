@@ -61,6 +61,8 @@ jobs:
             --input target/package-input \
             --main-jar open2jam.jar \
             --main-class org.open2jam.Main \
+            --icon src/resources/macos/VosMac.icns \
+            --mac-package-identifier com.danshan.vosmac \
             --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
             --dest target/jpackage
           ditto -c -k --keepParent target/jpackage/VosMac.app staging/VosMac.app.zip

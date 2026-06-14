@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="VosMac icon candidate A">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="80" x2="864" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1e2638"/>
+      <stop offset="0.52" stop-color="#101522"/>
+      <stop offset="1" stop-color="#060911"/>
+    </linearGradient>
+    <linearGradient id="plate" x1="268" y1="158" x2="756" y2="892" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#34425f"/>
+      <stop offset="0.4" stop-color="#111827"/>
+      <stop offset="1" stop-color="#070a12"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff1aa"/>
+      <stop offset="1" stop-color="#f4b940"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cdf0ff"/>
+      <stop offset="1" stop-color="#58b8ff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d8ffe7"/>
+      <stop offset="1" stop-color="#69e1a5"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <path d="M154 244c18-76 72-130 148-148 139-34 281-34 420 0 76 18 130 72 148 148 34 139 34 281 0 420-18 76-72 130-148 148-139 34-281 34-420 0-76-18-130-72-148-148-34-139-34-281 0-420Z" fill="url(#plate)" filter="url(#softShadow)"/>
+  <path d="M286 187c148-38 304-38 452 0 48 12 86 50 98 98" fill="none" stroke="#ffffff" stroke-opacity="0.16" stroke-width="28" stroke-linecap="round"/>
+  <g transform="translate(244 188)" filter="url(#softShadow)">
+    <path d="M78 42h380c35 0 64 29 64 64v620H14V106c0-35 29-64 64-64Z" fill="#0a0f18"/>
+    <path d="M14 642h508v84H14Z" fill="#151f2f"/>
+    <g opacity="0.72">
+      <path d="M86 76v566" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
+      <path d="M154 76v566" stroke="#ffffff" stroke-opacity="0.10" stroke-width="3"/>
+      <path d="M232 76v566" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
+      <path d="M296 76v566" stroke="#ffffff" stroke-opacity="0.15" stroke-width="4"/>
+      <path d="M374 76v566" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
+      <path d="M442 76v566" stroke="#ffffff" stroke-opacity="0.10" stroke-width="3"/>
+    </g>
+    <g filter="url(#glow)">
+      <rect x="30" y="465" width="68" height="70" rx="14" fill="url(#gold)"/>
+      <rect x="98" y="312" width="56" height="70" rx="14" fill="url(#blue)"/>
+      <rect x="154" y="410" width="68" height="70" rx="14" fill="url(#gold)"/>
+      <rect x="222" y="190" width="74" height="214" rx="16" fill="url(#green)"/>
+      <rect x="296" y="360" width="68" height="70" rx="14" fill="url(#gold)"/>
+      <rect x="364" y="252" width="56" height="70" rx="14" fill="url(#blue)"/>
+      <rect x="420" y="502" width="68" height="70" rx="14" fill="url(#gold)"/>
+    </g>
+    <path d="M38 642h450" stroke="#f7d35f" stroke-width="14" stroke-linecap="round"/>
+    <path d="M38 686h450" stroke="#ffffff" stroke-opacity="0.18" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

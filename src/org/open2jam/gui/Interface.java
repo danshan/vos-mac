@@ -21,6 +21,7 @@ public class Interface extends javax.swing.JFrame implements WindowListener
     public Interface() {
         initComponents();
         setTitle(Open2jam.getProductTitle() + " - " + getTitle());
+        setIconImage(AppIcon.load());
         
         this.setLocationRelativeTo(null);
         

@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="VosMac icon candidate B">
+  <defs>
+    <radialGradient id="bg" cx="36%" cy="20%" r="88%">
+      <stop offset="0" stop-color="#394b6c"/>
+      <stop offset="0.44" stop-color="#151c2d"/>
+      <stop offset="1" stop-color="#070912"/>
+    </radialGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e7d7ff"/>
+      <stop offset="0.55" stop-color="#9a72ff"/>
+      <stop offset="1" stop-color="#4d39b7"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dcfbff"/>
+      <stop offset="0.58" stop-color="#54d7ff"/>
+      <stop offset="1" stop-color="#1b739e"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff2ad"/>
+      <stop offset="0.55" stop-color="#ffbe48"/>
+      <stop offset="1" stop-color="#be6928"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="30" stdDeviation="28" flood-color="#000000" flood-opacity="0.42"/>
+    </filter>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="#7be7ff" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="url(#bg)"/>
+  <path d="M197 239c15-63 60-108 123-123 126-30 258-30 384 0 63 15 108 60 123 123 30 126 30 258 0 384-15 63-60 108-123 123-126 30-258 30-384 0-63-15-108-60-123-123-30-126-30-258 0-384Z" fill="#0e1422" opacity="0.78" filter="url(#shadow)"/>
+  <g transform="translate(218 166)" filter="url(#shadow)">
+    <path d="M68 44h452c26 0 48 22 48 48v538c0 26-22 48-48 48H68c-26 0-48-22-48-48V92c0-26 22-48 48-48Z" fill="#111827"/>
+    <path d="M80 112h428v446H80Z" fill="#050812"/>
+    <g opacity="0.34">
+      <path d="M116 112v446" stroke="#ffffff" stroke-width="4"/>
+      <path d="M180 112v446" stroke="#ffffff" stroke-width="3"/>
+      <path d="M254 112v446" stroke="#ffffff" stroke-width="4"/>
+      <path d="M334 112v446" stroke="#ffffff" stroke-width="5"/>
+      <path d="M408 112v446" stroke="#ffffff" stroke-width="4"/>
+      <path d="M472 112v446" stroke="#ffffff" stroke-width="3"/>
+    </g>
+    <g filter="url(#glow)">
+      <path d="M126 174h82l86 242 88-242h86L330 516h-72L126 174Z" fill="url(#violet)"/>
+      <rect x="76" y="562" width="436" height="76" rx="26" fill="#1d2a42"/>
+      <rect x="104" y="584" width="64" height="32" rx="14" fill="url(#amber)"/>
+      <rect x="190" y="584" width="64" height="32" rx="14" fill="url(#cyan)"/>
+      <rect x="276" y="584" width="64" height="32" rx="14" fill="url(#amber)"/>
+      <rect x="362" y="584" width="64" height="32" rx="14" fill="url(#cyan)"/>
+    </g>
+  </g>
+  <path d="M296 206c80-28 167-35 260-22" stroke="#ffffff" stroke-opacity="0.2" stroke-width="22" stroke-linecap="round"/>
+</svg>

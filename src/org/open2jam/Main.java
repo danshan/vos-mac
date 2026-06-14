@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import javax.swing.UIManager;
+import org.open2jam.gui.AppIcon;
 import org.open2jam.gui.Interface;
 import org.open2jam.sound.SoundSystemException;
 import org.open2jam.sound.VosAudioValidator;
@@ -21,6 +22,7 @@ public class Main implements Runnable
         }
 
         setupMacOSJava2DCompatibility();
+        AppIcon.installDockIcon();
         
         Config.openDB();
         

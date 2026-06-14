@@ -1,7 +1,7 @@
 
 # vos-mac
 
-<img src="src/resources/open2jam_icon.png" alt="vos-mac icon" width="48" height="48">
+<img src="src/resources/vosmac_icon.png" alt="vos-mac icon" width="48" height="48">
 
 [![Build](https://github.com/danshan/vos-mac/actions/workflows/build.yml/badge.svg)](https://github.com/danshan/vos-mac/actions/workflows/build.yml)
 
@@ -141,6 +141,8 @@ jpackage \
   --input target/package-input \
   --main-jar open2jam.jar \
   --main-class org.open2jam.Main \
+  --icon src/resources/macos/VosMac.icns \
+  --mac-package-identifier com.danshan.vosmac \
   --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
   --dest target/jpackage
 ```

@@ -1418,15 +1418,20 @@ public class MusicSelection extends javax.swing.JPanel
 
     private void loadDir(File dir)
     {
+        loadDir(dir, false);
+    }
+
+    private void loadDir(File dir, boolean forceRefresh)
+    {
         Config.setCwd(dir);
         if(dir == null) return;
         
         ArrayList<ChartList> l = Config.getCache(dir);
         
-        if(l == null) {
-            updateSelection(dir);
-        } else {
+        if(shouldUseCachedChartList(l, forceRefresh)) {
             model_songlist.setRawList(l);
+        } else {
+            updateSelection(dir);
         }
         
         ArrayList<File> dir_list = Config.getDirsList();
@@ -1452,7 +1457,7 @@ public class MusicSelection extends javax.swing.JPanel
         jfc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         jfc.setAcceptAllFileFilterUsed(false);
         if (jfc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            loadDir(jfc.getSelectedFile());
+            loadDir(jfc.getSelectedFile(), true);
         }
 //        else
 //        {
@@ -1474,6 +1479,10 @@ public class MusicSelection extends javax.swing.JPanel
         task.addPropertyChangeListener(this);
         task.execute();
     }
+
+    static boolean shouldUseCachedChartList(ArrayList<ChartList> cachedCharts, boolean forceRefresh) {
+        return cachedCharts != null && !forceRefresh;
+    }
     
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
@@ -1481,17 +1490,22 @@ public class MusicSelection extends javax.swing.JPanel
         {
             int i = (Integer) evt.getNewValue();
             load_progress.setValue(i);
-            if(i == 100)
-            {
-                bt_choose_dir.setEnabled(true);
-                btn_delete.setVisible(true);
-                combo_dirs.setEnabled(true);
-                btn_reload.setVisible(true);
-                load_progress.setVisible(false);
-                txt_filter.setEnabled(true);
-                table_songlist.setEnabled(true);
-            }
         }
+        if(isLoadCompleteEvent(evt.getPropertyName(), evt.getNewValue()))
+        {
+            bt_choose_dir.setEnabled(true);
+            btn_delete.setVisible(true);
+            combo_dirs.setEnabled(true);
+            btn_reload.setVisible(true);
+            load_progress.setVisible(false);
+            txt_filter.setEnabled(true);
+            table_songlist.setEnabled(true);
+        }
+    }
+
+    static boolean isLoadCompleteEvent(String propertyName, Object value) {
+        if("progress".equals(propertyName)) return Integer.valueOf(100).equals(value);
+        return "state".equals(propertyName) && SwingWorker.StateValue.DONE.equals(value);
     }
 
     void updateFilter() {

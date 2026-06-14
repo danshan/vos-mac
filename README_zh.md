@@ -67,6 +67,7 @@ vos-mac 的主要变化集中在运行时和平台支持:
 * GitHub Actions 在线构建:
     * 在 push 和 pull request 指向 `master` 时执行 Maven 测试和 package 验证.
     * 成功 workflow run 会上传 packaged jar artifact.
+    * 使用 `jpackage` 构建 macOS `VosMac.app` app image, 并作为压缩后的 workflow artifact 上传.
 * 音乐目录选择:
     * 可以把歌曲放在多个目录中. open2jam 会分别记录这些目录.
 * 可调 KEY/BGM volume.
@@ -92,7 +93,7 @@ mvn -s .mvn/settings.xml verify
 在 macOS 上运行 packaged jar:
 
 ```bash
-java -jar target/open2jam-0.1.0-SNAPSHOT.jar
+java -jar target/open2jam-0.1.1.jar
 ```
 
 不要在这个 fork 中使用 `-XstartOnFirstThread`. gameplay window 通过 AWT/Swing 承载, 而不是 GLFW.
@@ -102,6 +103,34 @@ java -jar target/open2jam-0.1.0-SNAPSHOT.jar
 ```bash
 mvn -s .mvn/settings.xml exec:exec
 ```
+
+## GitHub Actions macOS app artifact
+
+Maven `pom.xml` 有意只负责构建 jar. macOS `.app` image 由 GitHub Actions 在 Maven 验证之后通过 JDK 自带的 `jpackage` 生成.
+
+成功的 workflow run 会上传两个 artifact:
+
+* `open2jam-package`: packaged jar.
+* `VosMac-macos-app`: 压缩后的 `VosMac.app` app image.
+
+本地手动打包时, 先构建 jar, 再使用干净的 staging 目录作为 `jpackage` input:
+
+```bash
+mvn -s .mvn/settings.xml clean package
+rm -rf target/package-input target/jpackage
+mkdir -p target/package-input
+cp target/open2jam-0.1.1.jar target/package-input/open2jam.jar
+jpackage \
+  --type app-image \
+  --name VosMac \
+  --input target/package-input \
+  --main-jar open2jam.jar \
+  --main-class org.open2jam.Main \
+  --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
+  --dest target/jpackage
+```
+
+不要把 `jpackage --input` 指向 `target` 或 `target/jpackage`. input 目录会被复制到 `VosMac.app/Contents/app`; 如果 input 的父目录里同时包含输出 app image, 就可能生成递归 app bundle, 导致 Maven clean 难以可靠删除.
 
 ## 许可证
 

@@ -72,6 +72,7 @@ Current Features
 * GitHub Actions online build:
     * Runs Maven tests and package verification on pushes and pull requests targeting `master`.
     * Uploads packaged jar artifacts from successful workflow runs.
+    * Builds a macOS `VosMac.app` image with `jpackage` and uploads it as a zipped workflow artifact.
 * Music directory selection
     * You can put songs in multiple directories. open2jam keeps track of each of them separately.
 * Adjustable KEY/BGM volume.
@@ -106,7 +107,7 @@ mvn -s .mvn/settings.xml verify
 Run the packaged jar on macOS with:
 
 ```
-java -jar target/open2jam-0.1.0-SNAPSHOT.jar
+java -jar target/open2jam-0.1.1.jar
 ```
 
 Do not use `-XstartOnFirstThread` with this fork. The gameplay window is hosted through AWT/Swing rather than GLFW.
@@ -116,3 +117,32 @@ Run from source with:
 ```
 mvn -s .mvn/settings.xml exec:exec
 ```
+
+GitHub Actions macOS app artifact
+---------------------------------
+
+The Maven `pom.xml` intentionally only builds the jar. The macOS `.app` image is produced by GitHub Actions after Maven verification, using the JDK `jpackage` tool.
+
+Successful workflow runs upload two artifacts:
+
+* `open2jam-package`: the packaged jar.
+* `VosMac-macos-app`: a zipped `VosMac.app` app image.
+
+For local manual packaging, build the jar first and use a clean staging directory as the `jpackage` input:
+
+```bash
+mvn -s .mvn/settings.xml clean package
+rm -rf target/package-input target/jpackage
+mkdir -p target/package-input
+cp target/open2jam-0.1.1.jar target/package-input/open2jam.jar
+jpackage \
+  --type app-image \
+  --name VosMac \
+  --input target/package-input \
+  --main-jar open2jam.jar \
+  --main-class org.open2jam.Main \
+  --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
+  --dest target/jpackage
+```
+
+Do not point `jpackage --input` at `target` or `target/jpackage`. The input directory is copied into `VosMac.app/Contents/app`; using a parent directory that also contains the output app image can create recursive app bundles that Maven cannot clean reliably.

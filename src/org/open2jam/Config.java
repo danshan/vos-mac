@@ -11,6 +11,7 @@ import java.io.InvalidClassException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.logging.Level;
@@ -27,31 +28,32 @@ import org.voile.VoileMap;
  */
 public abstract class Config
 {
-    private static final File CONFIG_FILE = new File("config.vl");
+    private static final String CONFIG_DIR_PROPERTY = "open2jam.config.dir";
+    private static final String CONFIG_FILE_NAME = "config.vl";
+    private static final String OPTIONS_FILE_NAME = "game-options.xml";
     private static final int CHART_CACHE_SCHEMA_VERSION = 2;
     
     private static VoileMap<String, Serializable> VMap;
     private static GameOptions options;
             
-    public static final String OPTIONS_FILE = "game-options.xml";
+    public static final String OPTIONS_FILE = OPTIONS_FILE_NAME;
 
     private static GameOptions loadGameOptions() {
         try {
-            XMLDecoder decoder = new XMLDecoder(new BufferedInputStream(new FileInputStream(OPTIONS_FILE)));
+            XMLDecoder decoder = new XMLDecoder(new BufferedInputStream(new FileInputStream(optionsFile())));
             Object result = decoder.readObject();
             decoder.close();
             if (result instanceof GameOptions) return (GameOptions)result;
         } catch(FileNotFoundException fnf) {
             return null; // thats ok a new file will be created
-        } catch (IOException ex) {
-            Logger.getLogger(Config.class.getName()).log(Level.SEVERE, "{0}", ex);
         }
         return null;
     }
     
     public static void saveGameOptions() {
         try {
-            XMLEncoder encoder = new XMLEncoder(new BufferedOutputStream(new FileOutputStream(OPTIONS_FILE)));
+            ensureConfigDirectoryExists();
+            XMLEncoder encoder = new XMLEncoder(new BufferedOutputStream(new FileOutputStream(optionsFile())));
             encoder.writeObject(options);
             encoder.close();
         } catch (IOException ex) {
@@ -71,6 +73,8 @@ public abstract class Config
     }
     
     public static void openDB() {
+        ensureConfigDirectoryExists();
+        File configFile = configFile();
         
         options = loadGameOptions();
         
@@ -78,9 +82,9 @@ public abstract class Config
             options = new GameOptions();
         }
         
-        if(!CONFIG_FILE.exists()) { // create now
+        if(!configFile.exists()) { // create now
             
-            VMap = new VoileMap<String, Serializable>(CONFIG_FILE);
+            VMap = new VoileMap<String, Serializable>(configFile);
             
             setCwd(null);
             
@@ -148,7 +152,7 @@ public abstract class Config
             put("keyboard_map"+KeyboardType.K8.toString(), keyboard_map_8K);
 
         } else {           
-            VMap = new VoileMap<String, Serializable>(CONFIG_FILE);
+            VMap = new VoileMap<String, Serializable>(configFile);
         }
         
     }
@@ -251,5 +255,54 @@ public abstract class Config
         }
         Logger.getLogger(Config.class.getName()).log(Level.INFO,
                 "Ignored stale chart cache entry {0}: {1}", new Object[] {key, original.getMessage()});
+    }
+
+    static File configFile() {
+        return new File(configDirectory(), CONFIG_FILE_NAME);
+    }
+
+    static File optionsFile() {
+        return new File(configDirectory(), OPTIONS_FILE_NAME);
+    }
+
+    static File configDirectory() {
+        String override = System.getProperty(CONFIG_DIR_PROPERTY);
+        if(override != null && !override.isBlank()) return new File(override);
+
+        String home = System.getProperty("user.home");
+        if(home == null || home.isBlank()) return new File(".").getAbsoluteFile();
+
+        if("macosx".equals(getOS())) {
+            return new File(new File(new File(home, "Library"), "Application Support"), "VosMac");
+        }
+        if("windows".equals(getOS())) {
+            String appData = System.getenv("APPDATA");
+            if(appData != null && !appData.isBlank()) return new File(appData, "VosMac");
+        }
+        return new File(home, ".vosmac");
+    }
+
+    private static void ensureConfigDirectoryExists() {
+        try {
+            Files.createDirectories(configDirectory().toPath());
+        } catch (IOException ex) {
+            throw new RuntimeException("Unable to create config directory: " + configDirectory(), ex);
+        }
+    }
+
+    private static String getOS()
+    {
+        String os = System.getProperty("os.name").toLowerCase();
+        if(os.contains("win")){
+            return "windows";
+        }else if(os.contains("mac")){
+            return "macosx";
+        }else if(os.contains("nix") || os.contains("nux")){
+            return "linux";
+        }else if(os.contains("solaris")){
+            return "solaris";
+        }else{
+            return os;
+        }
     }
 }

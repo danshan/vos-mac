@@ -28,28 +28,22 @@ public class ChartModelLoader extends SwingWorker<ChartListTableModel,ChartList>
 
     @Override
     protected ChartListTableModel doInBackground() {
-        try{
         table_model.clear();
-        ArrayList<File> files = new ArrayList<File>(Arrays.asList(dir.listFiles()));
+        ArrayList<File> files = new ArrayList<File>(Arrays.asList(listFilesSafely(dir)));
         double perc = files.size() / 100d;
         for(int i=0;i<files.size();i++)
         {
             ChartList cl = ChartParser.parseFile(files.get(i));
             if(cl != null)publish(cl);
             else if(files.get(i).isDirectory()){
-                List<File> nl = Arrays.asList(files.get(i).listFiles());
+                List<File> nl = Arrays.asList(listFilesSafely(files.get(i)));
                 files.addAll(nl);
                 perc = files.size() / 100d;
             }
-            setProgress((int)(i/perc));
+            if(perc > 0) setProgress(Math.min(99, (int)(i/perc)));
         }
         setProgress(100);
         return table_model;
-        }catch(Exception e){
-            Logger.global.log(Level.SEVERE, "Exception in chart loader ! {0} {1}", new Object[]{e.toString(), e.getMessage()});
-            System.exit(1);
-            return null;
-        }
     }
 
     @Override
@@ -61,4 +55,14 @@ public class ChartModelLoader extends SwingWorker<ChartListTableModel,ChartList>
      protected void process(List<ChartList> chunks) {
         table_model.addRows(chunks);
      }
+
+    static File[] listFilesSafely(File directory) {
+        if(directory == null) return new File[0];
+        File[] files = directory.listFiles();
+        if(files == null) {
+            Logger.global.log(Level.WARNING, "Skipping unreadable chart directory: {0}", directory);
+            return new File[0];
+        }
+        return files;
+    }
 }

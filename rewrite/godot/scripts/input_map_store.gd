@@ -44,3 +44,21 @@ func lane_for_action(action: String) -> int:
 		if action_for_lane(lane) == action:
 			return lane
 	return -1
+
+
+func apply_to_godot_input_map() -> bool:
+	for lane in range(LANE_COUNT):
+		var action := action_for_lane(lane)
+		var key := key_for_lane(lane)
+		var keycode := OS.find_keycode_from_string(key)
+		if keycode == 0:
+			return false
+
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		InputMap.action_erase_events(action)
+
+		var event := InputEventKey.new()
+		event.keycode = keycode
+		InputMap.action_add_event(action, event)
+	return true

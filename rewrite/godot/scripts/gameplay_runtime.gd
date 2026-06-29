@@ -4,8 +4,10 @@ signal completed(result: Dictionary)
 
 const AudioPlayerPool = preload("res://scripts/audio_player_pool.gd")
 const GameplayController = preload("res://scripts/gameplay_controller.gd")
+const InputMapStore = preload("res://scripts/input_map_store.gd")
 
 var _controller = GameplayController.new()
+var _input_map = InputMapStore.new()
 var _audio_pool: Node = null
 var _running: bool = false
 var _elapsed_ms: float = 0.0
@@ -23,12 +25,32 @@ func _process(delta: float) -> void:
 	advance_to(_elapsed_ms + delta * 1000.0)
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not _running:
+		return
+	if event is InputEventKey and event.echo:
+		return
+
+	for lane in range(InputMapStore.LANE_COUNT):
+		var action := _input_map.action_for_lane(lane)
+		if event.is_action_pressed(action):
+			press_action(action)
+			_mark_input_handled()
+			return
+		if event.is_action_released(action):
+			release_action(action)
+			_mark_input_handled()
+			return
+
+
 func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	if chart.is_empty() or audio_manifest.is_empty():
 		return false
 
 	_ensure_audio_pool()
 	if not _controller.load_chart(chart):
+		return false
+	if not _input_map.apply_to_godot_input_map():
 		return false
 	if not _audio_pool.load_manifest(audio_manifest):
 		return false
@@ -52,6 +74,14 @@ func is_running() -> bool:
 
 func elapsed_ms() -> float:
 	return _elapsed_ms
+
+
+func set_key_bindings(bindings: Array) -> bool:
+	if not _input_map.set_key_bindings(bindings):
+		return false
+	if not _controller.set_key_bindings(bindings):
+		return false
+	return _input_map.apply_to_godot_input_map()
 
 
 func advance_to(now_ms: float) -> void:
@@ -110,6 +140,12 @@ func _time_for_input(now_ms: float) -> float:
 	if now_ms >= 0.0:
 		return now_ms
 	return _elapsed_ms
+
+
+func _mark_input_handled() -> void:
+	var viewport := get_viewport()
+	if viewport != null:
+		viewport.set_input_as_handled()
 
 
 func _finish() -> void:

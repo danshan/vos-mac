@@ -33,6 +33,19 @@ func _init() -> void:
 	if not _expect_int(runtime.audio_play_event_count(), 2, "note hit play event"):
 		return
 
+	runtime.stop()
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "runtime restart"):
+		return
+	runtime.advance_to(1000.0)
+	var input_event := InputEventAction.new()
+	input_event.action = "vos_lane_1"
+	input_event.pressed = true
+	runtime._unhandled_input(input_event)
+	if not _expect_int(runtime.result().get("score", 0), 200, "input event hit score"):
+		return
+	if not _expect_int(runtime.audio_play_event_count(), 2, "input event audio count"):
+		return
+
 	runtime.advance_to(3000.0)
 	if not _expect_bool(runtime.is_running(), false, "runtime stops at duration"):
 		return

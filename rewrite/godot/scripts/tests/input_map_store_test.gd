@@ -27,6 +27,14 @@ func _init() -> void:
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "F", "J", "K", "L"], "unchanged bindings"):
 		return
+	if not _expect_bool(store.apply_to_godot_input_map(), true, "apply custom bindings"):
+		return
+	if not _expect_bool(InputMap.has_action("vos_lane_1"), true, "first input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("vos_lane_7"), true, "last input action exists"):
+		return
+	if not _expect_int(InputMap.action_get_events("vos_lane_1").size(), 1, "first input action event count"):
+		return
 
 	quit(0)
 

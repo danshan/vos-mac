@@ -75,7 +75,11 @@ func _init() -> void:
 
 	controller.advance_to(4174.0)
 	var hidden_after_miss: Array = controller.render_state(4174.0).get("hiddenNotes", [])
-	if not _expect_int(hidden_after_miss.size(), 2, "miss keeps note visible"):
+	if not _expect_int(hidden_after_miss.size(), 3, "long note cleaned before tap miss leaves screen"):
+		return
+	controller.advance_to(5000.0)
+	var hidden_after_cleanup: Array = controller.render_state(5000.0).get("hiddenNotes", [])
+	if not _expect_int(hidden_after_cleanup.size(), 4, "miss cleaned after leaving screen"):
 		return
 	var result: Dictionary = controller.result()
 	var judgments: Dictionary = result.get("judgments", {})

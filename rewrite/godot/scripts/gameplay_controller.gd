@@ -2,8 +2,10 @@ extends RefCounted
 
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 const JudgmentStrategy = preload("res://scripts/judgment_strategy.gd")
+const NoteDistanceCalculator = preload("res://scripts/note_distance_calculator.gd")
 const ResultModel = preload("res://scripts/result_model.gd")
 const ScoreState = preload("res://scripts/score_state.gd")
+const TimingModel = preload("res://scripts/timing_model.gd")
 
 const STATE_NOT_JUDGED: String = "not_judged"
 const STATE_DEAD: String = "dead"
@@ -20,6 +22,11 @@ const AUDIO_TRIGGER_AUTOSOUND: String = "autosound"
 const AUDIO_TRIGGER_MISSED: String = "missed"
 const JUDGMENT_EVENT_DURATION_MS: float = 3000.0
 const CLICK_EVENT_DURATION_MS: float = 3000.0
+const JAVA_VIEWPORT_HEIGHT: float = 600.0
+const JAVA_JUDGMENT_LINE: float = 480.0
+const JAVA_MEASURE_SIZE: float = 385.0
+const JAVA_RENDER_SPEED: float = 1.0
+const JAVA_TAP_NOTE_HEIGHT: float = 7.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -34,6 +41,7 @@ var _judgment = JudgmentStrategy.new()
 var _pressed_lanes: Dictionary = {}
 var _held_note_indices: Dictionary = {}
 var _longflare_lanes: Dictionary = {}
+var _distance = null
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -44,6 +52,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_score_state = ScoreState.new()
 	_notes = _normalized_notes(_chart.get("notes", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
+	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
 	_last_judgment_event.clear()
@@ -204,11 +213,19 @@ func advance_to(now_ms: float) -> int:
 				_held_note_indices.erase(lane)
 				_longflare_lanes.erase(lane)
 				judged += 1
+	_cleanup_to_kill_notes(now_ms)
 	return judged
 
 
 func held_note_count() -> int:
 	return _held_note_indices.size()
+
+
+func note_layer_empty() -> bool:
+	for note: Dictionary in _notes:
+		if str(note.get("state", STATE_NOT_JUDGED)) != STATE_DEAD:
+			return false
+	return true
 
 
 func result() -> Dictionary:
@@ -241,6 +258,21 @@ func _normalized_auto_play_events(raw_events: Variant) -> Array[Dictionary]:
 
 	normalized.sort_custom(_compare_auto_play_events)
 	return normalized
+
+
+func _configure_distance() -> void:
+	var timing = TimingModel.new()
+	var loaded := false
+	var changes: Variant = _chart.get("visualTiming", [])
+	if changes is Array:
+		for raw_change: Variant in changes:
+			if raw_change is Dictionary:
+				timing.add_change(float(raw_change.get("timeMs", 0.0)), float(raw_change.get("bpm", 0.0)))
+				loaded = true
+	if not loaded:
+		timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
+	timing.finish()
+	_distance = NoteDistanceCalculator.new(timing, JAVA_MEASURE_SIZE)
 
 
 func _compare_notes(a: Dictionary, b: Dictionary) -> bool:
@@ -337,6 +369,28 @@ func _hidden_note_indices() -> Array[int]:
 		if str(_notes[i].get("state", STATE_NOT_JUDGED)) == STATE_DEAD:
 			hidden.append(i)
 	return hidden
+
+
+func _cleanup_to_kill_notes(now_ms: float) -> void:
+	if _distance == null:
+		return
+	for i in range(_notes.size()):
+		var note := _notes[i]
+		if str(note.get("state", STATE_NOT_JUDGED)) != STATE_TO_KILL:
+			continue
+		if _cleanup_y_for_note(note, now_ms) >= JAVA_VIEWPORT_HEIGHT:
+			note["state"] = STATE_DEAD
+			_notes[i] = note
+
+
+func _cleanup_y_for_note(note: Dictionary, now_ms: float) -> float:
+	var target_ms := float(note.get("startMs", 0.0))
+	if str(note.get("kind", "")) == "holdStart":
+		var end_ms: Variant = note.get("endMs", null)
+		if end_ms is int or end_ms is float:
+			target_ms = float(end_ms)
+		return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED)
+	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED) - JAVA_TAP_NOTE_HEIGHT
 
 
 func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:

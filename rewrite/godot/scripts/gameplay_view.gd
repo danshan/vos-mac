@@ -163,6 +163,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_pills(int(state.get("pills", 0)))
 	_sync_longflares(state.get("longFlares", []))
 	_sync_note_visibility(state.get("hiddenNotes", []))
+	_sync_measure_visibility(state.get("hiddenMeasures", []))
 	_sync_status_texts(state.get("statusTexts", []))
 	_sync_bga_event(state.get("currentBgaEvent", {}))
 
@@ -678,6 +679,20 @@ func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
 
 	for i in range(_note_entries.size()):
 		var node: Variant = _note_entries[i].get("node")
+		if node is CanvasItem:
+			node.visible = not bool(hidden.get(i, false))
+
+
+func _sync_measure_visibility(raw_hidden_measures: Variant) -> void:
+	var hidden := {}
+	if raw_hidden_measures is Array:
+		for raw_index: Variant in raw_hidden_measures:
+			var index := int(raw_index)
+			if index >= 0:
+				hidden[index] = true
+
+	for i in range(_measure_entries.size()):
+		var node: Variant = _measure_entries[i].get("node")
 		if node is CanvasItem:
 			node.visible = not bool(hidden.get(i, false))
 

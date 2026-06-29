@@ -540,6 +540,11 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 	var delayed_status: Array = delayed_state.get("statusTexts", [])
 	if not _expect_string(str(delayed_status[1]), "Current Measure: 1", "latency measure status uses game time"):
 		return false
+	var delayed_hidden_measures: Array = delayed_state.get("hiddenMeasures", [])
+	if not _expect_int(delayed_hidden_measures.size(), 1, "latency hidden measure count"):
+		return false
+	if not _expect_int(int(delayed_hidden_measures[0]), 0, "latency hidden measure index"):
+		return false
 	if not _expect_bool(delayed_state.has("currentBgaEvent"), false, "latency bga waits for judgment time"):
 		return false
 

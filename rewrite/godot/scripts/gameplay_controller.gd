@@ -245,6 +245,7 @@ func render_state(now_ms: float, status_now_ms: float = -1.0) -> Dictionary:
 		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
 		"longFlares": _active_longflares(),
 		"hiddenNotes": _hidden_note_indices(),
+		"hiddenMeasures": _hidden_measure_indices(status_time_ms),
 		"statusTexts": _status_texts(status_time_ms),
 		"renderSpeed": _render_speed,
 		"targetSpeed": _target_render_speed,
@@ -587,6 +588,20 @@ func _hidden_note_indices() -> Array[int]:
 	var hidden: Array[int] = []
 	for i in range(_notes.size()):
 		if str(_notes[i].get("state", STATE_NOT_JUDGED)) == STATE_DEAD:
+			hidden.append(i)
+	return hidden
+
+
+func _hidden_measure_indices(now_ms: float) -> Array[int]:
+	var hidden: Array[int] = []
+	var measures: Variant = _chart.get("measures", [])
+	if not measures is Array:
+		return hidden
+	for i in range(measures.size()):
+		var raw_measure: Variant = measures[i]
+		if not raw_measure is Dictionary:
+			continue
+		if float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
 			hidden.append(i)
 	return hidden
 

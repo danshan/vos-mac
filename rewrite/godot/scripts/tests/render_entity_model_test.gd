@@ -859,6 +859,14 @@ func _init() -> void:
 	if not _expect_float(measure_texture.region.position.y, 138.0, "measure texture second frame y"):
 		return
 
+	if not _expect_bool(measure_node.visible, true, "dynamic measure starts visible"):
+		return
+	view.update_hud_state({
+		"hiddenMeasures": [0],
+	})
+	if not _expect_bool(measure_node.visible, false, "judged measure is hidden"):
+		return
+
 	view.update_time(1000.0)
 	if not _expect_float(note_node.position.y, 473.0, "dynamic note node y at judgment"):
 		return

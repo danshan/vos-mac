@@ -7,6 +7,7 @@ const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
+const SettingsStore = preload("res://scripts/settings_store.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
 
@@ -26,6 +27,7 @@ var _layout_buttons: Array[Button] = []
 var _runtime: Node = null
 var _gameplay_view: Control = null
 var _exporter_client = ExporterClient.new()
+var _settings_store = SettingsStore.new()
 
 
 func _ready() -> void:
@@ -186,11 +188,13 @@ func _show_settings() -> void:
 	var directory_input := LineEdit.new()
 	directory_input.name = "SongDirectoryInput"
 	directory_input.placeholder_text = "Song directory"
+	directory_input.text = _song_directories_text()
 	_content.add_child(directory_input)
 
 	var fullscreen := CheckBox.new()
 	fullscreen.name = "FullscreenCheckBox"
 	fullscreen.text = "Fullscreen"
+	fullscreen.button_pressed = _settings_store.fullscreen_enabled()
 	_content.add_child(fullscreen)
 
 	var key_bindings := GridContainer.new()
@@ -201,7 +205,7 @@ func _show_settings() -> void:
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
 		var key_input := LineEdit.new()
 		key_input.name = "KeyBinding%d" % (i + 1)
-		key_input.text = DEFAULT_KEY_BINDINGS[i]
+		key_input.text = _key_binding_for_settings(i)
 		key_input.custom_minimum_size = Vector2(96.0, 44.0)
 		key_bindings.add_child(key_input)
 
@@ -277,6 +281,10 @@ func _show_gameplay() -> void:
 	_runtime.name = "GameplayRuntime"
 	_runtime.completed.connect(complete_game)
 	add_child(_runtime)
+	var key_bindings := _settings_store.key_bindings()
+	if not key_bindings.is_empty() and not _runtime.set_key_bindings(key_bindings):
+		_show_gameplay_load_error("Unable to apply key bindings")
+		return
 	if not _runtime.start(bundle.get("chart", {}), bundle.get("audioManifest", {})):
 		_show_gameplay_load_error("Unable to start gameplay")
 		return
@@ -308,6 +316,7 @@ func _show_result() -> void:
 
 
 func _on_settings_back_pressed() -> void:
+	_save_settings_from_controls()
 	if _app_state.transition_to(AppState.MAIN_MENU):
 		_show_main_menu()
 
@@ -467,6 +476,52 @@ func _show_gameplay_load_error(message: String) -> void:
 		_content.add_child(_status_label)
 	else:
 		_status_label.text = message
+
+
+func _save_settings_from_controls() -> void:
+	var directory_input: Node = _content.get_node_or_null("SongDirectoryInput")
+	if directory_input is LineEdit:
+		_settings_store.set_song_directories(_parse_song_directories(directory_input.text))
+
+	var fullscreen: Node = _content.get_node_or_null("FullscreenCheckBox")
+	if fullscreen is CheckBox:
+		_settings_store.set_fullscreen_enabled(fullscreen.button_pressed)
+
+	var bindings: Array[String] = []
+	for i in range(DEFAULT_KEY_BINDINGS.size()):
+		var key_input: Node = _content.get_node_or_null("KeyBindings/KeyBinding%d" % (i + 1))
+		if key_input is LineEdit:
+			var key: String = key_input.text.strip_edges()
+			if key.is_empty():
+				return
+			bindings.append(key)
+	if bindings.size() == DEFAULT_KEY_BINDINGS.size():
+		_settings_store.set_key_bindings(bindings)
+
+
+func _parse_song_directories(text: String) -> Array[String]:
+	var directories: Array[String] = []
+	for raw_path: String in text.split(";", false):
+		var path := raw_path.strip_edges()
+		if not path.is_empty():
+			directories.append(path)
+	return directories
+
+
+func _song_directories_text() -> String:
+	var text := ""
+	for path: String in _settings_store.song_directories():
+		if not text.is_empty():
+			text += ";"
+		text += path
+	return text
+
+
+func _key_binding_for_settings(index: int) -> String:
+	var bindings := _settings_store.key_bindings()
+	if index >= 0 and index < bindings.size():
+		return bindings[index]
+	return DEFAULT_KEY_BINDINGS[index]
 
 
 func _safe_name(value: String) -> String:

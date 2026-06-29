@@ -36,9 +36,20 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
 		return
 
+	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
+	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
+	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
 		return
+	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
+	if not _expect_string(ui.get_node("Content/SongDirectoryInput").text, "res://test/fixtures", "persisted song directory"):
+		return
+	if not _expect_bool(ui.get_node("Content/FullscreenCheckBox").button_pressed, true, "persisted fullscreen"):
+		return
+	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
+		return
+	ui.get_node("Content/BackButton").emit_signal("pressed")
 
 	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.SONG_SELECT, "song select state"):

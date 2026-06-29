@@ -11,6 +11,7 @@ const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
 
 var _song_directories: Array[String] = []
 var _fullscreen_enabled: bool = false
+var _autoplay_enabled: bool = false
 var _key_bindings: Array[String] = []
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
@@ -33,6 +34,14 @@ func set_fullscreen_enabled(enabled: bool) -> void:
 
 func fullscreen_enabled() -> bool:
 	return _fullscreen_enabled
+
+
+func set_autoplay_enabled(enabled: bool) -> void:
+	_autoplay_enabled = enabled
+
+
+func autoplay_enabled() -> bool:
+	return _autoplay_enabled
 
 
 func set_key_bindings(bindings: Array[String]) -> void:

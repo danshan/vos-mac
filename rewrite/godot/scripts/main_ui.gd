@@ -221,6 +221,12 @@ func _show_settings() -> void:
 	fullscreen.button_pressed = _settings_store.fullscreen_enabled()
 	_content.add_child(fullscreen)
 
+	var autoplay := CheckBox.new()
+	autoplay.name = "AutoplayCheckBox"
+	autoplay.text = "Autoplay"
+	autoplay.button_pressed = _settings_store.autoplay_enabled()
+	_content.add_child(autoplay)
+
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
 	for modifier: String in CHANNEL_MODIFIERS:
@@ -590,6 +596,10 @@ func _save_settings_from_controls() -> void:
 	if fullscreen is CheckBox:
 		_settings_store.set_fullscreen_enabled(fullscreen.button_pressed)
 
+	var autoplay: Node = _content.get_node_or_null("AutoplayCheckBox")
+	if autoplay is CheckBox:
+		_settings_store.set_autoplay_enabled(autoplay.button_pressed)
+
 	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
@@ -633,6 +643,7 @@ func _parse_song_directories(text: String) -> Array[String]:
 
 func _gameplay_option_overrides() -> Dictionary:
 	return {
+		"autoplay": _settings_store.autoplay_enabled(),
 		"channelModifier": _settings_store.channel_modifier(),
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),

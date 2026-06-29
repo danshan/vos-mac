@@ -10,6 +10,12 @@ func _init() -> void:
 		return
 	if not _test_ranked_chart_life_model():
 		return
+	if not _test_autoplay_tap_note():
+		return
+	if not _test_autoplay_long_note():
+		return
+	if not _test_autoplay_ignores_manual_input():
+		return
 
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
@@ -136,6 +142,103 @@ func _test_ranked_chart_life_model() -> bool:
 	return true
 
 
+func _test_autoplay_tap_note() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autoplay_tap_chart()), true, "autoplay tap chart load"):
+		return false
+
+	if not _expect_int(controller.advance_to(999.0), 0, "autoplay tap before target"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "autoplay tap before target audio"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 0, "autoplay tap before target score"):
+		return false
+
+	if not _expect_int(controller.advance_to(1000.0), 1, "autoplay tap judged at target"):
+		return false
+	var commands: Array[Dictionary] = controller.drain_audio_commands()
+	if not _expect_int(commands.size(), 1, "autoplay tap keysound count"):
+		return false
+	if not _expect_command(commands[0], "playSample", 1, "note", "keysound"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 200, "autoplay tap score"):
+		return false
+	var hidden: Array = controller.render_state(1000.0).get("hiddenNotes", [])
+	if not _expect_int(hidden.size(), 1, "autoplay tap hidden count"):
+		return false
+	if not _expect_int(int(hidden[0]), 0, "autoplay tap hidden index"):
+		return false
+	return true
+
+
+func _test_autoplay_long_note() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autoplay_long_note_chart()), true, "autoplay long chart load"):
+		return false
+
+	if not _expect_int(controller.advance_to(2999.0), 0, "autoplay long before head"):
+		return false
+	if not _expect_int(controller.advance_to(3000.0), 1, "autoplay long head judged"):
+		return false
+	var head_commands: Array[Dictionary] = controller.drain_audio_commands()
+	if not _expect_int(head_commands.size(), 1, "autoplay long head keysound count"):
+		return false
+	if not _expect_command(head_commands[0], "playSample", 3, "note", "keysound"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 200, "autoplay long head score"):
+		return false
+	if not _expect_int(controller.held_note_count(), 1, "autoplay long held count"):
+		return false
+	var pressed_lanes: Array[int] = controller.pressed_lanes()
+	if not _expect_int(pressed_lanes.size(), 1, "autoplay long pressed lane count"):
+		return false
+	if not _expect_int(pressed_lanes[0], 2, "autoplay long pressed lane"):
+		return false
+	var long_flares: Array = controller.render_state(3000.0).get("longFlares", [])
+	if not _expect_int(long_flares.size(), 1, "autoplay long flare count"):
+		return false
+	if not _expect_int(long_flares[0].get("lane", -1), 2, "autoplay long flare lane"):
+		return false
+	if not _expect_int(long_flares[0].get("noteIndex", -1), 0, "autoplay long flare note index"):
+		return false
+
+	if not _expect_int(controller.advance_to(3300.0), 1, "autoplay long tail judged"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "autoplay long tail audio count"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 400, "autoplay long tail score"):
+		return false
+	if not _expect_int(controller.held_note_count(), 0, "autoplay long released count"):
+		return false
+	if not _expect_int(controller.pressed_lanes().size(), 0, "autoplay long pressed lane cleared"):
+		return false
+	if not _expect_int(controller.render_state(3300.0).get("longFlares", []).size(), 0, "autoplay long flare cleared"):
+		return false
+	return true
+
+
+func _test_autoplay_ignores_manual_input() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autoplay_tap_chart()), true, "autoplay manual chart load"):
+		return false
+
+	var manual_hit: Dictionary = controller.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(manual_hit.get("accepted", true), false, "autoplay manual input ignored"):
+		return false
+	if not _expect_string(manual_hit.get("reason", ""), "autoplay_lane", "autoplay manual input reason"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 0, "autoplay manual input score"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "autoplay manual input audio"):
+		return false
+
+	if not _expect_int(controller.advance_to(1000.0), 1, "autoplay still judges after manual input"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 200, "autoplay score after ignored manual input"):
+		return false
+	return true
+
+
 func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
 	var chart := {
 		"schemaVersion": 1,
@@ -155,6 +258,40 @@ func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
 	for key: Variant in extra_fields.keys():
 		chart[key] = extra_fields[key]
 	return chart
+
+
+func _autoplay_tap_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:autoplay-tap",
+		"format": "VOS",
+		"autoplay": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _autoplay_long_note_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:autoplay-long",
+		"format": "VOS",
+		"autoplay": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 5000,
+		"notes": [
+			{"id": 3, "lane": 2, "startMs": 3000.0, "endMs": 3300.0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+		],
+		"autoPlayEvents": [],
+	}
 
 
 func _chart() -> Dictionary:
@@ -196,5 +333,17 @@ func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
+		return false
+	return true
+
+
+func _expect_command(command: Dictionary, action: String, sample_id: int, source: String, trigger: String) -> bool:
+	if not _expect_string(command.get("action", ""), action, "audio action"):
+		return false
+	if not _expect_int(command.get("sampleId", -1), sample_id, "audio sample id"):
+		return false
+	if not _expect_string(command.get("source", ""), source, "audio source"):
+		return false
+	if not _expect_string(command.get("trigger", ""), trigger, "audio trigger"):
 		return false
 	return true

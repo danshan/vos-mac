@@ -53,6 +53,7 @@ var _held_note_indices: Dictionary = {}
 var _longflare_lanes: Dictionary = {}
 var _distance = null
 var _timing = null
+var _autoplay_enabled: bool = false
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
 var _speed_type: String = SPEED_TYPE_HI_SPEED
@@ -71,6 +72,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []))
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
+	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
@@ -141,6 +143,8 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 	var audio_start_index := _audio_commands.size()
 	if lane < 0:
 		return {"pressed": false, "accepted": false, "reason": "invalid_lane", "audioCommands": []}
+	if _autoplay_enabled:
+		return {"pressed": false, "accepted": false, "reason": "autoplay_lane", "audioCommands": []}
 	if bool(_pressed_lanes.get(lane, false)):
 		return {"pressed": false, "accepted": false, "reason": "already_pressed", "audioCommands": []}
 
@@ -195,6 +199,8 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 	var audio_start_index := _audio_commands.size()
 	if lane < 0:
 		return {"released": false, "accepted": false, "reason": "invalid_lane", "audioCommands": []}
+	if _autoplay_enabled:
+		return {"released": false, "accepted": false, "reason": "autoplay_lane", "audioCommands": []}
 
 	_pressed_lanes[lane] = false
 	if not _held_note_indices.has(lane):
@@ -224,6 +230,7 @@ func advance_to(now_ms: float) -> int:
 	_advance_event_buffer(now_ms)
 	_update_distance_state(now_ms)
 	_advance_auto_play(now_ms)
+	judged += _advance_note_autoplay(now_ms)
 	for i in range(_notes.size()):
 		var note := _notes[i]
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
@@ -516,6 +523,12 @@ func _normalized_speed_type(value: Variant) -> String:
 	return SPEED_TYPE_HI_SPEED
 
 
+func _normalized_bool(value: Variant) -> bool:
+	if value is bool:
+		return value
+	return false
+
+
 func _update_distance_state(now_ms: float) -> void:
 	if _speed_type != SPEED_TYPE_W_SPEED or _distance == null:
 		return
@@ -568,6 +581,54 @@ func _advance_auto_play(now_ms: float) -> void:
 		_emit_auto_play_command(event)
 		event["played"] = true
 		_auto_play_events[i] = event
+
+
+func _advance_note_autoplay(now_ms: float) -> int:
+	if not _autoplay_enabled:
+		return 0
+
+	var judged := 0
+	for i in range(_notes.size()):
+		var note := _notes[i]
+		var state := str(note.get("state", STATE_NOT_JUDGED))
+		if state == STATE_NOT_JUDGED:
+			var hit_time := _hit_time_for_note(note, now_ms)
+			if hit_time > 0.0:
+				continue
+			var result := _apply_note_judgment(i, hit_time, now_ms)
+			if result != "miss":
+				_emit_note_play_command(i, AUDIO_TRIGGER_KEYSOUND, true)
+			if str(note.get("kind", "")) == "holdStart" and result != "miss":
+				_begin_autoplay_hold(i, now_ms)
+			judged += 1
+		elif state == STATE_HOLDING:
+			var tail_hit_time := _tail_hit_time_for_note(note, now_ms)
+			if tail_hit_time > 0.0:
+				continue
+			_end_autoplay_hold(note)
+			_apply_note_judgment(i, tail_hit_time, now_ms)
+			judged += 1
+	return judged
+
+
+func _begin_autoplay_hold(note_index: int, now_ms: float) -> void:
+	var note := _notes[note_index]
+	var lane := int(note.get("lane", -1))
+	note["state"] = STATE_HOLDING
+	_notes[note_index] = note
+	_pressed_lanes[lane] = true
+	_held_note_indices[lane] = note_index
+	_longflare_lanes[lane] = {
+		"noteIndex": note_index,
+		"startMs": now_ms,
+	}
+
+
+func _end_autoplay_hold(note: Dictionary) -> void:
+	var lane := int(note.get("lane", -1))
+	_pressed_lanes[lane] = false
+	_held_note_indices.erase(lane)
+	_longflare_lanes.erase(lane)
 
 
 func _emit_note_play_command(note_index: int, trigger: String, mark_played: bool) -> Dictionary:

@@ -12,6 +12,7 @@ func _init() -> void:
 	var input_bindings: Array[String] = ["A", "S", "D", "Space", "J", "K", "L"]
 	store.set_key_bindings(input_bindings)
 	input_bindings[0] = "Mutated"
+	store.set_autoplay_enabled(true)
 	store.set_channel_modifier("Mirror")
 	store.set_speed_type("RegulSpeed")
 	store.set_speed_multiplier(2.0)
@@ -23,6 +24,8 @@ func _init() -> void:
 	if not _expect_bool(store.fullscreen_enabled(), true, "fullscreen enabled"):
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key bindings"):
+		return
+	if not _expect_bool(store.autoplay_enabled(), true, "autoplay enabled"):
 		return
 	if not _expect_string(store.channel_modifier(), "Mirror", "channel modifier"):
 		return

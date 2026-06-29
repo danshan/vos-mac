@@ -968,7 +968,7 @@ func _one_shot_animation_finished(entity: Dictionary, event: Dictionary, now_ms:
 	if frames.is_empty() or frame_speed <= 0.0:
 		return false
 	var duration_ms := float(frames.size()) / frame_speed
-	return now_ms - float(event.get("startMs", 0.0)) > duration_ms
+	return now_ms - float(event.get("startMs", 0.0)) >= duration_ms
 
 
 func _clear_pressed_nodes() -> void:

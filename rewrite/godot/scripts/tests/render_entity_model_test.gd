@@ -471,6 +471,18 @@ func _init() -> void:
 		return
 	if not _expect_float(click_node.position.y, 352.0, "click node y"):
 		return
+	view.update_hud_state({
+		"elapsedMs": 1401.0,
+		"clickEvents": [
+			{
+				"sequence": 2,
+				"lane": 0,
+				"startMs": 1000.0,
+			},
+		],
+	})
+	if not _expect_int(_count_children_with_prefix(view, "Click_EFFECT_CLICK_"), 0, "click clears after one Java animation loop"):
+		return
 
 	view.update_hud_state({
 		"judgmentEvent": {

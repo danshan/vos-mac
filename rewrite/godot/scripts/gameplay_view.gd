@@ -134,7 +134,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_set_bar_fill("JAM_BAR", float(state.get("jamBar", 0.0)), float(state.get("jamBarLimit", 0.0)))
 	_sync_pressed_lanes(state.get("pressedLanes", []))
 	_sync_judgment_event(state.get("judgmentEvent", {}))
-	_sync_click_events(state.get("clickEvents", []))
+	_sync_click_events(state.get("clickEvents", []), hud_time_ms)
 	_sync_pills(int(state.get("pills", 0)))
 	_sync_longflares(state.get("longFlares", []))
 	_sync_note_visibility(state.get("hiddenNotes", []))
@@ -521,7 +521,7 @@ func _sync_judgment_event(raw_event: Variant) -> void:
 	add_child(_judgment_node)
 
 
-func _sync_click_events(raw_events: Variant) -> void:
+func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
 	_clear_nodes(_click_nodes)
 	if not raw_events is Array:
 		return
@@ -531,6 +531,8 @@ func _sync_click_events(raw_events: Variant) -> void:
 		return
 	for raw_event: Variant in raw_events:
 		if not raw_event is Dictionary:
+			continue
+		if _one_shot_animation_finished(entity, raw_event, now_ms):
 			continue
 		var sequence := int(raw_event.get("sequence", 0))
 		var event_entity := entity.duplicate(true)
@@ -611,6 +613,15 @@ func _position_longflare_node(node: Control, entity: Dictionary, lane_index: int
 	var note_node: Variant = _note_entries[note_index].get("node")
 	if note_node is Control:
 		node.position.y = note_node.position.y
+
+
+func _one_shot_animation_finished(entity: Dictionary, event: Dictionary, now_ms: float) -> bool:
+	var frames := _sprite_frames(entity)
+	var frame_speed := float(entity.get("frameSpeed", 0.0))
+	if frames.is_empty() or frame_speed <= 0.0:
+		return false
+	var duration_ms := float(frames.size()) / frame_speed
+	return now_ms - float(event.get("startMs", 0.0)) > duration_ms
 
 
 func _clear_pressed_nodes() -> void:

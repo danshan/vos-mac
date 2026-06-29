@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.util.logging.Handler;
 import java.util.logging.Level;
 import javax.swing.UIManager;
+import org.open2jam.export.VosExportCli;
 import org.open2jam.gui.AppIcon;
 import org.open2jam.gui.Interface;
 import org.open2jam.sound.OsuManiaValidator;
@@ -37,6 +38,9 @@ public class Main implements Runnable
     static int runCli(String[] args, PrintStream out, PrintStream err) {
         if (args == null || args.length == 0) {
             return -1;
+        }
+        if (VosExportCli.isExportCommand(args[0])) {
+            return VosExportCli.run(args, out, err);
         }
         if ("--validate-osu-mania".equals(args[0])) {
             return validateOsuMania(args, out, err);

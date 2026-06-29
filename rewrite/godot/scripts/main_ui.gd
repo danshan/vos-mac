@@ -46,6 +46,7 @@ func build() -> void:
 	if _built:
 		return
 	_built = true
+	_configure_exporter_from_environment()
 	resized.connect(_on_resized)
 
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -86,6 +87,12 @@ func set_exporter_client(exporter: Variant) -> void:
 
 func configure_exporter(java_path: String, jar_path: String) -> void:
 	_exporter_client.configure(java_path, jar_path)
+
+
+func is_exporter_configured() -> bool:
+	if _exporter_client == null or not _exporter_client.has_method("is_configured"):
+		return false
+	return _exporter_client.is_configured()
 
 
 func complete_game(result: Dictionary) -> void:
@@ -478,6 +485,19 @@ func _show_gameplay_load_error(message: String) -> void:
 		_content.add_child(_status_label)
 	else:
 		_status_label.text = message
+
+
+func _configure_exporter_from_environment() -> void:
+	if _exporter_client == null or not _exporter_client.has_method("configure"):
+		return
+	if _exporter_client.has_method("is_configured") and _exporter_client.is_configured():
+		return
+
+	var java_path := OS.get_environment("OPEN2JAM_JAVA").strip_edges()
+	var jar_path := OS.get_environment("OPEN2JAM_JAR").strip_edges()
+	if java_path.is_empty() or jar_path.is_empty():
+		return
+	_exporter_client.configure(java_path, jar_path)
 
 
 func _refresh_song_entries_from_settings() -> void:

@@ -13,7 +13,11 @@ func _init() -> void:
 		return
 
 	var ui = MainUi.new()
+	OS.set_environment("OPEN2JAM_JAVA", "java")
+	OS.set_environment("OPEN2JAM_JAR", "target/open2jam.jar")
 	ui.build()
+	if not _expect_bool(ui.is_exporter_configured(), true, "exporter configured from environment"):
+		return
 
 	if not _expect_bool(ui is Control, true, "main ui control"):
 		return

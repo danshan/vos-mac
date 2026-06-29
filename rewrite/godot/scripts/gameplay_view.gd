@@ -732,6 +732,7 @@ func _sync_bga_event(raw_event: Variant) -> void:
 func _rebuild_visibility_nodes() -> void:
 	_clear_nodes(_visibility_nodes)
 	var modifier: String = _normalized_visibility_modifier(_chart.get("visibilityModifier", VISIBILITY_NONE))
+	_apply_visibility_layers(modifier)
 	if modifier == VISIBILITY_NONE:
 		return
 	var height: float = max(float(_metadata.get("judgmentLine", 0.0)), 1.0)
@@ -767,9 +768,43 @@ func _normalized_visibility_modifier(value: Variant) -> String:
 func _visibility_layer() -> int:
 	var layer := 0
 	for entity: Dictionary in _metadata.get("entities", []):
-		if _is_note_template(entity):
-			layer = max(layer, int(entity.get("layer", 0)))
+		layer = max(layer, int(entity.get("layer", 0)))
 	return layer + 1
+
+
+func _apply_visibility_layers(modifier: String) -> void:
+	_set_static_entity_layer("JUDGMENT_LINE", _metadata_layer_for_id("JUDGMENT_LINE"))
+	_set_measure_node_layer(_metadata_layer_for_id("MEASURE_MARK"))
+	if modifier == VISIBILITY_NONE:
+		return
+
+	var layer := _visibility_layer()
+	if modifier != VISIBILITY_SUDDEN:
+		_set_static_entity_layer("JUDGMENT_LINE", layer)
+	_set_measure_node_layer(layer)
+
+
+func _set_static_entity_layer(id: String, layer: int) -> void:
+	var node_path := "Entity_%s" % _safe_node_id(id)
+	if not has_node(node_path):
+		return
+	var node: Variant = get_node(node_path)
+	if node is CanvasItem:
+		node.z_index = layer
+
+
+func _set_measure_node_layer(layer: int) -> void:
+	for entry: Dictionary in _measure_entries:
+		var node: Variant = entry.get("node")
+		if node is CanvasItem:
+			node.z_index = layer
+
+
+func _metadata_layer_for_id(id: String) -> int:
+	for entity: Dictionary in _metadata.get("entities", []):
+		if str(entity.get("id", "")) == id:
+			return int(entity.get("layer", 0))
+	return 0
 
 
 func _visibility_texture(width: int, height: int, modifier: String) -> Texture2D:

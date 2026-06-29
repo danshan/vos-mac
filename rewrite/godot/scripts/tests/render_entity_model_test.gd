@@ -753,7 +753,13 @@ func _init() -> void:
 		return
 	if not _expect_float(hidden_overlay.size.y, 480.0, "hidden visibility height"):
 		return
-	if not _expect_int(hidden_overlay.z_index, 6, "hidden visibility Java layer"):
+	if not _expect_int(hidden_overlay.z_index, 11, "hidden visibility Java layer"):
+		return
+	var hidden_judgment_line: Control = hidden_view.get_node("Entity_JUDGMENT_LINE")
+	if not _expect_int(hidden_judgment_line.z_index, 11, "hidden judgment line Java layer"):
+		return
+	var hidden_measure: Control = hidden_view.get_node("Measure_000")
+	if not _expect_int(hidden_measure.z_index, 11, "hidden measure mark Java layer"):
 		return
 	hidden_view.free()
 	var mirror_chart: Dictionary = chart.duplicate(true)

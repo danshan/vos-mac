@@ -14,6 +14,7 @@ godot --headless --path rewrite/godot --script res://scripts/tests/settings_stor
 godot --headless --path rewrite/godot --script res://scripts/tests/input_map_store_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/catalog_store_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/gameplay_loader_test.gd
+godot --headless --path rewrite/godot --script res://scripts/tests/gameplay_input_java_parity_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/audio_manifest_loader_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/exporter_client_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/result_flow_test.gd

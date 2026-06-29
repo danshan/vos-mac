@@ -10,7 +10,7 @@ func _init() -> void:
 	score_state.apply_judgment("cool")
 	score_state.apply_judgment("miss")
 
-	if not _expect_bool(score_state.score > 0, true, "direct score positive"):
+	if not _expect_int(score_state.score, 190, "direct Java score"):
 		return
 	if not _expect_int(score_state.max_combo, 1, "direct max combo"):
 		return
@@ -38,7 +38,9 @@ func _init() -> void:
 	var controller_result: Dictionary = controller.result()
 	if not _expect_string(controller_result.get("chartId", ""), "vos:fixture", "controller result chart id"):
 		return
-	if not _expect_bool(controller_result.get("score", 0) > 0, true, "controller result score positive"):
+	if not _expect_int(controller_result.get("score", 0), 200, "controller result Java score"):
+		return
+	if not _expect_int(controller_result.get("maxCombo", 0), 0, "controller result Java max combo"):
 		return
 
 	quit(0)

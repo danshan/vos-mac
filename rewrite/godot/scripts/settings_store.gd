@@ -20,6 +20,7 @@ var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
 var _haste_mode_enabled: bool = false
 var _haste_mode_normalize_speed: bool = true
+var _start_paused_enabled: bool = false
 var _key_bindings: Array[String] = []
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
@@ -114,6 +115,14 @@ func set_haste_mode_normalize_speed(enabled: bool) -> void:
 
 func haste_mode_normalize_speed() -> bool:
 	return _haste_mode_normalize_speed
+
+
+func set_start_paused_enabled(enabled: bool) -> void:
+	_start_paused_enabled = enabled
+
+
+func start_paused_enabled() -> bool:
+	return _start_paused_enabled
 
 
 func set_key_bindings(bindings: Array[String]) -> void:

@@ -40,6 +40,9 @@ func _init() -> void:
 		return
 	store.set_haste_mode_enabled(true)
 	store.set_haste_mode_normalize_speed(false)
+	if not _expect_bool(store.has_method("set_start_paused_enabled"), true, "start paused setter"):
+		return
+	store.set_start_paused_enabled(true)
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -74,6 +77,8 @@ func _init() -> void:
 	if not _expect_bool(store.haste_mode_enabled(), true, "haste mode enabled"):
 		return
 	if not _expect_bool(store.haste_mode_normalize_speed(), false, "haste normalize speed"):
+		return
+	if not _expect_bool(store.start_paused_enabled(), true, "start paused enabled"):
 		return
 
 	var directories: Array[String] = store.song_directories()

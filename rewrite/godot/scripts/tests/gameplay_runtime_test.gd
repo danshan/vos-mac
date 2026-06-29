@@ -84,7 +84,13 @@ func _init() -> void:
 		return
 
 	runtime.advance_to(3000.0)
-	if not _expect_bool(runtime.is_running(), false, "runtime stops at duration"):
+	if not _expect_bool(runtime.is_running(), true, "runtime keeps running at duration"):
+		return
+	runtime.advance_to(13000.0)
+	if not _expect_bool(runtime.is_running(), true, "runtime keeps running at Java finish boundary"):
+		return
+	runtime.advance_to(13001.0)
+	if not _expect_bool(runtime.is_running(), false, "runtime stops after Java finish delay"):
 		return
 	if not _expect_int(runtime.result().get("score", 0), 200, "runtime result score"):
 		return

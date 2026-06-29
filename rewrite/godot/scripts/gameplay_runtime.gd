@@ -6,12 +6,15 @@ const AudioPlayerPool = preload("res://scripts/audio_player_pool.gd")
 const GameplayController = preload("res://scripts/gameplay_controller.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 
+const JAVA_FINISH_DELAY_MS: float = 10000.0
+
 var _controller = GameplayController.new()
 var _input_map = InputMapStore.new()
 var _audio_pool: Node = null
 var _running: bool = false
 var _elapsed_ms: float = 0.0
 var _duration_ms: float = 0.0
+var _finish_after_ms: float = -1.0
 var _fps_elapsed_ms: float = 0.0
 var _fps_frame_count: int = 0
 var _display_fps: int = 0
@@ -62,6 +65,7 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 
 	_elapsed_ms = 0.0
 	_duration_ms = float(chart.get("durationMs", 0.0))
+	_finish_after_ms = -1.0
 	_fps_elapsed_ms = 0.0
 	_fps_frame_count = 0
 	_display_fps = 0
@@ -75,6 +79,7 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 func stop() -> void:
 	if _audio_pool != null:
 		_audio_pool.stop_all()
+	_finish_after_ms = -1.0
 	_running = false
 
 
@@ -106,7 +111,10 @@ func advance_to(now_ms: float) -> void:
 	_apply_audio_commands()
 
 	if _duration_ms > 0.0 and _elapsed_ms >= _duration_ms:
-		_finish()
+		if _finish_after_ms < 0.0:
+			_finish_after_ms = _elapsed_ms + JAVA_FINISH_DELAY_MS
+		elif _elapsed_ms > _finish_after_ms:
+			_finish()
 
 
 func press_action(action: String, now_ms: float = -1.0) -> Dictionary:

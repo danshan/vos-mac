@@ -35,6 +35,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/AutoplayCheckBox"), true, "autoplay checkbox"):
 		return
+	if not _expect_bool(ui.has_node("Content/AutoSoundCheckBox"), true, "autosound checkbox"):
+		return
 	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
 		return
 	if not _expect_bool(ui.has_node("Content/SpeedTypeOption"), true, "speed type option"):
@@ -51,6 +53,7 @@ func _init() -> void:
 	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
 	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
 	ui.get_node("Content/AutoplayCheckBox").button_pressed = true
+	ui.get_node("Content/AutoSoundCheckBox").button_pressed = true
 	ui.get_node("Content/ChannelModifierOption").select(1)
 	ui.get_node("Content/SpeedTypeOption").select(3)
 	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
@@ -66,6 +69,8 @@ func _init() -> void:
 	if not _expect_bool(ui.get_node("Content/FullscreenCheckBox").button_pressed, true, "persisted fullscreen"):
 		return
 	if not _expect_bool(ui.get_node("Content/AutoplayCheckBox").button_pressed, true, "persisted autoplay"):
+		return
+	if not _expect_bool(ui.get_node("Content/AutoSoundCheckBox").button_pressed, true, "persisted autosound"):
 		return
 	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
 			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
@@ -86,7 +91,10 @@ func _init() -> void:
 	var option_overrides: Dictionary = ui._gameplay_option_overrides()
 	if not _expect_bool(option_overrides.get("autoplay", false), true, "autoplay gameplay override"):
 		return
+	if not _expect_bool(option_overrides.get("autosound", false), true, "autosound gameplay override"):
+		return
 	ui.get_node("Content/AutoplayCheckBox").button_pressed = false
+	ui.get_node("Content/AutoSoundCheckBox").button_pressed = false
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 
 	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")

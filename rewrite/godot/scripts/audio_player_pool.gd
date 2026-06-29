@@ -7,6 +7,7 @@ var _registered_players: Dictionary = {}
 var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
+var _pitch_scale: float = 1.0
 
 
 func load_manifest(manifest: Dictionary) -> bool:
@@ -52,6 +53,11 @@ func set_volume_state(master_volume: float, key_volume: float, bgm_volume: float
 	_key_volume = _clamped_volume(key_volume)
 	_bgm_volume = _clamped_volume(bgm_volume)
 	_update_active_player_volumes()
+
+
+func set_pitch_scale(pitch_scale: float) -> void:
+	_pitch_scale = _clamped_pitch_scale(pitch_scale)
+	_update_active_player_pitch_scale()
 
 
 func apply_audio_commands(commands: Array) -> Array[Dictionary]:
@@ -110,6 +116,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	var channel_volume := _channel_volume(uses_bgm_channel)
 	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
 	player.volume_db = _volume_db_for_linear(effective_volume)
+	player.pitch_scale = _pitch_scale
 	player.set_meta("sample_volume", sample_volume)
 	player.set_meta("uses_bgm_channel", uses_bgm_channel)
 	player.set_meta("pan", pan)
@@ -129,6 +136,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 		"channelVolume": channel_volume,
 		"effectiveVolume": effective_volume,
 		"pan": pan,
+		"pitchScale": _pitch_scale,
 	}
 	_copy_command_field(command, event, "action")
 	_copy_command_field(command, event, "source")
@@ -215,8 +223,18 @@ func _update_active_player_volumes() -> void:
 			(child as AudioStreamPlayer).volume_db = _volume_db_for_linear(effective_volume)
 
 
+func _update_active_player_pitch_scale() -> void:
+	for child in get_children():
+		if child is AudioStreamPlayer:
+			(child as AudioStreamPlayer).pitch_scale = _pitch_scale
+
+
 func _clamped_volume(volume: float) -> float:
 	return clampf(volume, 0.0, 1.0)
+
+
+func _clamped_pitch_scale(pitch_scale: float) -> float:
+	return clampf(pitch_scale, 0.25, 4.0)
 
 
 func _clamped_pan(pan: float) -> float:

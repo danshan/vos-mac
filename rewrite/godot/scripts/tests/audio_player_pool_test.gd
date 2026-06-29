@@ -51,7 +51,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(pool.has_method("set_volume_state"), true, "volume state method"):
 		return
+	if not _expect_bool(pool.has_method("set_pitch_scale"), true, "pitch scale method"):
+		return
 	pool.set_volume_state(0.5, 0.25, 0.75)
+	pool.set_pitch_scale(2.0)
 
 	var note_play: Dictionary = pool.apply_audio_command({
 		"action": "playSample",
@@ -81,8 +84,14 @@ func _init() -> void:
 		return
 	if not _expect_float(float(note_player.get_meta("pan", 0.0)), -1.0, "note player pan metadata"):
 		return
+	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 2.0, "note player initial pitch scale"):
+		return
 	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.1, "note player initial db volume"):
 		return
+	pool.set_pitch_scale(8.0)
+	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 4.0, "active note player pitch scale clamp"):
+		return
+	pool.set_pitch_scale(2.0)
 	pool.set_volume_state(0.4, 0.5, 0.75)
 	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.16, "active note player volume update"):
 		return

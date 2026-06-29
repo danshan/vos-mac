@@ -34,6 +34,8 @@ func _init() -> void:
 		return
 	if not _test_java_manual_start_gates_game_time(audio_manifest):
 		return
+	if not _test_java_latency_splits_judgment_display_and_autosound(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -441,6 +443,71 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	runtime.advance_to(1500.0)
 	var running_state: Dictionary = runtime.hud_state()
 	if not _expect_int(running_state.get("gameTimeMs", -1), 500, "manual start game time after input"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:latency-split",
+		"format": "VOS",
+		"autosound": true,
+		"judgmentType": "time",
+		"audioLatencyMs": 100.0,
+		"displayLatencyMs": 250.0,
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"measures": [
+			{"startMs": 1000.0},
+		],
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [
+			{"startMs": 1000.0, "sampleId": 1, "volume": 1.0, "pan": 0.0},
+		],
+		"bgaEvents": [
+			{"startMs": 1000.0, "spriteId": 7},
+		],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "latency runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	var delayed_state: Dictionary = runtime.hud_state()
+	if not _expect_int(delayed_state.get("gameTimeMs", -1), 1000, "latency game time"):
+		return false
+	if not _expect_int(delayed_state.get("judgmentTimeMs", -1), 900, "latency judgment time"):
+		return false
+	if not _expect_int(delayed_state.get("displayTimeMs", -1), 1150, "latency display time"):
+		return false
+	if not _expect_int(runtime.audio_play_event_count(), 1, "latency autosound uses game time"):
+		return false
+	var delayed_status: Array = delayed_state.get("statusTexts", [])
+	if not _expect_string(str(delayed_status[1]), "Current Measure: 0", "latency status uses judgment time"):
+		return false
+	if not _expect_bool(delayed_state.has("currentBgaEvent"), false, "latency bga waits for judgment time"):
+		return false
+
+	var hit: Dictionary = runtime.press_action("vos_lane_1")
+	if not _expect_float(float(hit.get("hitTime", -1.0)), 100.0, "latency input uses judgment time"):
+		return false
+
+	runtime.advance_to(1100.0)
+	var caught_up_state: Dictionary = runtime.hud_state()
+	var caught_up_status: Array = caught_up_state.get("statusTexts", [])
+	if not _expect_int(caught_up_state.get("judgmentTimeMs", -1), 1000, "latency caught up judgment time"):
+		return false
+	if not _expect_string(str(caught_up_status[1]), "Current Measure: 1", "latency caught up measure"):
+		return false
+	var caught_up_bga: Dictionary = caught_up_state.get("currentBgaEvent", {})
+	if not _expect_int(caught_up_bga.get("spriteId", -1), 7, "latency caught up bga"):
 		return false
 
 	runtime.free()

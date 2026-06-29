@@ -343,13 +343,17 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 	}
 
 
-func advance_to(now_ms: float) -> int:
+func advance_to(now_ms: float, display_now_ms: float = -1.0,
+		autosound_now_ms: float = -1.0, game_now_ms: float = -1.0) -> int:
+	var render_now_ms := display_now_ms if display_now_ms >= 0.0 else now_ms
+	var sound_now_ms := autosound_now_ms if autosound_now_ms >= 0.0 else now_ms
+	var speed_now_ms := game_now_ms if game_now_ms >= 0.0 else now_ms
 	var judged := 0
-	_update_game_speed_state(now_ms)
-	_update_render_speed_state(now_ms)
-	_advance_event_buffer(now_ms)
-	_update_distance_state(now_ms)
-	_advance_auto_play(now_ms)
+	_update_game_speed_state(speed_now_ms)
+	_update_render_speed_state(speed_now_ms)
+	_advance_event_buffer(render_now_ms)
+	_update_distance_state(render_now_ms)
+	_advance_auto_play(sound_now_ms)
 	judged += _advance_note_autoplay(now_ms)
 	for i in range(_notes.size()):
 		var note := _notes[i]
@@ -366,7 +370,7 @@ func advance_to(now_ms: float) -> int:
 				_held_note_indices.erase(lane)
 				_longflare_lanes.erase(lane)
 				judged += 1
-	_cleanup_to_kill_notes(now_ms)
+	_cleanup_to_kill_notes(render_now_ms)
 	return judged
 
 

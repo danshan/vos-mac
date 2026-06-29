@@ -25,6 +25,9 @@ var _display_second: int = 0
 var _last_result: Dictionary = {}
 var _manual_start: bool = false
 var _game_started: bool = true
+var _autosound_enabled: bool = true
+var _audio_latency_ms: float = 0.0
+var _display_latency_ms: float = 0.0
 
 
 func _ready() -> void:
@@ -89,6 +92,9 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	_last_result.clear()
 	_manual_start = bool(chart.get("manualStart", false))
 	_game_started = not _manual_start
+	_autosound_enabled = bool(chart.get("autosound", true))
+	_audio_latency_ms = float(chart.get("audioLatencyMs", 0.0))
+	_display_latency_ms = float(chart.get("displayLatencyMs", 0.0))
 	_running = true
 	return true
 
@@ -112,6 +118,14 @@ func game_time_ms() -> float:
 	return _game_time_ms
 
 
+func judgment_time_ms() -> float:
+	return _judgment_time_ms()
+
+
+func display_time_ms() -> float:
+	return _display_time_ms()
+
+
 func set_key_bindings(bindings: Array) -> bool:
 	if not _input_map.set_key_bindings(bindings):
 		return false
@@ -133,7 +147,7 @@ func advance_to(now_ms: float) -> void:
 		return
 
 	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
-	_controller.advance_to(_game_time_ms)
+	_controller.advance_to(_judgment_time_ms(), _display_time_ms(), _game_time_ms, _game_time_ms)
 	_apply_audio_commands()
 
 	if _controller.note_layer_empty() and _controller.event_buffer_empty():
@@ -169,12 +183,14 @@ func hud_state() -> Dictionary:
 	var state := result()
 	state["elapsedMs"] = int(round(_elapsed_ms))
 	state["gameTimeMs"] = int(round(_game_time_ms))
+	state["judgmentTimeMs"] = int(round(_judgment_time_ms()))
+	state["displayTimeMs"] = int(round(_display_time_ms()))
 	state["durationMs"] = int(round(_duration_ms))
 	state["fps"] = _display_fps
 	state["minute"] = _display_minute
 	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
-	state.merge(_controller.render_state(_game_time_ms), true)
+	state.merge(_controller.render_state(_judgment_time_ms()), true)
 	if not _game_started:
 		var status_texts: Array = state.get("statusTexts", []).duplicate()
 		status_texts.append(JAVA_MANUAL_START_PROMPT)
@@ -212,7 +228,17 @@ func _apply_audio_commands() -> void:
 func _time_for_input(now_ms: float) -> float:
 	if now_ms >= 0.0:
 		return now_ms
+	return _judgment_time_ms()
+
+
+func _judgment_time_ms() -> float:
+	if _autosound_enabled:
+		return _game_time_ms - _audio_latency_ms
 	return _game_time_ms
+
+
+func _display_time_ms() -> float:
+	return _judgment_time_ms() + _display_latency_ms
 
 
 func _starts_game(action: String) -> bool:

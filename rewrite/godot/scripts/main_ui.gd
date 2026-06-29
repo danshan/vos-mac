@@ -43,8 +43,13 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _runtime == null or _gameplay_view == null:
 		return
-	if _runtime.has_method("elapsed_ms") and _gameplay_view.has_method("update_time"):
-		_gameplay_view.update_time(_runtime.elapsed_ms())
+	if _gameplay_view.has_method("update_time"):
+		var view_time_ms := 0.0
+		if _runtime.has_method("display_time_ms"):
+			view_time_ms = _runtime.display_time_ms()
+		elif _runtime.has_method("elapsed_ms"):
+			view_time_ms = _runtime.elapsed_ms()
+		_gameplay_view.update_time(view_time_ms)
 	if _runtime.has_method("hud_state") and _gameplay_view.has_method("update_hud_state"):
 		_gameplay_view.update_hud_state(_runtime.hud_state())
 

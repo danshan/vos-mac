@@ -60,6 +60,10 @@ func _init() -> void:
 	ui.get_node("Content/SongList/Song_vos_fixture").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "gameplay state"):
 		return
+	if not _expect_bool(ui.has_node("Content/Title"), false, "gameplay omits menu title"):
+		return
+	if not _expect_bool(ui.has_node("Content/Status"), false, "gameplay omits menu status"):
+		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView"), true, "gameplay view"):
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Note_000"), true, "gameplay note node"):
@@ -67,6 +71,23 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER"), true, "gameplay score hud"):
+		return
+
+	ui.apply_layout_for_size(Vector2(1600.0, 900.0))
+	var content: VBoxContainer = ui.get_node("Content")
+	if not _expect_float(content.offset_left, 0.0, "gameplay content left"):
+		return
+	if not _expect_float(content.offset_top, 0.0, "gameplay content top"):
+		return
+	var gameplay_area: Control = ui.get_node("Content/GameplayArea")
+	if not _expect_float(gameplay_area.custom_minimum_size.x, 1600.0, "gameplay area width"):
+		return
+	if not _expect_float(gameplay_area.custom_minimum_size.y, 900.0, "gameplay area height"):
+		return
+	var gameplay_view: Control = ui.get_node("Content/GameplayArea/GameplayView")
+	if not _expect_float(gameplay_view.scale.x, 2.0, "gameplay view scale x"):
+		return
+	if not _expect_float(gameplay_view.scale.y, 1.5, "gameplay view scale y"):
 		return
 
 	ui.get_node("GameplayRuntime").press_action("vos_lane_1", 1000.0)
@@ -115,6 +136,14 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)

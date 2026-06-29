@@ -26,6 +26,7 @@ var _start_button: Button = null
 var _settings_button: Button = null
 var _layout_buttons: Array[Button] = []
 var _runtime: Node = null
+var _gameplay_area: Control = null
 var _gameplay_view: Control = null
 var _exporter_client = ExporterClient.new()
 var _settings_store = SettingsStore.new()
@@ -162,11 +163,19 @@ func apply_layout_for_size(viewport_size: Vector2) -> void:
 	var menu_separation: int = int(round(clamp(long_edge * 0.018, 16.0, 48.0)))
 
 	if _content != null:
-		_content.offset_left = content_margin
-		_content.offset_top = vertical_margin
-		_content.offset_right = -content_margin
-		_content.offset_bottom = -vertical_margin
-		_content.add_theme_constant_override("separation", content_separation)
+		if _app_state.current() == AppState.GAMEPLAY and _gameplay_view != null:
+			_content.offset_left = 0.0
+			_content.offset_top = 0.0
+			_content.offset_right = 0.0
+			_content.offset_bottom = 0.0
+			_content.add_theme_constant_override("separation", 0)
+			_apply_gameplay_layout(viewport_size)
+		else:
+			_content.offset_left = content_margin
+			_content.offset_top = vertical_margin
+			_content.offset_right = -content_margin
+			_content.offset_bottom = -vertical_margin
+			_content.add_theme_constant_override("separation", content_separation)
 	if _menu != null:
 		_menu.add_theme_constant_override("separation", menu_separation)
 	if _title_label != null:
@@ -258,11 +267,10 @@ func _show_song_select() -> void:
 func _show_gameplay() -> void:
 	_clear_content()
 
-	_title_label = _label("Title", str(_selected_entry.get("title", "Gameplay")), HORIZONTAL_ALIGNMENT_CENTER)
-	_content.add_child(_title_label)
-
 	var bundle := _load_selected_gameplay_bundle()
 	if bundle.is_empty():
+		_title_label = _label("Title", str(_selected_entry.get("title", "Gameplay")), HORIZONTAL_ALIGNMENT_CENTER)
+		_content.add_child(_title_label)
 		_status_label = _label("Status", "Unable to load gameplay bundle", HORIZONTAL_ALIGNMENT_CENTER)
 		_content.add_child(_status_label)
 		var back_button := _button("BackButton", "Back")
@@ -271,22 +279,21 @@ func _show_gameplay() -> void:
 		apply_layout_for_size(_layout_size())
 		return
 
-	var gameplay_area := Control.new()
-	gameplay_area.name = "GameplayArea"
-	gameplay_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	gameplay_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content.add_child(gameplay_area)
+	_gameplay_area = Control.new()
+	_gameplay_area.name = "GameplayArea"
+	_gameplay_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gameplay_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.add_child(_gameplay_area)
 
 	_gameplay_view = GameplayView.new()
 	_gameplay_view.name = "GameplayView"
-	_gameplay_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	if not _gameplay_view.load_metadata(bundle.get("renderMetadata", {})):
 		_show_gameplay_load_error("Unable to load render metadata")
 		return
 	if not _gameplay_view.load_chart(bundle.get("chart", {})):
 		_show_gameplay_load_error("Unable to load gameplay chart")
 		return
-	gameplay_area.add_child(_gameplay_view)
+	_gameplay_area.add_child(_gameplay_view)
 
 	_runtime = GameplayRuntime.new()
 	_runtime.name = "GameplayRuntime"
@@ -301,9 +308,6 @@ func _show_gameplay() -> void:
 		return
 	if _runtime.has_method("hud_state") and _gameplay_view.has_method("update_hud_state"):
 		_gameplay_view.update_hud_state(_runtime.hud_state())
-
-	_status_label = _label("Status", "Playing", HORIZONTAL_ALIGNMENT_CENTER)
-	_content.add_child(_status_label)
 
 	apply_layout_for_size(_layout_size())
 
@@ -395,6 +399,7 @@ func _clear_content() -> void:
 
 
 func _clear_gameplay_runtime() -> void:
+	_gameplay_area = null
 	_gameplay_view = null
 	if _runtime == null:
 		return
@@ -595,3 +600,17 @@ func _layout_size() -> Vector2:
 	return Vector2(
 			float(ProjectSettings.get_setting("display/window/size/viewport_width", 1280)),
 			float(ProjectSettings.get_setting("display/window/size/viewport_height", 720)))
+
+
+func _apply_gameplay_layout(viewport_size: Vector2) -> void:
+	if _gameplay_area == null or _gameplay_view == null:
+		return
+	var base_size := _gameplay_view.custom_minimum_size
+	if base_size.x <= 0.0 or base_size.y <= 0.0:
+		return
+	var target_size := Vector2(max(viewport_size.x, 1.0), max(viewport_size.y, 1.0))
+	_gameplay_area.custom_minimum_size = target_size
+	_gameplay_area.size = target_size
+	_gameplay_view.position = Vector2.ZERO
+	_gameplay_view.size = base_size
+	_gameplay_view.scale = Vector2(target_size.x / base_size.x, target_size.y / base_size.y)

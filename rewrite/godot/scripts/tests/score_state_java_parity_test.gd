@@ -24,6 +24,10 @@ func _test_initial_life_by_rank() -> bool:
 		return false
 	if not _expect_int(easy.life, 24000, "easy life"):
 		return false
+	if not _expect_bool(easy.judgments.has("perfect"), true, "perfect counter exists"):
+		return false
+	if not _expect_int(easy.judgments.get("perfect", -1), 0, "perfect counter starts at zero"):
+		return false
 
 	var normal = ScoreState.new(1)
 	if not _expect_int(normal.life_limit, 36000, "normal life limit"):
@@ -172,6 +176,14 @@ func _test_miss_does_not_make_score_negative() -> bool:
 
 
 func _expect_int(actual: int, expected: int, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)

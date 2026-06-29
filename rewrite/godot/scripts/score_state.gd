@@ -34,6 +34,7 @@ func reset() -> void:
 	life_limit = BASE_LIFE * _life_multiplier_for_rank(rank)
 	life = life_limit
 	judgments = {
+		"perfect": 0,
 		"cool": 0,
 		"good": 0,
 		"bad": 0,

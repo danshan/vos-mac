@@ -304,10 +304,9 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 			"audioCommands": _audio_commands_since(audio_start_index),
 		}
 
+	_disable_autosound = false
+	_emit_note_play_command(note_index, AUDIO_TRIGGER_KEYSOUND, true)
 	var result := _apply_note_judgment(note_index, hit_time, now_ms)
-	if result != "miss":
-		_disable_autosound = false
-		_emit_note_play_command(note_index, AUDIO_TRIGGER_KEYSOUND, true)
 	if str(note.get("kind", "")) == "holdStart" and result != "miss":
 		note = _notes[note_index]
 		note["state"] = STATE_HOLDING
@@ -924,10 +923,9 @@ func _advance_note_autoplay(now_ms: float) -> int:
 			var hit_time := _hit_time_for_note(note, now_ms)
 			if hit_time > 0.0:
 				continue
+			_disable_autosound = false
+			_emit_note_play_command(i, AUDIO_TRIGGER_KEYSOUND, true)
 			var result := _apply_note_judgment(i, hit_time, now_ms)
-			if result != "miss":
-				_disable_autosound = false
-				_emit_note_play_command(i, AUDIO_TRIGGER_KEYSOUND, true)
 			if str(note.get("kind", "")) == "holdStart" and result != "miss":
 				_begin_autoplay_hold(i, now_ms)
 			judged += 1

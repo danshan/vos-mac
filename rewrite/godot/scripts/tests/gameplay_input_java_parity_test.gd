@@ -8,9 +8,13 @@ func _init() -> void:
 		return
 	if not _test_explicit_time_judgment():
 		return
+	if not _test_late_accepted_miss_plays_then_stops_keysound():
+		return
 	if not _test_ranked_chart_life_model():
 		return
 	if not _test_autoplay_tap_note():
+		return
+	if not _test_late_autoplay_miss_plays_then_stops_keysound():
 		return
 	if not _test_autoplay_long_note():
 		return
@@ -132,6 +136,29 @@ func _test_explicit_time_judgment() -> bool:
 	return true
 
 
+func _test_late_accepted_miss_plays_then_stops_keysound() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_single_note_chart({"judgmentType": "time"})), true, "late miss chart load"):
+		return false
+
+	var late_hit: Dictionary = controller.press_action("vos_lane_1", 1174.0)
+	if not _expect_bool(late_hit.get("accepted", false), true, "late accepted miss accepted"):
+		return false
+	if not _expect_string(late_hit.get("result", ""), "miss", "late accepted miss result"):
+		return false
+
+	var commands: Array[Dictionary] = late_hit.get("audioCommands", [])
+	if not _expect_int(commands.size(), 2, "late accepted miss audio count"):
+		return false
+	if not _expect_command(commands[0], "playSample", 1, "note", "keysound"):
+		return false
+	if not _expect_command(commands[1], "stopSample", 1, "note", "missed"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 0, "late accepted miss score floor"):
+		return false
+	return true
+
+
 func _test_ranked_chart_life_model() -> bool:
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_single_note_chart({"rank": 2})), true, "ranked chart load"):
@@ -169,6 +196,25 @@ func _test_autoplay_tap_note() -> bool:
 	if not _expect_int(hidden.size(), 1, "autoplay tap hidden count"):
 		return false
 	if not _expect_int(int(hidden[0]), 0, "autoplay tap hidden index"):
+		return false
+	return true
+
+
+func _test_late_autoplay_miss_plays_then_stops_keysound() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autoplay_tap_chart()), true, "late autoplay miss chart load"):
+		return false
+
+	if not _expect_int(controller.advance_to(1174.0), 1, "late autoplay miss judged"):
+		return false
+	var commands: Array[Dictionary] = controller.drain_audio_commands()
+	if not _expect_int(commands.size(), 2, "late autoplay miss audio count"):
+		return false
+	if not _expect_command(commands[0], "playSample", 1, "note", "keysound"):
+		return false
+	if not _expect_command(commands[1], "stopSample", 1, "note", "missed"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 0, "late autoplay miss score floor"):
 		return false
 	return true
 

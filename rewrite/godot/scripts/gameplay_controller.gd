@@ -62,6 +62,8 @@ var _current_bga_event_state: Dictionary = {}
 var _buffer_events: Array[Dictionary] = []
 var _buffer_event_index: int = 0
 var _buffer_timer_ms: float = 0.0
+var _buffered_note_indices: Dictionary = {}
+var _buffered_measure_indices: Dictionary = {}
 var _audio_commands: Array[Dictionary] = []
 var _render_sequence: int = 0
 var _last_judgment_event: Dictionary = {}
@@ -110,10 +112,12 @@ func load_chart(chart: Dictionary) -> bool:
 	_bga_events = _normalized_bga_events(_chart.get("bgaEvents", []))
 	_bga_event_index = 0
 	_current_bga_event_state.clear()
-	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []),
-			_chart.get("bgaEvents", []))
+	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _notes,
+			_chart.get("autoPlayEvents", []), _chart.get("bgaEvents", []))
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
+	_buffered_note_indices.clear()
+	_buffered_measure_indices.clear()
 	_autosound_enabled = _normalized_bool(_chart.get("autosound", false))
 	_disable_autosound = false
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
@@ -145,6 +149,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_last_game_speed_change_measure = 0
 	_last_game_speed_update_measure = 0
 	_last_game_speed_change_time_ms = 0.0
+	_advance_event_buffer(0.0)
 	return true
 
 
@@ -369,6 +374,8 @@ func advance_to(now_ms: float, display_now_ms: float = -1.0,
 	judged += _advance_note_autoplay(now_ms)
 	_advance_note_autosound(sound_now_ms)
 	for i in range(_notes.size()):
+		if not _note_is_buffered(i):
+			continue
 		var note := _notes[i]
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
 			var hit_time := _hit_time_for_note(note, now_ms)
@@ -392,7 +399,10 @@ func held_note_count() -> int:
 
 
 func note_layer_empty() -> bool:
-	for note: Dictionary in _notes:
+	for i in range(_notes.size()):
+		if not _note_is_buffered(i):
+			continue
+		var note := _notes[i]
 		if str(note.get("state", STATE_NOT_JUDGED)) != STATE_DEAD:
 			return false
 	return true
@@ -461,12 +471,32 @@ func _normalized_timed_events(raw_events: Variant) -> Array[Dictionary]:
 	return normalized
 
 
-func _normalized_buffer_events(raw_measures: Variant, raw_auto_play_events: Variant,
-		raw_bga_events: Variant) -> Array[Dictionary]:
-	var normalized := _normalized_timed_events(raw_measures)
+func _normalized_buffer_events(raw_measures: Variant, raw_notes: Variant,
+		raw_auto_play_events: Variant, raw_bga_events: Variant) -> Array[Dictionary]:
+	var normalized: Array[Dictionary] = []
+	if raw_measures is Array:
+		for i in range(raw_measures.size()):
+			var raw_measure: Variant = raw_measures[i]
+			if raw_measure is Dictionary:
+				var event: Dictionary = raw_measure.duplicate(true)
+				event["startMs"] = float(event.get("startMs", event.get("timeMs", 0.0)))
+				event["bufferKind"] = "measure"
+				event["bufferIndex"] = i
+				normalized.append(event)
+	if raw_notes is Array:
+		for i in range(raw_notes.size()):
+			var raw_note: Variant = raw_notes[i]
+			if raw_note is Dictionary:
+				var event: Dictionary = raw_note.duplicate(true)
+				event["startMs"] = float(event.get("startMs", event.get("timeMs", 0.0)))
+				event["bufferKind"] = "note"
+				event["bufferIndex"] = i
+				normalized.append(event)
 	for event: Dictionary in _normalized_timed_events(raw_auto_play_events):
+		event["bufferKind"] = "autoPlay"
 		normalized.append(event)
 	for event: Dictionary in _normalized_timed_events(raw_bga_events):
+		event["bufferKind"] = "bga"
 		normalized.append(event)
 	normalized.sort_custom(_compare_timed_events)
 	return normalized
@@ -505,6 +535,8 @@ func _compare_timed_events(a: Dictionary, b: Dictionary) -> bool:
 func _next_note_index_for_lane(lane: int) -> int:
 	for i in range(_notes.size()):
 		var note := _notes[i]
+		if not _note_is_buffered(i):
+			continue
 		if int(note.get("lane", -1)) == lane and str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
 			return i
 	return -1
@@ -592,7 +624,7 @@ func _active_longflares() -> Array[Dictionary]:
 func _hidden_note_indices() -> Array[int]:
 	var hidden: Array[int] = []
 	for i in range(_notes.size()):
-		if str(_notes[i].get("state", STATE_NOT_JUDGED)) == STATE_DEAD:
+		if not _note_is_buffered(i) or str(_notes[i].get("state", STATE_NOT_JUDGED)) == STATE_DEAD:
 			hidden.append(i)
 	return hidden
 
@@ -606,7 +638,7 @@ func _hidden_measure_indices(now_ms: float) -> Array[int]:
 		var raw_measure: Variant = measures[i]
 		if not raw_measure is Dictionary:
 			continue
-		if float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
+		if not _measure_is_buffered(i) or float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
 			hidden.append(i)
 	return hidden
 
@@ -822,11 +854,31 @@ func _advance_event_buffer(now_ms: float) -> void:
 	while _buffer_event_index < _buffer_events.size() and _can_buffer_next_event(now_ms):
 		var event := _buffer_events[_buffer_event_index]
 		_buffer_timer_ms = float(event.get("startMs", 0.0))
+		_mark_event_buffered(event)
 		_buffer_event_index += 1
 
 
 func _can_buffer_next_event(now_ms: float) -> bool:
 	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, _buffer_timer_ms) > -10.0
+
+
+func _mark_event_buffered(event: Dictionary) -> void:
+	var index := int(event.get("bufferIndex", -1))
+	if index < 0:
+		return
+	var kind := str(event.get("bufferKind", ""))
+	if kind == "note":
+		_buffered_note_indices[index] = true
+	elif kind == "measure":
+		_buffered_measure_indices[index] = true
+
+
+func _note_is_buffered(index: int) -> bool:
+	return bool(_buffered_note_indices.get(index, false))
+
+
+func _measure_is_buffered(index: int) -> bool:
+	return bool(_buffered_measure_indices.get(index, false))
 
 
 func _distance_for(now_ms: float, target_ms: float, lane: int = -1) -> float:
@@ -864,6 +916,8 @@ func _advance_note_autoplay(now_ms: float) -> int:
 
 	var judged := 0
 	for i in range(_notes.size()):
+		if not _note_is_buffered(i):
+			continue
 		var note := _notes[i]
 		var state := str(note.get("state", STATE_NOT_JUDGED))
 		if state == STATE_NOT_JUDGED:
@@ -892,6 +946,8 @@ func _advance_note_autosound(now_ms: float) -> void:
 		return
 
 	for i in range(_notes.size()):
+		if not _note_is_buffered(i):
+			continue
 		var note := _notes[i]
 		if bool(note.get("samplePlayed", false)) or bool(note.get("autosoundConsumed", false)):
 			continue

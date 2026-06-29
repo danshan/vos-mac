@@ -29,9 +29,11 @@ func _init() -> void:
 	if not _expect_int(controller.result().get("score", 0), 200, "first hit score"):
 		return
 	var hidden_after_first: Array = controller.render_state(1000.0).get("hiddenNotes", [])
-	if not _expect_int(hidden_after_first.size(), 1, "first hit hidden note count"):
+	if not _expect_int(hidden_after_first.size(), 2, "first hit hidden note count"):
 		return
 	if not _expect_int(int(hidden_after_first[0]), 0, "first hit hidden note index"):
+		return
+	if not _expect_int(int(hidden_after_first[1]), 3, "first hit unbuffered note index"):
 		return
 
 	var early_press: Dictionary = controller.press_action("vos_lane_2", 1820.0)
@@ -70,7 +72,7 @@ func _init() -> void:
 	if not _expect_int(long_flares[0].get("noteIndex", -1), 2, "long flare note index"):
 		return
 	var hidden_after_hold_head: Array = hold_render_state.get("hiddenNotes", [])
-	if not _expect_int(hidden_after_hold_head.size(), 2, "hold head keeps long note visible"):
+	if not _expect_int(hidden_after_hold_head.size(), 3, "hold head keeps long note visible"):
 		return
 
 	var hold_tail: Dictionary = controller.release_action("vos_lane_3", 3300.0)
@@ -83,7 +85,7 @@ func _init() -> void:
 	if not _expect_int(controller.render_state(3300.0).get("longFlares", []).size(), 0, "long flare cleared after release"):
 		return
 	var hidden_after_hold_tail: Array = controller.render_state(3300.0).get("hiddenNotes", [])
-	if not _expect_int(hidden_after_hold_tail.size(), 2, "hold tail keeps long note visible"):
+	if not _expect_int(hidden_after_hold_tail.size(), 3, "hold tail keeps long note visible"):
 		return
 
 	controller.advance_to(4174.0)

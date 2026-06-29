@@ -42,6 +42,8 @@ func _init() -> void:
 		return
 	if not _test_java_latency_splits_judgment_display_and_autosound(audio_manifest):
 		return
+	if not _test_java_buffered_visual_entities_match_render_window(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -702,6 +704,77 @@ func _test_java_finish_waits_for_note_layer(audio_manifest: Dictionary) -> bool:
 		return false
 
 	runtime.free()
+	return true
+
+
+func _test_java_buffered_visual_entities_match_render_window(audio_manifest: Dictionary) -> bool:
+	var note_chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:buffered-visual-notes",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 8000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 3000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 3, "lane": 2, "startMs": 6000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+	var note_runtime = GameplayRuntime.new()
+	get_root().add_child(note_runtime)
+	if not _expect_bool(note_runtime.start(note_chart, audio_manifest), true, "buffered notes runtime start"):
+		return false
+	var initial_note_state: Dictionary = note_runtime.hud_state()
+	var initial_hidden_notes: Array = initial_note_state.get("hiddenNotes", [])
+	if not _expect_int(initial_hidden_notes.size(), 1, "initial unbuffered note count"):
+		return false
+	if not _expect_int(int(initial_hidden_notes[0]), 2, "initial unbuffered note index"):
+		return false
+	var far_press: Dictionary = note_runtime.press_action("vos_lane_3", 0.0)
+	if not _expect_bool(far_press.get("accepted", true), false, "unbuffered note input rejected"):
+		return false
+	if not _expect_string(str(far_press.get("reason", "")), "no_note", "unbuffered note input reason"):
+		return false
+	note_runtime.release_action("vos_lane_3", 0.0)
+	note_runtime.advance_to(500.0)
+	var buffered_note_state: Dictionary = note_runtime.hud_state()
+	if not _expect_int(buffered_note_state.get("hiddenNotes", []).size(), 0, "notes enter Java buffer window"):
+		return false
+	note_runtime.free()
+
+	var measure_chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:buffered-visual-measures",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 8000,
+		"notes": [],
+		"measures": [
+			{"startMs": 1000.0},
+			{"startMs": 3000.0},
+			{"startMs": 6000.0},
+		],
+		"autoPlayEvents": [],
+	}
+	var measure_runtime = GameplayRuntime.new()
+	get_root().add_child(measure_runtime)
+	if not _expect_bool(measure_runtime.start(measure_chart, audio_manifest), true, "buffered measures runtime start"):
+		return false
+	var initial_measure_state: Dictionary = measure_runtime.hud_state()
+	var initial_hidden_measures: Array = initial_measure_state.get("hiddenMeasures", [])
+	if not _expect_int(initial_hidden_measures.size(), 1, "initial unbuffered measure count"):
+		return false
+	if not _expect_int(int(initial_hidden_measures[0]), 2, "initial unbuffered measure index"):
+		return false
+	measure_runtime.advance_to(500.0)
+	var buffered_measure_state: Dictionary = measure_runtime.hud_state()
+	if not _expect_int(buffered_measure_state.get("hiddenMeasures", []).size(), 0, "measures enter Java buffer window"):
+		return false
+
+	measure_runtime.free()
 	return true
 
 

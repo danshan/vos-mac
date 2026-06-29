@@ -69,6 +69,11 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 
 	var normalized_chart: Dictionary = chart.duplicate(true)
 	normalized_chart["keys"] = int(keys)
+	if normalized_chart.has("rank"):
+		var rank: Variant = normalized_chart.get("rank")
+		if not _is_integer_like(rank) or int(rank) < 0:
+			return {}
+		normalized_chart["rank"] = int(rank)
 	normalized_chart["notes"] = normalized_notes
 	normalized_chart["autoPlayEvents"] = normalized_events
 	return normalized_chart

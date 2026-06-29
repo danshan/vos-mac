@@ -8,6 +8,8 @@ func _init() -> void:
 		return
 	if not _test_explicit_time_judgment():
 		return
+	if not _test_ranked_chart_life_model():
+		return
 
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
@@ -118,6 +120,18 @@ func _test_explicit_time_judgment() -> bool:
 		return false
 	var time_hit: Dictionary = controller.press_action("vos_lane_1", 780.0)
 	if not _expect_bool(time_hit.get("accepted", true), false, "time rejects wide early hit"):
+		return false
+	return true
+
+
+func _test_ranked_chart_life_model() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_single_note_chart({"rank": 2})), true, "ranked chart load"):
+		return false
+	var result: Dictionary = controller.result()
+	if not _expect_int(result.get("lifeLimit", 0), 48000, "ranked chart life limit"):
+		return false
+	if not _expect_int(result.get("life", 0), 48000, "ranked chart life"):
 		return false
 	return true
 

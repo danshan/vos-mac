@@ -59,6 +59,7 @@ class VosGameplayExporterTest {
                 JsonWriter.field("format", "VOS"),
                 JsonWriter.field("sourcePath", source.getCanonicalPath()),
                 JsonWriter.field("title", "Canon in D"),
+                JsonWriter.field("rank", 0),
                 JsonWriter.field("keys", 7),
                 JsonWriter.field("bpm", 120.0),
                 JsonWriter.field("durationMs", 123000),

@@ -57,7 +57,7 @@ func load_chart(chart: Dictionary) -> bool:
 		return false
 
 	_chart = chart.duplicate(true)
-	_score_state = ScoreState.new()
+	_score_state = ScoreState.new(_normalized_rank(_chart.get("rank", 0)))
 	_notes = _normalized_notes(_chart.get("notes", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
 	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []))
@@ -474,6 +474,14 @@ func _normalized_judgment_type(value: Variant) -> String:
 	if type == JUDGMENT_TYPE_TIME:
 		return JUDGMENT_TYPE_TIME
 	return JUDGMENT_TYPE_BEAT
+
+
+func _normalized_rank(value: Variant) -> int:
+	if value is int:
+		return max(value, 0)
+	if value is float and value == floor(value):
+		return max(int(value), 0)
+	return 0
 
 
 func _advance_event_buffer(now_ms: float) -> void:

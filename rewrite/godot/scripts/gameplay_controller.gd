@@ -497,14 +497,18 @@ func _next_note_index_for_lane(lane: int) -> int:
 
 
 func _hit_time_for_note(note: Dictionary, now_ms: float) -> float:
-	return float(note.get("startMs", 0.0)) - now_ms
+	return (float(note.get("startMs", 0.0)) - now_ms) / _effective_judgment_factor()
 
 
 func _tail_hit_time_for_note(note: Dictionary, now_ms: float) -> float:
 	var end_ms: Variant = note.get("endMs", null)
 	if end_ms is int or end_ms is float:
-		return float(end_ms) - now_ms
+		return (float(end_ms) - now_ms) / _effective_judgment_factor()
 	return _hit_time_for_note(note, now_ms)
+
+
+func _effective_judgment_factor() -> float:
+	return max(_audio_pitch_scale, 0.0001)
 
 
 func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float) -> String:

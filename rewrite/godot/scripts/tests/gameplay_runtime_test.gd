@@ -334,7 +334,7 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 	var accelerated_hit: Dictionary = runtime.press_action("vos_lane_2")
 	if not _expect_bool(accelerated_hit.get("accepted", false), true, "haste game time hit accepted"):
 		return false
-	var expected_hit_time := 9200.0 - (6001.0 + (9000.0 - 6001.0) * expected_pitch)
+	var expected_hit_time := (9200.0 - (6001.0 + (9000.0 - 6001.0) * expected_pitch)) / expected_pitch
 	if not _expect_float(float(accelerated_hit.get("hitTime", 0.0)), expected_hit_time, "haste game time hit window"):
 		return false
 

@@ -30,6 +30,7 @@ const JAVA_TAP_NOTE_HEIGHT: float = 7.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
+var _measure_events: Array[Dictionary] = []
 var _auto_play_events: Array[Dictionary] = []
 var _audio_commands: Array[Dictionary] = []
 var _render_sequence: int = 0
@@ -51,6 +52,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_chart = chart.duplicate(true)
 	_score_state = ScoreState.new()
 	_notes = _normalized_notes(_chart.get("notes", []))
+	_measure_events = _normalized_timed_events(_chart.get("measures", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
 	_configure_distance()
 	_audio_commands.clear()
@@ -228,6 +230,16 @@ func note_layer_empty() -> bool:
 	return true
 
 
+func event_buffer_empty(now_ms: float) -> bool:
+	for event: Dictionary in _auto_play_events:
+		if not bool(event.get("played", false)):
+			return false
+	for event: Dictionary in _measure_events:
+		if float(event.get("startMs", 0.0)) > now_ms:
+			return false
+	return true
+
+
 func result() -> Dictionary:
 	return ResultModel.from_score(current_chart_id(), _score_state)
 
@@ -260,6 +272,18 @@ func _normalized_auto_play_events(raw_events: Variant) -> Array[Dictionary]:
 	return normalized
 
 
+func _normalized_timed_events(raw_events: Variant) -> Array[Dictionary]:
+	var normalized: Array[Dictionary] = []
+	if raw_events is Array:
+		for raw_event: Variant in raw_events:
+			if raw_event is Dictionary:
+				var event: Dictionary = raw_event.duplicate(true)
+				event["startMs"] = float(event.get("startMs", event.get("timeMs", 0.0)))
+				normalized.append(event)
+	normalized.sort_custom(_compare_timed_events)
+	return normalized
+
+
 func _configure_distance() -> void:
 	var timing = TimingModel.new()
 	var loaded := false
@@ -280,6 +304,10 @@ func _compare_notes(a: Dictionary, b: Dictionary) -> bool:
 
 
 func _compare_auto_play_events(a: Dictionary, b: Dictionary) -> bool:
+	return float(a.get("startMs", 0.0)) < float(b.get("startMs", 0.0))
+
+
+func _compare_timed_events(a: Dictionary, b: Dictionary) -> bool:
 	return float(a.get("startMs", 0.0)) < float(b.get("startMs", 0.0))
 
 

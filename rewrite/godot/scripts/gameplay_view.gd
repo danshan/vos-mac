@@ -12,6 +12,10 @@ const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
 const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
+const VISIBILITY_NONE: String = "None"
+const VISIBILITY_HIDDEN: String = "Hidden"
+const VISIBILITY_SUDDEN: String = "Sudden"
+const VISIBILITY_DARK: String = "Dark"
 
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
@@ -52,6 +56,7 @@ var _judgment_node: Node = null
 var _click_nodes: Array[Node] = []
 var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
+var _visibility_nodes: Array[Node] = []
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -165,6 +170,7 @@ func _rebuild_entities() -> void:
 	_clear_nodes(_click_nodes)
 	_clear_nodes(_pill_nodes)
 	_clear_nodes(_longflare_nodes)
+	_clear_nodes(_visibility_nodes)
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -178,6 +184,7 @@ func _rebuild_entities() -> void:
 
 
 func _rebuild_note_nodes() -> void:
+	_clear_nodes(_visibility_nodes)
 	for entry: Dictionary in _note_entries:
 		var node: Variant = entry.get("node")
 		if node is Node:
@@ -228,9 +235,11 @@ func _rebuild_note_nodes() -> void:
 
 	var measure_template := _first_entity_by_id("MEASURE_MARK")
 	if measure_template.is_empty():
+		_rebuild_visibility_nodes()
 		return
 	var measures: Variant = _chart.get("measures", [])
 	if not measures is Array:
+		_rebuild_visibility_nodes()
 		return
 
 	index = 0
@@ -245,6 +254,7 @@ func _rebuild_note_nodes() -> void:
 			"node": node,
 		})
 		index += 1
+	_rebuild_visibility_nodes()
 
 
 func _configure_distance() -> void:
@@ -641,6 +651,86 @@ func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
 		var node: Variant = _note_entries[i].get("node")
 		if node is CanvasItem:
 			node.visible = not bool(hidden.get(i, false))
+
+
+func _rebuild_visibility_nodes() -> void:
+	_clear_nodes(_visibility_nodes)
+	var modifier: String = _normalized_visibility_modifier(_chart.get("visibilityModifier", VISIBILITY_NONE))
+	if modifier == VISIBILITY_NONE:
+		return
+	var height: float = max(float(_metadata.get("judgmentLine", 0.0)), 1.0)
+	var layer: int = _visibility_layer()
+	var index: int = 0
+	for lane: Dictionary in _metadata.get("lanes", []):
+		var width: float = max(float(lane.get("width", 0.0)), 1.0)
+		var node: TextureRect = TextureRect.new()
+		node.name = "Visibility_%s_%03d" % [modifier, index]
+		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		node.position = Vector2(float(lane.get("x", 0.0)), 0.0)
+		node.size = Vector2(width, height)
+		node.texture = _visibility_texture(int(round(width)), int(round(height)), modifier)
+		node.stretch_mode = TextureRect.STRETCH_SCALE
+		node.z_index = layer
+		node.z_as_relative = false
+		add_child(node)
+		_visibility_nodes.append(node)
+		index += 1
+
+
+func _normalized_visibility_modifier(value: Variant) -> String:
+	var modifier := str(value)
+	if modifier == VISIBILITY_HIDDEN:
+		return VISIBILITY_HIDDEN
+	if modifier == VISIBILITY_SUDDEN:
+		return VISIBILITY_SUDDEN
+	if modifier == VISIBILITY_DARK:
+		return VISIBILITY_DARK
+	return VISIBILITY_NONE
+
+
+func _visibility_layer() -> int:
+	var layer := 0
+	for entity: Dictionary in _metadata.get("entities", []):
+		if _is_note_template(entity):
+			layer = max(layer, int(entity.get("layer", 0)))
+	return layer + 1
+
+
+func _visibility_texture(width: int, height: int, modifier: String) -> Texture2D:
+	var image: Image = Image.create(max(width, 1), max(height, 1), false, Image.FORMAT_RGBA8)
+	for y in range(image.get_height()):
+		var alpha := _visibility_alpha(modifier, float(y), float(image.get_height()))
+		var color := Color(0.0, 0.0, 0.0, alpha)
+		for x in range(image.get_width()):
+			image.set_pixel(x, y, color)
+	return ImageTexture.create_from_image(image)
+
+
+func _visibility_alpha(modifier: String, y: float, height: float) -> float:
+	var split := height / 4.0
+	if modifier == VISIBILITY_HIDDEN:
+		if y < split * 1.9:
+			return 0.0
+		if y < split * 2.0:
+			return (y - split * 1.9) / (split * 0.1)
+		return 1.0
+	if modifier == VISIBILITY_SUDDEN:
+		if y < split * 1.9:
+			return 1.0
+		if y < split * 2.0:
+			return 1.0 - (y - split * 1.9) / (split * 0.1)
+		return 0.0
+	if modifier == VISIBILITY_DARK:
+		if y < split * 1.3:
+			return 1.0
+		if y < split * 1.5:
+			return 1.0 - (y - split * 1.3) / (split * 0.2)
+		if y < split * 2.5:
+			return 0.0
+		if y < split * 2.7:
+			return (y - split * 2.5) / (split * 0.2)
+		return 1.0
+	return 0.0
 
 
 func _position_click_node(node: Control, entity: Dictionary, lane_index: int) -> void:

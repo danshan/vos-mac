@@ -639,6 +639,31 @@ func _init() -> void:
 	if not _expect_float(xr_note_node.position.y, -248.875, "dynamic note node y with xr speed"):
 		return
 	xr_view.free()
+	var hidden_chart: Dictionary = chart.duplicate(true)
+	hidden_chart["visibilityModifier"] = "Hidden"
+	var hidden_view = GameplayView.new()
+	if not _expect_bool(hidden_view.load_metadata(metadata), true, "hidden visibility view metadata load"):
+		return
+	if not _expect_bool(hidden_view.load_chart(hidden_chart), true, "hidden visibility view chart load"):
+		return
+	if not _expect_int(_count_children_with_prefix(hidden_view, "Visibility_Hidden_"), 7, "hidden visibility lane overlay count"):
+		return
+	if not _expect_bool(hidden_view.has_node("Visibility_Hidden_000"), true, "hidden visibility first lane overlay"):
+		return
+	var hidden_overlay: Control = hidden_view.get_node("Visibility_Hidden_000")
+	if not _expect_bool(hidden_overlay is TextureRect, true, "hidden visibility texture node"):
+		return
+	if not _expect_float(hidden_overlay.position.x, 5.0, "hidden visibility x"):
+		return
+	if not _expect_float(hidden_overlay.position.y, 0.0, "hidden visibility y"):
+		return
+	if not _expect_float(hidden_overlay.size.x, 28.0, "hidden visibility width"):
+		return
+	if not _expect_float(hidden_overlay.size.y, 480.0, "hidden visibility height"):
+		return
+	if not _expect_int(hidden_overlay.z_index, 6, "hidden visibility Java layer"):
+		return
+	hidden_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):

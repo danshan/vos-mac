@@ -89,6 +89,18 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 			return {}
 		normalized_bga_events.append(normalized_bga_event)
 
+	var bga_sprites: Variant = chart.get("bgaSprites", [])
+	if not bga_sprites is Array:
+		return {}
+	var normalized_bga_sprites: Array[Dictionary] = []
+	for sprite: Variant in bga_sprites:
+		if not sprite is Dictionary:
+			return {}
+		var normalized_bga_sprite: Dictionary = _normalized_bga_sprite(sprite)
+		if normalized_bga_sprite.is_empty():
+			return {}
+		normalized_bga_sprites.append(normalized_bga_sprite)
+
 	var normalized_chart: Dictionary = chart.duplicate(true)
 	normalized_chart["keys"] = int(keys)
 	var channel_modifier := _normalized_channel_modifier(normalized_chart.get("channelModifier", CHANNEL_MOD_NONE))
@@ -126,6 +138,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	normalized_chart["notes"] = channel_notes
 	normalized_chart["autoPlayEvents"] = normalized_events
 	normalized_chart["bgaEvents"] = normalized_bga_events
+	normalized_chart["bgaSprites"] = normalized_bga_sprites
 	return normalized_chart
 
 
@@ -214,6 +227,54 @@ func _normalized_bga_event(event: Dictionary) -> Dictionary:
 	normalized_event["startMs"] = float(start_ms)
 	normalized_event["spriteId"] = int(sprite_id)
 	return normalized_event
+
+
+func _normalized_bga_sprite(sprite: Dictionary) -> Dictionary:
+	if not _has_fields(sprite, ["spriteId", "texturePath"]):
+		return {}
+
+	var sprite_id: Variant = sprite.get("spriteId")
+	if not _is_positive_integer_like(sprite_id):
+		return {}
+
+	var texture_path: Variant = sprite.get("texturePath")
+	if not texture_path is String or str(texture_path).strip_edges().is_empty():
+		return {}
+
+	var normalized_sprite: Dictionary = sprite.duplicate(true)
+	normalized_sprite["spriteId"] = int(sprite_id)
+	normalized_sprite["texturePath"] = str(texture_path)
+
+	if not _normalize_optional_non_negative_number(normalized_sprite, "textureX"):
+		return {}
+	if not _normalize_optional_non_negative_number(normalized_sprite, "textureY"):
+		return {}
+	if not _normalize_optional_positive_number(normalized_sprite, "textureWidth"):
+		return {}
+	if not _normalize_optional_positive_number(normalized_sprite, "textureHeight"):
+		return {}
+
+	return normalized_sprite
+
+
+func _normalize_optional_non_negative_number(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	var value: Variant = entry.get(field)
+	if not _is_non_negative_number(value):
+		return false
+	entry[field] = float(value)
+	return true
+
+
+func _normalize_optional_positive_number(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	var value: Variant = entry.get(field)
+	if not _is_positive_number(value):
+		return false
+	entry[field] = float(value)
+	return true
 
 
 func _is_non_negative_number(value: Variant) -> bool:

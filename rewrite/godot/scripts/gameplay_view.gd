@@ -63,6 +63,8 @@ var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
 var _visibility_nodes: Array[Node] = []
 var _status_nodes: Array[Node] = []
+var _bga_sprites: Dictionary = {}
+var _current_bga_sprite_id: int = -1
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -84,6 +86,7 @@ func load_chart(chart: Dictionary) -> bool:
 	if chart.is_empty():
 		return false
 	_chart = chart.duplicate(true)
+	_configure_bga_sprites()
 	_configure_distance()
 	_rebuild_note_nodes()
 	update_time(0.0)
@@ -161,6 +164,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_longflares(state.get("longFlares", []))
 	_sync_note_visibility(state.get("hiddenNotes", []))
 	_sync_status_texts(state.get("statusTexts", []))
+	_sync_bga_event(state.get("currentBgaEvent", {}))
 
 
 func _rebuild_entities() -> void:
@@ -279,6 +283,21 @@ func _configure_distance() -> void:
 		_distance.set_xr_speed_factors(_chart.get("xRSpeedFactors", []))
 	_last_distance_update_ms = 0.0
 	_has_distance_update_ms = false
+
+
+func _configure_bga_sprites() -> void:
+	_bga_sprites.clear()
+	_current_bga_sprite_id = -1
+	var raw_sprites: Variant = _chart.get("bgaSprites", [])
+	if not raw_sprites is Array:
+		return
+	for raw_sprite: Variant in raw_sprites:
+		if not raw_sprite is Dictionary:
+			continue
+		var sprite_id := int(raw_sprite.get("spriteId", 0))
+		if sprite_id <= 0:
+			continue
+		_bga_sprites[sprite_id] = raw_sprite.duplicate(true)
 
 
 func _load_visual_timing(timing: TimingModel) -> bool:
@@ -686,6 +705,28 @@ func _sync_status_texts(raw_texts: Variant) -> void:
 		label.add_theme_font_size_override("font_size", JAVA_STATUS_FONT_SIZE)
 		add_child(label)
 		_status_nodes.append(label)
+
+
+func _sync_bga_event(raw_event: Variant) -> void:
+	if not raw_event is Dictionary:
+		return
+	var sprite_id := int(raw_event.get("spriteId", 0))
+	if sprite_id <= 0 or sprite_id == _current_bga_sprite_id:
+		return
+	var sprite: Dictionary = _bga_sprites.get(sprite_id, {})
+	if sprite.is_empty():
+		return
+	if not has_node("Entity_BGA"):
+		return
+	var bga_node: Variant = get_node("Entity_BGA")
+	if not bga_node is TextureRect:
+		return
+	var texture := _texture_for_entity(sprite)
+	if texture == null:
+		return
+	bga_node.texture = texture
+	bga_node.set_meta("currentBgaSpriteId", sprite_id)
+	_current_bga_sprite_id = sprite_id
 
 
 func _rebuild_visibility_nodes() -> void:

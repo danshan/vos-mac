@@ -223,6 +223,76 @@ func _init() -> void:
 		return
 	if not _expect_bool(bga_texture_node.texture != null, true, "bga texture loaded"):
 		return
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"notes": [],
+		"measures": [],
+		"bgaSprites": [
+			{
+				"spriteId": 7,
+				"texturePath": "%s/main.png" % resource_root,
+				"textureX": 0.0,
+				"textureY": 0.0,
+				"textureWidth": 16.0,
+				"textureHeight": 16.0,
+			},
+			{
+				"spriteId": 8,
+				"texturePath": "%s/main.png" % resource_root,
+				"textureX": 32.0,
+				"textureY": 48.0,
+				"textureWidth": 24.0,
+				"textureHeight": 12.0,
+			},
+		],
+	}), true, "bga sprite chart load"):
+		return
+	view.update_hud_state({
+		"currentBgaEvent": {
+			"spriteId": 7,
+			"startMs": 500.0,
+		},
+	})
+	if not _expect_bool(bga_texture_node.has_meta("currentBgaSpriteId"), true, "bga current sprite metadata"):
+		return
+	if not _expect_int(int(bga_texture_node.get_meta("currentBgaSpriteId")), 7, "bga first current sprite id"):
+		return
+	if not _expect_bool(bga_texture_node.texture is AtlasTexture, true, "bga first sprite atlas"):
+		return
+	var first_bga_texture: AtlasTexture = bga_texture_node.texture
+	if not _expect_float(first_bga_texture.region.position.x, 0.0, "bga first sprite texture x"):
+		return
+	if not _expect_float(first_bga_texture.region.position.y, 0.0, "bga first sprite texture y"):
+		return
+	if not _expect_float(first_bga_texture.region.size.x, 16.0, "bga first sprite texture width"):
+		return
+	if not _expect_float(first_bga_texture.region.size.y, 16.0, "bga first sprite texture height"):
+		return
+	view.update_hud_state({
+		"currentBgaEvent": {
+			"spriteId": 999,
+			"startMs": 750.0,
+		},
+	})
+	if not _expect_int(int(bga_texture_node.get_meta("currentBgaSpriteId")), 7, "missing bga sprite keeps previous id"):
+		return
+	view.update_hud_state({
+		"currentBgaEvent": {
+			"spriteId": 8,
+			"startMs": 1000.0,
+		},
+	})
+	if not _expect_int(int(bga_texture_node.get_meta("currentBgaSpriteId")), 8, "bga second current sprite id"):
+		return
+	var second_bga_texture: AtlasTexture = bga_texture_node.texture
+	if not _expect_float(second_bga_texture.region.position.x, 32.0, "bga second sprite texture x"):
+		return
+	if not _expect_float(second_bga_texture.region.position.y, 48.0, "bga second sprite texture y"):
+		return
+	if not _expect_float(second_bga_texture.region.size.x, 24.0, "bga second sprite texture width"):
+		return
+	if not _expect_float(second_bga_texture.region.size.y, 12.0, "bga second sprite texture height"):
+		return
 	var judgment_line_node: Control = view.get_node("Entity_JUDGMENT_LINE")
 	if not _expect_int(judgment_line_node.z_index, 2, "judgment line Java layer"):
 		return

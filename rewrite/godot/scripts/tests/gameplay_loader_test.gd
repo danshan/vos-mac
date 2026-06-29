@@ -61,6 +61,40 @@ func _init() -> void:
 	if not _expect_bool(normalized_bga_events[0].has("timeMs"), false, "normalized bga timeMs removed"):
 		return
 
+	var bga_sprite_chart: Dictionary = _valid_chart()
+	bga_sprite_chart["bgaSprites"] = [{
+		"spriteId": 3.0,
+		"texturePath": "res://test/fixtures/bga.png",
+		"textureX": 1,
+		"textureY": 2,
+		"textureWidth": 64,
+		"textureHeight": 32,
+	}]
+	var bga_sprite_path := _chart_path("bga_sprite")
+	if not _write_chart(bga_sprite_path, bga_sprite_chart):
+		return
+
+	var normalized_bga_sprite_chart: Dictionary = loader.load_from_file(bga_sprite_path)
+	if not _expect_bool(normalized_bga_sprite_chart.is_empty(), false, "bga sprite chart load"):
+		return
+	var normalized_bga_sprites: Array = normalized_bga_sprite_chart.get("bgaSprites", [])
+	if not _expect_int(normalized_bga_sprites.size(), 1, "normalized bga sprite count"):
+		return
+	if not _expect_int(typeof(normalized_bga_sprites[0].get("spriteId")), TYPE_INT, "normalized bga sprite id type"):
+		return
+	if not _expect_int(normalized_bga_sprites[0].get("spriteId", -1), 3, "normalized bga sprite id"):
+		return
+	if not _expect_string(normalized_bga_sprites[0].get("texturePath", ""), "res://test/fixtures/bga.png", "normalized bga sprite texture path"):
+		return
+	if not _expect_float(normalized_bga_sprites[0].get("textureX", -1.0), 1.0, "normalized bga sprite texture x"):
+		return
+	if not _expect_float(normalized_bga_sprites[0].get("textureY", -1.0), 2.0, "normalized bga sprite texture y"):
+		return
+	if not _expect_float(normalized_bga_sprites[0].get("textureWidth", -1.0), 64.0, "normalized bga sprite texture width"):
+		return
+	if not _expect_float(normalized_bga_sprites[0].get("textureHeight", -1.0), 32.0, "normalized bga sprite texture height"):
+		return
+
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
@@ -192,6 +226,20 @@ func _init() -> void:
 		return
 	if not _expect_rejected(loader, _chart_with_bga_event("spriteId", 0), "zero bga sprite id"):
 		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("spriteId", "1"), "string bga sprite resource id"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("spriteId", 0), "zero bga sprite resource id"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("texturePath", ""), "empty bga sprite texture path"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("textureX", "0"), "string bga sprite texture x"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("textureY", "0"), "string bga sprite texture y"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("textureWidth", 0), "zero bga sprite texture width"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_sprite("textureHeight", 0), "zero bga sprite texture height"):
+		return
 
 	var missing_chart: Dictionary = loader.load_from_file("res://test/fixtures/missing_gameplay.json")
 	if not _expect_bool(missing_chart.is_empty(), true, "missing file result"):
@@ -211,6 +259,7 @@ func _valid_chart() -> Dictionary:
 		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
 		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],
 		"bgaEvents": [{"startMs": 50.0, "spriteId": 7}],
+		"bgaSprites": [{"spriteId": 7, "texturePath": "res://test/fixtures/bga.png"}],
 	}
 
 
@@ -255,6 +304,12 @@ func _chart_without_bga_timestamp() -> Dictionary:
 	var chart: Dictionary = _valid_chart()
 	chart["bgaEvents"][0].erase("startMs")
 	chart["bgaEvents"][0].erase("timeMs")
+	return chart
+
+
+func _chart_with_bga_sprite(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["bgaSprites"][0][field] = value
 	return chart
 
 

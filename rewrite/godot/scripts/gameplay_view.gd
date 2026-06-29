@@ -4,6 +4,10 @@ const NoteDistanceCalculator = preload("res://scripts/note_distance_calculator.g
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 const TimingModel = preload("res://scripts/timing_model.gd")
 
+const COMBO_WOBBLE_PIXELS: float = 10.0
+const COMBO_WOBBLE_SPEED: float = 0.5
+const COMBO_SHOW_TIME_MS: float = 4000.0
+
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
 	"FPS_COUNTER": true,
@@ -32,6 +36,7 @@ var _distance = null
 var _speed: float = 1.0
 var _hud_labels: Dictionary = {}
 var _hud_digit_entities: Dictionary = {}
+var _combo_counter_states: Dictionary = {}
 var _bar_nodes: Dictionary = {}
 var _bar_rects: Dictionary = {}
 var _pressed_nodes: Array[Node] = []
@@ -107,12 +112,13 @@ func update_time(now_ms: float) -> void:
 
 
 func update_hud_state(state: Dictionary) -> void:
+	var hud_time_ms := float(state.get("elapsedMs", 0.0))
 	_set_hud_text("SCORE_COUNTER", _int_text(state.get("score", 0)))
-	_set_combo_text("COMBO_COUNTER", int(state.get("combo", 0)), 2)
-	_set_combo_text("JAM_COUNTER", int(state.get("jamCombo", 0)), 1)
+	_set_combo_text("COMBO_COUNTER", int(state.get("combo", 0)), 2, hud_time_ms)
+	_set_combo_text("JAM_COUNTER", int(state.get("jamCombo", 0)), 1, hud_time_ms)
 	_set_hud_text("MAXCOMBO_COUNTER", _int_text(state.get("maxCombo", 0)))
 
-	var elapsed_seconds := int(floor(max(float(state.get("elapsedMs", 0.0)), 0.0) / 1000.0))
+	var elapsed_seconds := int(floor(max(hud_time_ms, 0.0) / 1000.0))
 	_set_hud_text("MINUTE_COUNTER", _int_text(elapsed_seconds / 60))
 	_set_hud_text("SECOND_COUNTER", "%02d" % (elapsed_seconds % 60))
 
@@ -141,6 +147,7 @@ func _rebuild_entities() -> void:
 	_measure_entries.clear()
 	_hud_labels.clear()
 	_hud_digit_entities.clear()
+	_combo_counter_states.clear()
 	_bar_nodes.clear()
 	_bar_rects.clear()
 	_clear_pressed_nodes()
@@ -691,10 +698,36 @@ func _set_hud_text(id: String, text: String) -> void:
 	_set_hud_digits(id, text)
 
 
-func _set_combo_text(id: String, value: int, threshold: int) -> void:
+func _set_combo_text(id: String, value: int, threshold: int, now_ms: float) -> void:
 	if value < threshold:
+		_combo_counter_states[id] = {
+			"value": value,
+			"visibleUntilMs": -1.0,
+			"currentY": _combo_base_y(id),
+		}
 		_set_hud_text(id, "")
 		return
+
+	var raw_state: Variant = _combo_counter_states.get(id, {})
+	var state: Dictionary = {}
+	if raw_state is Dictionary:
+		state = raw_state.duplicate(true)
+
+	if int(state.get("value", -1)) != value:
+		state["value"] = value
+		state["startMs"] = now_ms
+		state["visibleUntilMs"] = now_ms + COMBO_SHOW_TIME_MS
+
+	var visible_until_ms := float(state.get("visibleUntilMs", -1.0))
+	if now_ms - visible_until_ms > 0.0:
+		state["currentY"] = _combo_base_y(id)
+		_combo_counter_states[id] = state
+		_set_hud_text(id, "")
+		return
+
+	var elapsed_ms: float = max(now_ms - float(state.get("startMs", now_ms)), 0.0)
+	state["currentY"] = _combo_base_y(id) + max(COMBO_WOBBLE_PIXELS - elapsed_ms * COMBO_WOBBLE_SPEED, 0.0)
+	_combo_counter_states[id] = state
 	_set_hud_text(id, _int_text(value - max(threshold - 1, 0)))
 
 
@@ -736,7 +769,7 @@ func _set_hud_digits(id: String, text: String) -> void:
 	var entity: Dictionary = entry.get("entity", {})
 	var chars := text.split("")
 	if str(entity.get("type", "")) == "comboCounter":
-		_add_combo_counter_digits(container, entity, chars)
+		_add_combo_counter_digits(container, entity, chars, _combo_current_y(id, entity))
 	else:
 		_add_number_counter_digits(container, entity, chars)
 
@@ -756,7 +789,7 @@ func _add_number_counter_digits(container: Control, entity: Dictionary, chars: P
 		sequence += 1
 
 
-func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: PackedStringArray) -> void:
+func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: PackedStringArray, y: float) -> void:
 	var frames: Array[Dictionary] = []
 	var total_width := 0.0
 	for value: String in chars:
@@ -767,13 +800,25 @@ func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: Pa
 		total_width += float(frame.get("textureWidth", entity.get("width", 1.0)))
 
 	var tx := float(entity.get("x", 0.0)) - total_width * 0.5
-	var y := float(entity.get("y", 0.0))
 	for i in range(frames.size()):
 		var frame := frames[i]
 		var digit := _digit_texture_rect(frame, "Digit_%03d" % i)
 		digit.position = Vector2(tx, y)
 		container.add_child(digit)
 		tx += float(frame.get("textureWidth", entity.get("width", 1.0)))
+
+
+func _combo_base_y(id: String) -> float:
+	var entry: Dictionary = _hud_digit_entities.get(id, {})
+	var entity: Dictionary = entry.get("entity", {})
+	return float(entity.get("y", 0.0))
+
+
+func _combo_current_y(id: String, entity: Dictionary) -> float:
+	var raw_state: Variant = _combo_counter_states.get(id, {})
+	if raw_state is Dictionary:
+		return float(raw_state.get("currentY", entity.get("y", 0.0)))
+	return float(entity.get("y", 0.0))
 
 
 func _digit_frame_for_char(entity: Dictionary, value: String) -> Dictionary:

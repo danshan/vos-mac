@@ -99,6 +99,18 @@ func _init() -> void:
 					"textureHeight": 18.0,
 				})
 			entity["spriteFrames"] = digit_frames
+		if str(entity.get("id", "")) == "COMBO_COUNTER":
+			var combo_frames: Array[Dictionary] = []
+			for digit in range(10):
+				combo_frames.append({
+					"id": "combo_number_%d" % digit,
+					"texturePath": "%s/Numbers.png" % resource_root,
+					"textureX": 0.0,
+					"textureY": float(digit * 71),
+					"textureWidth": 46.0,
+					"textureHeight": 71.0,
+				})
+			entity["spriteFrames"] = combo_frames
 		if str(entity.get("id", "")) == "MEASURE_MARK":
 			entity["frameSpeed"] = 0.005
 			entity["spriteFrames"] = [
@@ -282,6 +294,47 @@ func _init() -> void:
 	var jam_bar: Control = view.get_node("Entity_JAM_BAR")
 	if not _expect_float(jam_bar.size.x, 95.5, "jam bar half fill width"):
 		return
+
+	var combo_sprite_hud: Control = view.get_node("HudSprite_COMBO_COUNTER")
+	if not _expect_int(combo_sprite_hud.get_child_count(), 2, "combo sprite digit count"):
+		return
+	var combo_digit_0: TextureRect = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble start y"):
+		return
+	view.update_hud_state({
+		"combo": 12,
+		"jamCombo": 2,
+		"elapsedMs": 83010.0,
+	})
+	combo_digit_0 = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit_0.position.y, 215.0, "combo wobble mid y"):
+		return
+	view.update_hud_state({
+		"combo": 12,
+		"jamCombo": 2,
+		"elapsedMs": 83020.0,
+	})
+	combo_digit_0 = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit_0.position.y, 210.0, "combo wobble base y"):
+		return
+	view.update_hud_state({
+		"combo": 12,
+		"jamCombo": 2,
+		"elapsedMs": 87001.0,
+	})
+	if not _expect_int(combo_sprite_hud.get_child_count(), 0, "combo hidden after Java show time"):
+		return
+	view.update_hud_state({
+		"combo": 13,
+		"jamCombo": 2,
+		"elapsedMs": 87002.0,
+	})
+	if not _expect_int(combo_sprite_hud.get_child_count(), 2, "combo reappears after increment"):
+		return
+	combo_digit_0 = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble restarts after increment"):
+		return
+
 	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), false, "pressed lane starts hidden"):
 		return
 

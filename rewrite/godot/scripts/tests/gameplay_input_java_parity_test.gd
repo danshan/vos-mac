@@ -16,6 +16,8 @@ func _init() -> void:
 		return
 	if not _test_late_autoplay_miss_plays_then_stops_keysound():
 		return
+	if not _test_autoplay_consumes_one_note_per_lane_per_frame():
+		return
 	if not _test_autoplay_long_note():
 		return
 	if not _test_autoplay_ignores_manual_input():
@@ -219,6 +221,35 @@ func _test_late_autoplay_miss_plays_then_stops_keysound() -> bool:
 	return true
 
 
+func _test_autoplay_consumes_one_note_per_lane_per_frame() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autoplay_same_lane_chart()), true, "autoplay same lane chart load"):
+		return false
+
+	if not _expect_int(controller.advance_to(1100.0), 1, "autoplay same lane first frame judged count"):
+		return false
+	var result: Dictionary = controller.result()
+	var judgments: Dictionary = result.get("judgments", {})
+	if not _expect_int(result.get("score", 0), 100, "autoplay same lane first frame score"):
+		return false
+	if not _expect_int(judgments.get("good", 0), 1, "autoplay same lane first frame good count"):
+		return false
+	if not _expect_int(judgments.get("cool", 0), 0, "autoplay same lane first frame cool count"):
+		return false
+
+	if not _expect_int(controller.advance_to(1100.0), 1, "autoplay same lane second frame judged count"):
+		return false
+	result = controller.result()
+	judgments = result.get("judgments", {})
+	if not _expect_int(result.get("score", 0), 300, "autoplay same lane second frame score"):
+		return false
+	if not _expect_int(judgments.get("good", 0), 1, "autoplay same lane second frame good count"):
+		return false
+	if not _expect_int(judgments.get("cool", 0), 1, "autoplay same lane second frame cool count"):
+		return false
+	return true
+
+
 func _test_autoplay_long_note() -> bool:
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_autoplay_long_note_chart()), true, "autoplay long chart load"):
@@ -337,6 +368,24 @@ func _autoplay_long_note_chart() -> Dictionary:
 		"durationMs": 5000,
 		"notes": [
 			{"id": 3, "lane": 2, "startMs": 3000.0, "endMs": 3300.0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _autoplay_same_lane_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:autoplay-same-lane",
+		"format": "VOS",
+		"autoplay": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 0, "startMs": 1100.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

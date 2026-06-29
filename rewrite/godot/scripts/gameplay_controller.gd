@@ -541,6 +541,19 @@ func _next_note_index_for_lane(lane: int) -> int:
 	return -1
 
 
+func _next_autoplay_note_index_for_lane(lane: int) -> int:
+	for i in range(_notes.size()):
+		var note := _notes[i]
+		if not _note_is_buffered(i):
+			continue
+		if int(note.get("lane", -1)) != lane:
+			continue
+		var state := str(note.get("state", STATE_NOT_JUDGED))
+		if state == STATE_NOT_JUDGED or state == STATE_HOLDING:
+			return i
+	return -1
+
+
 func _hit_time_for_note(note: Dictionary, now_ms: float) -> float:
 	return (float(note.get("startMs", 0.0)) - now_ms) / _effective_judgment_factor()
 
@@ -914,8 +927,9 @@ func _advance_note_autoplay(now_ms: float) -> int:
 		return 0
 
 	var judged := 0
-	for i in range(_notes.size()):
-		if not _note_is_buffered(i):
+	for lane: int in _autoplay_lanes():
+		var i := _next_autoplay_note_index_for_lane(lane)
+		if i < 0:
 			continue
 		var note := _notes[i]
 		var state := str(note.get("state", STATE_NOT_JUDGED))
@@ -937,6 +951,16 @@ func _advance_note_autoplay(now_ms: float) -> int:
 			_apply_note_judgment(i, tail_hit_time, now_ms)
 			judged += 1
 	return judged
+
+
+func _autoplay_lanes() -> Array[int]:
+	var lanes: Array[int] = []
+	for note: Dictionary in _notes:
+		var lane := int(note.get("lane", -1))
+		if lane >= 0 and not lanes.has(lane):
+			lanes.append(lane)
+	lanes.sort()
+	return lanes
 
 
 func _advance_note_autosound(now_ms: float) -> void:

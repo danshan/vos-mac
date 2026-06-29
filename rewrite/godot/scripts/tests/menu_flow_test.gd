@@ -169,6 +169,21 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/SongList/Song_vos_fixture"), true, "fixture song button"):
 		return
 
+	var invalid_key_bindings: Array[String] = ["A"]
+	ui._settings_store.set_key_bindings(invalid_key_bindings)
+	ui.get_node("Content/SongList/Song_vos_fixture").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "invalid key binding gameplay state"):
+		return
+	if not _expect_string(ui.get_node("Content/Status").text, "Unable to apply key bindings", "invalid key binding error"):
+		return
+	if not _expect_bool(ui.has_node("Content/BackButton"), true, "invalid key binding back button"):
+		return
+	ui.get_node("Content/BackButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.SONG_SELECT, "invalid key binding back to song select"):
+		return
+	var default_key_bindings: Array[String] = []
+	ui._settings_store.set_key_bindings(default_key_bindings)
+
 	ui.get_node("Content/SongList/Song_vos_fixture").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "gameplay state"):
 		return

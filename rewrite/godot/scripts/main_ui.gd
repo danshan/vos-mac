@@ -663,12 +663,19 @@ func _join_path(directory: String, file_name: String) -> String:
 
 
 func _show_gameplay_load_error(message: String) -> void:
-	_clear_gameplay_runtime()
-	if _status_label == null:
-		_status_label = _label("Status", message, HORIZONTAL_ALIGNMENT_CENTER)
-		_content.add_child(_status_label)
-	else:
-		_status_label.text = message
+	_clear_content()
+
+	_title_label = _label("Title", str(_selected_entry.get("title", "Gameplay")), HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+
+	_status_label = _label("Status", message, HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_status_label)
+
+	var back_button := _button("BackButton", "Back")
+	back_button.pressed.connect(_on_gameplay_back_pressed)
+	_content.add_child(back_button)
+
+	apply_layout_for_size(_layout_size())
 
 
 func _configure_exporter_from_environment() -> void:

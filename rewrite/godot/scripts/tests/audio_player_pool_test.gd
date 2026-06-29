@@ -46,6 +46,71 @@ func _init() -> void:
 	if not _expect_int(stopped, 1, "stopped players"):
 		return
 
+	var note_play: Dictionary = pool.apply_audio_command({
+		"action": "playSample",
+		"source": "note",
+		"trigger": "keysound",
+		"sampleId": 1,
+		"noteId": 100,
+	})
+	if not _expect_bool(note_play.get("played", false), true, "note keysound command played"):
+		return
+	if not _expect_bool(note_play.get("registeredInstance", false), true, "note keysound registers instance"):
+		return
+
+	var note_stop: Dictionary = pool.apply_audio_command({
+		"action": "stopSample",
+		"source": "note",
+		"trigger": "missed",
+		"sampleId": 1,
+		"noteId": 100,
+	})
+	if not _expect_bool(note_stop.get("stopped", false), true, "note miss stops registered instance"):
+		return
+
+	var repeated_stop: Dictionary = pool.apply_audio_command({
+		"action": "stopSample",
+		"source": "note",
+		"trigger": "missed",
+		"sampleId": 1,
+		"noteId": 100,
+	})
+	if not _expect_bool(repeated_stop.get("stopped", true), false, "note miss stop only once"):
+		return
+
+	var extra_play: Dictionary = pool.apply_audio_command({
+		"action": "playSample",
+		"source": "note",
+		"trigger": "extrasound",
+		"sampleId": 1,
+		"noteId": 101,
+	})
+	if not _expect_bool(extra_play.get("played", false), true, "extrasound command played"):
+		return
+	if not _expect_bool(extra_play.get("registeredInstance", true), false, "extrasound does not register instance"):
+		return
+
+	var extra_stop: Dictionary = pool.apply_audio_command({
+		"action": "stopSample",
+		"source": "note",
+		"trigger": "missed",
+		"sampleId": 1,
+		"noteId": 101,
+	})
+	if not _expect_bool(extra_stop.get("stopped", true), false, "extrasound miss has no registered instance"):
+		return
+
+	var batch_results: Array[Dictionary] = pool.apply_audio_commands([
+		{"action": "playSample", "source": "autoPlay", "trigger": "autosound", "sampleId": 2},
+		{"action": "unknown", "sampleId": 2},
+	])
+	if not _expect_int(batch_results.size(), 2, "batch result count"):
+		return
+	if not _expect_bool(batch_results[0].get("played", false), true, "batch autoplay played"):
+		return
+	if not _expect_string(batch_results[1].get("reason", ""), "unknown_action", "unknown action reason"):
+		return
+
 	pool.free()
 	quit(0)
 

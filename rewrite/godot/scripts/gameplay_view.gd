@@ -324,6 +324,10 @@ func _configure_bga_node() -> void:
 		current_node = _entity_rect(template, "Entity_BGA")
 		add_child(current_node)
 
+	var video_stream := _video_stream_for_path(video_path)
+	if video_stream == null:
+		return
+
 	var video_node := VideoStreamPlayer.new()
 	video_node.name = "Entity_BGA"
 	video_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -334,7 +338,7 @@ func _configure_bga_node() -> void:
 	video_node.expand = true
 	video_node.autoplay = false
 	video_node.volume = 0.0
-	video_node.stream = _video_stream_for_path(video_path)
+	video_node.stream = video_stream
 	video_node.set_meta("bgaVideoPath", video_path)
 	video_node.set_meta("bgaVideoStarted", false)
 	_replace_bga_node(video_node)

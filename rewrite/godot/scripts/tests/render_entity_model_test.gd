@@ -402,24 +402,24 @@ func _init() -> void:
 		"notes": [],
 		"measures": [],
 		"bgaVideoPath": "res://test/fixtures/intro.ogv",
-	}), true, "bga video chart load"):
+	}), true, "missing bga video chart load"):
 		return
 	if not _expect_bool(video_view.has_node("Entity_BGA"), true, "bga video node exists"):
 		return
-	if not _expect_bool(video_view.get_node("Entity_BGA") is VideoStreamPlayer, true, "bga video node type"):
+	if not _expect_bool(video_view.get_node("Entity_BGA") is TextureRect, true, "missing bga video falls back to texture"):
 		return
-	var bga_video_node: VideoStreamPlayer = video_view.get_node("Entity_BGA")
-	if not _expect_float(bga_video_node.position.x, bga_texture_node.position.x, "bga video x"):
+	var fallback_bga_node: TextureRect = video_view.get_node("Entity_BGA")
+	if not _expect_float(fallback_bga_node.position.x, bga_texture_node.position.x, "bga fallback x"):
 		return
-	if not _expect_float(bga_video_node.position.y, bga_texture_node.position.y, "bga video y"):
+	if not _expect_float(fallback_bga_node.position.y, bga_texture_node.position.y, "bga fallback y"):
 		return
-	if not _expect_float(bga_video_node.size.x, bga_texture_node.size.x, "bga video width"):
+	if not _expect_float(fallback_bga_node.size.x, bga_texture_node.size.x, "bga fallback width"):
 		return
-	if not _expect_float(bga_video_node.size.y, bga_texture_node.size.y, "bga video height"):
+	if not _expect_float(fallback_bga_node.size.y, bga_texture_node.size.y, "bga fallback height"):
 		return
-	if not _expect_int(bga_video_node.z_index, bga_texture_node.z_index, "bga video Java layer"):
+	if not _expect_int(fallback_bga_node.z_index, bga_texture_node.z_index, "bga fallback Java layer"):
 		return
-	if not _expect_string(str(bga_video_node.get_meta("bgaVideoPath", "")), "res://test/fixtures/intro.ogv", "bga video path metadata"):
+	if not _expect_bool(fallback_bga_node.has_meta("bgaVideoPath"), false, "missing bga video metadata omitted"):
 		return
 	video_view.free()
 	var judgment_line_node: Control = view.get_node("Entity_JUDGMENT_LINE")

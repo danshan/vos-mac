@@ -1,0 +1,86 @@
+extends SceneTree
+
+const AppState = preload("res://scripts/app_state.gd")
+const MainUi = preload("res://scripts/main_ui.gd")
+
+
+func _init() -> void:
+	var ui = MainUi.new()
+	ui.build()
+	ui.set_song_entries([
+		{
+			"id": "vos:fixture",
+			"title": "Canon in D",
+			"artist": "Pachelbel",
+			"level": 7,
+		},
+	])
+
+	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "initial state"):
+		return
+	if not _expect_bool(ui.has_node("Content/Menu/StartButton"), true, "start button"):
+		return
+	if not _expect_bool(ui.has_node("Content/Menu/SettingsButton"), true, "settings button"):
+		return
+
+	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.SETTINGS, "settings state"):
+		return
+	if not _expect_bool(ui.has_node("Content/SongDirectoryInput"), true, "song directory input"):
+		return
+	if not _expect_bool(ui.has_node("Content/FullscreenCheckBox"), true, "fullscreen checkbox"):
+		return
+	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
+		return
+
+	ui.get_node("Content/BackButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
+		return
+
+	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.SONG_SELECT, "song select state"):
+		return
+	if not _expect_bool(ui.has_node("Content/SongList/Song_vos_fixture"), true, "fixture song button"):
+		return
+
+	ui.get_node("Content/SongList/Song_vos_fixture").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "gameplay state"):
+		return
+	if not _expect_bool(ui.has_node("Content/FinishButton"), true, "finish button"):
+		return
+
+	ui.get_node("Content/FinishButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.RESULT, "result state"):
+		return
+	if not _expect_bool(ui.has_node("Content/RetryButton"), true, "retry button"):
+		return
+	if not _expect_bool(ui.has_node("Content/SongSelectButton"), true, "song select button"):
+		return
+
+	ui.get_node("Content/RetryButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "retry gameplay state"):
+		return
+
+	ui.complete_game({"score": 200, "maxCombo": 0})
+	ui.get_node("Content/SongSelectButton").emit_signal("pressed")
+	if not _expect_string(ui.current_state(), AppState.SONG_SELECT, "result back to song select"):
+		return
+
+	ui.free()
+	quit(0)
+
+
+func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_string(actual: String, expected: String, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true

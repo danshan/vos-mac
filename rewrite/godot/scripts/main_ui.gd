@@ -2,8 +2,13 @@ extends Control
 
 const AppState = preload("res://scripts/app_state.gd")
 
+const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
+
 var _built: bool = false
 var _app_state = AppState.new()
+var _song_entries: Array[Dictionary] = []
+var _selected_entry: Dictionary = {}
+var _last_result: Dictionary = {}
 var _content: VBoxContainer = null
 var _menu: HBoxContainer = null
 var _title_label: Label = null
@@ -11,6 +16,7 @@ var _subtitle_label: Label = null
 var _status_label: Label = null
 var _start_button: Button = null
 var _settings_button: Button = null
+var _layout_buttons: Array[Button] = []
 
 
 func _ready() -> void:
@@ -37,6 +43,33 @@ func build() -> void:
 	_content.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(_content)
 
+	_app_state.transition_to(AppState.MAIN_MENU)
+	_show_main_menu()
+	apply_layout_for_size(_layout_size())
+
+
+func current_state() -> String:
+	return _app_state.current()
+
+
+func set_song_entries(entries: Array) -> void:
+	_song_entries.clear()
+	for entry: Variant in entries:
+		if entry is Dictionary:
+			_song_entries.append(entry.duplicate(true))
+	if _app_state.current() == AppState.SONG_SELECT:
+		_show_song_select()
+
+
+func complete_game(result: Dictionary) -> void:
+	_last_result = result.duplicate(true)
+	if _app_state.current() == AppState.GAMEPLAY and _app_state.transition_to(AppState.RESULT):
+		_show_result()
+
+
+func _show_main_menu() -> void:
+	_clear_content()
+
 	_title_label = Label.new()
 	_title_label.name = "Title"
 	_title_label.text = "Open2Jam VOS"
@@ -45,7 +78,7 @@ func build() -> void:
 
 	_subtitle_label = Label.new()
 	_subtitle_label.name = "Subtitle"
-	_subtitle_label.text = "Godot runtime preview"
+	_subtitle_label.text = "Godot runtime"
 	_subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_content.add_child(_subtitle_label)
 
@@ -59,16 +92,18 @@ func build() -> void:
 	_start_button.text = "Start"
 	_start_button.pressed.connect(_on_start_pressed)
 	_menu.add_child(_start_button)
+	_layout_buttons.append(_start_button)
 
 	_settings_button = Button.new()
 	_settings_button.name = "SettingsButton"
 	_settings_button.text = "Settings"
 	_settings_button.pressed.connect(_on_settings_pressed)
 	_menu.add_child(_settings_button)
+	_layout_buttons.append(_settings_button)
 
 	_status_label = Label.new()
 	_status_label.name = "Status"
-	_status_label.text = "Ready. Export VOS charts with the Java bridge, then continue wiring Song Select."
+	_status_label.text = "Ready"
 	_status_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_content.add_child(_status_label)
@@ -104,25 +139,187 @@ func apply_layout_for_size(viewport_size: Vector2) -> void:
 		_subtitle_label.add_theme_font_size_override("font_size", subtitle_size)
 	if _status_label != null:
 		_status_label.add_theme_font_size_override("font_size", status_size)
-	if _start_button != null:
-		_start_button.custom_minimum_size = button_size
-	if _settings_button != null:
-		_settings_button.custom_minimum_size = button_size
+	for button: Button in _layout_buttons:
+		button.custom_minimum_size = button_size
 
 
 func _on_start_pressed() -> void:
-	_app_state.transition_to(AppState.SONG_SELECT)
-	_set_status("Song Select is the next UI loop. Runtime data loaders are ready.")
+	if _app_state.transition_to(AppState.SONG_SELECT):
+		_show_song_select()
 
 
 func _on_settings_pressed() -> void:
-	_app_state.transition_to(AppState.SETTINGS)
-	_set_status("Settings storage exists. Directory picker and key binding UI are next.")
+	if _app_state.transition_to(AppState.SETTINGS):
+		_show_settings()
 
 
-func _set_status(text: String) -> void:
-	if _status_label != null:
-		_status_label.text = text
+func _show_settings() -> void:
+	_clear_content()
+
+	_title_label = _label("Title", "Settings", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+
+	var directory_input := LineEdit.new()
+	directory_input.name = "SongDirectoryInput"
+	directory_input.placeholder_text = "Song directory"
+	_content.add_child(directory_input)
+
+	var fullscreen := CheckBox.new()
+	fullscreen.name = "FullscreenCheckBox"
+	fullscreen.text = "Fullscreen"
+	_content.add_child(fullscreen)
+
+	var key_bindings := GridContainer.new()
+	key_bindings.name = "KeyBindings"
+	key_bindings.columns = DEFAULT_KEY_BINDINGS.size()
+	_content.add_child(key_bindings)
+
+	for i in range(DEFAULT_KEY_BINDINGS.size()):
+		var key_input := LineEdit.new()
+		key_input.name = "KeyBinding%d" % (i + 1)
+		key_input.text = DEFAULT_KEY_BINDINGS[i]
+		key_input.custom_minimum_size = Vector2(96.0, 44.0)
+		key_bindings.add_child(key_input)
+
+	var back_button := _button("BackButton", "Back")
+	back_button.pressed.connect(_on_settings_back_pressed)
+	_content.add_child(back_button)
+
+	apply_layout_for_size(_layout_size())
+
+
+func _show_song_select() -> void:
+	_clear_content()
+
+	_title_label = _label("Title", "Song Select", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+
+	var song_list := VBoxContainer.new()
+	song_list.name = "SongList"
+	song_list.alignment = BoxContainer.ALIGNMENT_CENTER
+	_content.add_child(song_list)
+
+	if _song_entries.is_empty():
+		var empty_label := _label("EmptySongList", "No songs", HORIZONTAL_ALIGNMENT_CENTER)
+		song_list.add_child(empty_label)
+	else:
+		for entry: Dictionary in _song_entries:
+			var song_button := _button("Song_%s" % _safe_name(str(entry.get("id", ""))),
+					"%s - %s" % [str(entry.get("artist", "")), str(entry.get("title", ""))])
+			song_button.pressed.connect(_on_song_selected.bind(entry.duplicate(true)))
+			song_list.add_child(song_button)
+
+	var back_button := _button("BackButton", "Back")
+	back_button.pressed.connect(_on_song_select_back_pressed)
+	_content.add_child(back_button)
+
+	apply_layout_for_size(_layout_size())
+
+
+func _show_gameplay() -> void:
+	_clear_content()
+
+	_title_label = _label("Title", str(_selected_entry.get("title", "Gameplay")), HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+
+	_status_label = _label("Status", "Playing", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_status_label)
+
+	var finish_button := _button("FinishButton", "Finish")
+	finish_button.pressed.connect(_on_finish_pressed)
+	_content.add_child(finish_button)
+
+	apply_layout_for_size(_layout_size())
+
+
+func _show_result() -> void:
+	_clear_content()
+
+	_title_label = _label("Title", "Result", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+
+	_status_label = _label("Status", "Score %d" % int(_last_result.get("score", 0)), HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_status_label)
+
+	var retry_button := _button("RetryButton", "Retry")
+	retry_button.pressed.connect(_on_retry_pressed)
+	_content.add_child(retry_button)
+
+	var song_select_button := _button("SongSelectButton", "Song Select")
+	song_select_button.pressed.connect(_on_result_song_select_pressed)
+	_content.add_child(song_select_button)
+
+	apply_layout_for_size(_layout_size())
+
+
+func _on_settings_back_pressed() -> void:
+	if _app_state.transition_to(AppState.MAIN_MENU):
+		_show_main_menu()
+
+
+func _on_song_select_back_pressed() -> void:
+	if _app_state.transition_to(AppState.MAIN_MENU):
+		_show_main_menu()
+
+
+func _on_song_selected(entry: Dictionary) -> void:
+	_selected_entry = entry.duplicate(true)
+	if _app_state.transition_to(AppState.LOADING) and _app_state.transition_to(AppState.GAMEPLAY):
+		_show_gameplay()
+
+
+func _on_finish_pressed() -> void:
+	complete_game({"score": 0, "maxCombo": 0})
+
+
+func _on_retry_pressed() -> void:
+	if _app_state.transition_to(AppState.LOADING) and _app_state.transition_to(AppState.GAMEPLAY):
+		_show_gameplay()
+
+
+func _on_result_song_select_pressed() -> void:
+	if _app_state.transition_to(AppState.SONG_SELECT):
+		_show_song_select()
+
+
+func _label(name: String, text: String, alignment: HorizontalAlignment) -> Label:
+	var label := Label.new()
+	label.name = name
+	label.text = text
+	label.horizontal_alignment = alignment
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return label
+
+
+func _button(name: String, text: String) -> Button:
+	var button := Button.new()
+	button.name = name
+	button.text = text
+	_layout_buttons.append(button)
+	return button
+
+
+func _clear_content() -> void:
+	_title_label = null
+	_subtitle_label = null
+	_status_label = null
+	_start_button = null
+	_settings_button = null
+	_menu = null
+	_layout_buttons.clear()
+
+	if _content == null:
+		return
+	for child in _content.get_children():
+		_content.remove_child(child)
+		child.queue_free()
+
+
+func _safe_name(value: String) -> String:
+	var result := value.replace(":", "_").replace("/", "_").replace("\\", "_").replace(" ", "_")
+	if result.is_empty():
+		return "unknown"
+	return result
 
 
 func _on_resized() -> void:

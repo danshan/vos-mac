@@ -300,6 +300,7 @@ func _entity_rect(entity: Dictionary, node_name: String) -> Control:
 		texture_node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
 		texture_node.texture = texture
 		texture_node.stretch_mode = TextureRect.STRETCH_SCALE
+		_apply_entity_layer(texture_node, entity)
 		return texture_node
 
 	var node := ColorRect.new()
@@ -308,6 +309,7 @@ func _entity_rect(entity: Dictionary, node_name: String) -> Control:
 	node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
 	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
 	node.color = _color_for_type(str(entity.get("type", "")))
+	_apply_entity_layer(node, entity)
 	return node
 
 
@@ -322,6 +324,7 @@ func _animated_entity_rect(entity: Dictionary, node_name: String) -> Control:
 	texture_node.set_meta("frameSpeed", float(entity.get("frameSpeed", 0.0)))
 	texture_node.set_meta("animationStartMs", float(entity.get("animationStartMs", 0.0)))
 	_apply_animation_frame(texture_node, 0.0)
+	_apply_entity_layer(texture_node, entity)
 	return texture_node
 
 
@@ -335,6 +338,7 @@ func _long_note_node(entity: Dictionary, node_name: String) -> Control:
 	node.add_child(_entity_part_rect(entity, "Tail", "tail"))
 	node.add_child(_entity_part_rect(entity, "Head", ""))
 	_position_long_note_parts(node)
+	_apply_entity_layer(node, entity)
 	return node
 
 
@@ -681,6 +685,7 @@ func _register_hud_label(entity: Dictionary) -> void:
 	label.position.y = float(entity.get("y", 0.0))
 	label.size = Vector2(label_width, max(digit_height * 1.4, digit_height))
 	label.add_theme_font_size_override("font_size", int(round(max(digit_height, 8.0))))
+	_apply_entity_layer(label, entity)
 
 	_hud_labels[id] = label
 	add_child(label)
@@ -741,6 +746,7 @@ func _register_hud_digit_container(entity: Dictionary) -> void:
 	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	container.position = Vector2.ZERO
 	container.size = custom_minimum_size
+	_apply_entity_layer(container, entity)
 	_hud_digit_entities[id] = {
 		"entity": entity.duplicate(true),
 		"container": container,
@@ -878,6 +884,11 @@ func _digit_texture_rect(frame: Dictionary, node_name: String) -> TextureRect:
 			max(float(frame.get("textureWidth", 1.0)), 1.0),
 			max(float(frame.get("textureHeight", 1.0)), 1.0))
 	return digit
+
+
+func _apply_entity_layer(node: CanvasItem, entity: Dictionary) -> void:
+	node.z_index = int(entity.get("layer", 0))
+	node.z_as_relative = false
 
 
 func _set_bar_fill(id: String, value: float, limit: float) -> void:

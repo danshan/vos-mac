@@ -219,7 +219,12 @@ func _init() -> void:
 	if not _expect_bool(view.get_node("Entity_BGA") is TextureRect, true, "bga texture node"):
 		return
 	var bga_texture_node: TextureRect = view.get_node("Entity_BGA")
+	if not _expect_int(bga_texture_node.z_index, 0, "bga Java layer"):
+		return
 	if not _expect_bool(bga_texture_node.texture != null, true, "bga texture loaded"):
+		return
+	var judgment_line_node: Control = view.get_node("Entity_JUDGMENT_LINE")
+	if not _expect_int(judgment_line_node.z_index, 2, "judgment line Java layer"):
 		return
 	if not _expect_bool(view.has_node("Entity_SCORE_COUNTER"), true, "score counter node"):
 		return
@@ -377,6 +382,12 @@ func _init() -> void:
 	if not _expect_int(_count_children_with_prefix(view, "Pressed_PRESSED_NOTE_1_"), 3, "pressed lane one pieces"):
 		return
 	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), true, "pressed lane one first piece"):
+		return
+	var pressed_lane_node: Control = view.get_node("Pressed_PRESSED_NOTE_1_000")
+	if not _expect_int(pressed_lane_node.z_index, 3, "pressed lane Java layer"):
+		return
+	var pressed_keyboard_node: Control = view.get_node("Pressed_PRESSED_NOTE_1_001")
+	if not _expect_int(pressed_keyboard_node.z_index, 8, "pressed keyboard Java layer"):
 		return
 
 	view.update_hud_state({
@@ -545,6 +556,8 @@ func _init() -> void:
 		return
 
 	var note_node: Control = view.get_node("Note_000")
+	if not _expect_int(note_node.z_index, 5, "dynamic note Java layer"):
+		return
 	if not _expect_bool(note_node is TextureRect, true, "dynamic note texture node"):
 		return
 	var note_texture_node: TextureRect = note_node
@@ -604,6 +617,8 @@ func _init() -> void:
 	if not _expect_float(long_note_tail.position.y, 115.5, "long note tail y"):
 		return
 	var measure_node: Control = view.get_node("Measure_000")
+	if not _expect_int(measure_node.z_index, 4, "dynamic measure Java layer"):
+		return
 	if not _expect_bool(measure_node is TextureRect, true, "dynamic measure texture node"):
 		return
 	var measure_texture_node: TextureRect = measure_node

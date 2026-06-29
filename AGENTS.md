@@ -153,16 +153,21 @@ This project uses `mise.toml` as the source of truth for local runtime tools. Do
 
 Rules:
 
+- Treat `mise.toml` as the only checked-in runtime configuration for Java and Maven.
+- When a runtime version needs to change, update the `[tools]` section in `mise.toml`, run `mise install`, then verify with `mise current`.
 - Use `mise current` to inspect the active tool versions for this checkout.
 - Use `mise exec -- ...` when running Java, Maven, or project verification commands.
 - Maven commands must use the project settings file: `.mvn/settings.xml`.
+- The Maven settings path is exported by `mise.toml` as `MAVEN_SETTINGS=.mvn/settings.xml`; project tasks should use that value instead of hard-coding another settings file.
 - Prefer the project tasks in `mise.toml` when they match the task.
+- Do not install, switch, or repair the project Java/Maven runtime through SDKMAN, Homebrew, system `/usr/bin`, or shell-profile changes when working in this checkout. Change `mise.toml` first, then operate through mise.
 - Do not edit shell startup files as part of normal project work. If shell initialization is broken, report it separately and keep project commands running through mise.
 
 Canonical commands:
 
 ```bash
 mise current
+mise install
 mise exec -- java -version
 mise exec -- mvn -s .mvn/settings.xml -version
 mise exec -- mvn -s .mvn/settings.xml validate

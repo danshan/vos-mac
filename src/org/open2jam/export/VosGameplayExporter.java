@@ -16,8 +16,9 @@ import org.open2jam.render.RenderTimingCompiler;
 public final class VosGameplayExporter {
     public String exportGameplay(File input) throws Exception {
         VOSChart chart = firstVosChart(input);
+        TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(), 0,
-                new TimingData(), new TimingData());
+                new TimingData(), visualTiming);
 
         List<ExportNote> notes = new ArrayList<ExportNote>();
         EnumMap<Event.Channel, ExportNote> pendingLongNotes = new EnumMap<Event.Channel, ExportNote>(
@@ -62,6 +63,7 @@ public final class VosGameplayExporter {
                 JsonWriter.field("durationMs", chart.getDuration() * 1000),
                 JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))),
                 JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))),
+                JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))),
                 JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
     }
 
@@ -96,6 +98,22 @@ public final class VosGameplayExporter {
 
     private static String measureEvent(Event event) {
         return JsonWriter.object(JsonWriter.field("startMs", event.getTime()));
+    }
+
+    private static String[] visualTimingJson(TimingData timing) {
+        TimingData.VelocityChange[] changes = timing.getChanges();
+        List<String> json = new ArrayList<String>();
+        TimingData.VelocityChange previous = null;
+        for (TimingData.VelocityChange change : changes) {
+            if (previous != null && previous.getTime() == change.getTime() && previous.getBpm() == change.getBpm()) {
+                continue;
+            }
+            json.add(JsonWriter.object(
+                    JsonWriter.field("timeMs", change.getTime()),
+                    JsonWriter.field("bpm", change.getBpm())));
+            previous = change;
+        }
+        return json.toArray(new String[json.size()]);
     }
 
     private static int laneFor(Event.Channel channel) {

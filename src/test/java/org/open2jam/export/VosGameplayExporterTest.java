@@ -26,7 +26,8 @@ class VosGameplayExporterTest {
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
                 note(0, "tap", 0.0, 1),
-                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array(measure(0.0)), JsonWriter.array()), json);
+                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array(measure(0.0)),
+                JsonWriter.array(visualTiming(0.0, 120.0)), JsonWriter.array()), json);
     }
 
     @Test
@@ -37,7 +38,8 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", 0.0, 2)),
-                JsonWriter.array(measure(0.0)), JsonWriter.array(autoPlayEvent(0.0, 1))), json);
+                JsonWriter.array(measure(0.0)), JsonWriter.array(visualTiming(0.0, 120.0)),
+                JsonWriter.array(autoPlayEvent(0.0, 1))), json);
     }
 
     @Test
@@ -48,8 +50,8 @@ class VosGameplayExporterTest {
         assertThrows(IllegalArgumentException.class, () -> new VosGameplayExporter().exportGameplay(textFile));
     }
 
-    private static String gameplayJson(File source, String notes, String measures, String autoPlayEvents)
-            throws Exception {
+    private static String gameplayJson(File source, String notes, String measures, String visualTiming,
+            String autoPlayEvents) throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
                 JsonWriter.field("format", "VOS"),
@@ -60,6 +62,7 @@ class VosGameplayExporterTest {
                 JsonWriter.field("durationMs", 123000),
                 JsonWriter.rawField("notes", notes),
                 JsonWriter.rawField("measures", measures),
+                JsonWriter.rawField("visualTiming", visualTiming),
                 JsonWriter.rawField("autoPlayEvents", autoPlayEvents));
     }
 
@@ -94,5 +97,11 @@ class VosGameplayExporterTest {
 
     private static String measure(double startMs) {
         return JsonWriter.object(JsonWriter.field("startMs", startMs));
+    }
+
+    private static String visualTiming(double timeMs, double bpm) {
+        return JsonWriter.object(
+                JsonWriter.field("timeMs", timeMs),
+                JsonWriter.field("bpm", bpm));
     }
 }

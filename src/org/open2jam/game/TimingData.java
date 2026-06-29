@@ -59,6 +59,13 @@ public class TimingData {
             changes[i].setBeat(changes[i - 1].calculateBeat(changes[i].getTime()));
         }
     }
+
+    public VelocityChange[] getChanges() {
+        if (changes == null) {
+            return new VelocityChange[0];
+        }
+        return Arrays.copyOf(changes, changes.length);
+    }
     
     public double getBeat(double time) {
         int min = 0, max = changes.length - 1;

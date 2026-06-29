@@ -84,6 +84,18 @@ func _init() -> void:
 			entity["tailTextureY"] = 142.0
 			entity["tailTextureWidth"] = 28.0
 			entity["tailTextureHeight"] = 7.0
+		if str(entity.get("id", "")) == "SCORE_COUNTER":
+			var digit_frames: Array[Dictionary] = []
+			for digit in range(10):
+				digit_frames.append({
+					"id": "score_number_%d" % digit,
+					"texturePath": "%s/Numbers.png" % resource_root,
+					"textureX": 28.0,
+					"textureY": float(digit * 19),
+					"textureWidth": 24.0,
+					"textureHeight": 18.0,
+				})
+			entity["spriteFrames"] = digit_frames
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
@@ -144,6 +156,20 @@ func _init() -> void:
 		},
 	})
 	if not _expect_string(view.get_node("Hud_SCORE_COUNTER").text, "12345", "score hud text"):
+		return
+	if not _expect_bool(view.has_node("HudSprite_SCORE_COUNTER"), true, "score sprite hud node"):
+		return
+	var score_sprite_hud: Control = view.get_node("HudSprite_SCORE_COUNTER")
+	if not _expect_int(score_sprite_hud.get_child_count(), 5, "score sprite digit count"):
+		return
+	var score_digit_0: TextureRect = score_sprite_hud.get_child(0)
+	var score_digit_4: TextureRect = score_sprite_hud.get_child(4)
+	if not _expect_float(score_digit_0.position.x, 168.0, "score rightmost digit x"):
+		return
+	if not _expect_float(score_digit_4.position.x, 72.0, "score leftmost digit x"):
+		return
+	var score_left_digit_texture: AtlasTexture = score_digit_4.texture
+	if not _expect_float(score_left_digit_texture.region.position.y, 19.0, "score leftmost digit texture y"):
 		return
 	if not _expect_string(view.get_node("Hud_COMBO_COUNTER").text, "11", "combo hud text"):
 		return

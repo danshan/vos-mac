@@ -40,5 +40,7 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"tailTextureY\":142.0"));
         assertTrue(json.contains("\"tailTextureWidth\":28.0"));
         assertTrue(json.contains("\"tailTextureHeight\":7.0"));
+        assertTrue(json.contains("\"spriteFrames\":[{\"id\":\"score_number_0\""));
+        assertTrue(json.contains("\"id\":\"score_number_9\""));
     }
 }

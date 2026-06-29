@@ -31,6 +31,7 @@ var _measure_entries: Array[Dictionary] = []
 var _distance = null
 var _speed: float = 1.0
 var _hud_labels: Dictionary = {}
+var _hud_digit_entities: Dictionary = {}
 var _bar_nodes: Dictionary = {}
 var _bar_rects: Dictionary = {}
 var _pressed_nodes: Array[Node] = []
@@ -138,6 +139,7 @@ func _rebuild_entities() -> void:
 	_note_entries.clear()
 	_measure_entries.clear()
 	_hud_labels.clear()
+	_hud_digit_entities.clear()
 	_bar_nodes.clear()
 	_bar_rects.clear()
 	_clear_pressed_nodes()
@@ -578,6 +580,7 @@ func _register_hud_label(entity: Dictionary) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	label.text = "0"
+	label.visible = not _has_sprite_frames(entity)
 
 	var digit_width: float = max(float(entity.get("width", 0.0)), 1.0)
 	var digit_height: float = max(float(entity.get("height", 0.0)), 1.0)
@@ -594,6 +597,7 @@ func _register_hud_label(entity: Dictionary) -> void:
 
 	_hud_labels[id] = label
 	add_child(label)
+	_register_hud_digit_container(entity)
 
 
 func _is_hud_counter(entity: Dictionary) -> bool:
@@ -605,6 +609,7 @@ func _set_hud_text(id: String, text: String) -> void:
 	var label: Variant = _hud_labels.get(id)
 	if label is Label:
 		label.text = text
+	_set_hud_digits(id, text)
 
 
 func _set_combo_text(id: String, value: int, threshold: int) -> void:
@@ -612,6 +617,111 @@ func _set_combo_text(id: String, value: int, threshold: int) -> void:
 		_set_hud_text(id, "")
 		return
 	_set_hud_text(id, _int_text(value - max(threshold - 1, 0)))
+
+
+func _register_hud_digit_container(entity: Dictionary) -> void:
+	if not _has_sprite_frames(entity):
+		return
+	var id := str(entity.get("id", ""))
+	var container := Control.new()
+	container.name = "HudSprite_%s" % _safe_node_id(id)
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.position = Vector2.ZERO
+	container.size = custom_minimum_size
+	_hud_digit_entities[id] = {
+		"entity": entity.duplicate(true),
+		"container": container,
+	}
+	add_child(container)
+
+
+func _has_sprite_frames(entity: Dictionary) -> bool:
+	var frames: Variant = entity.get("spriteFrames", [])
+	return frames is Array and not frames.is_empty()
+
+
+func _set_hud_digits(id: String, text: String) -> void:
+	var entry: Dictionary = _hud_digit_entities.get(id, {})
+	if entry.is_empty():
+		return
+	var container: Variant = entry.get("container")
+	if not container is Control:
+		return
+	for child: Node in container.get_children():
+		container.remove_child(child)
+		child.free()
+
+	if text.is_empty():
+		return
+
+	var entity: Dictionary = entry.get("entity", {})
+	var chars := text.split("")
+	if str(entity.get("type", "")) == "comboCounter":
+		_add_combo_counter_digits(container, entity, chars)
+	else:
+		_add_number_counter_digits(container, entity, chars)
+
+
+func _add_number_counter_digits(container: Control, entity: Dictionary, chars: PackedStringArray) -> void:
+	var tx := float(entity.get("x", 0.0))
+	var y := float(entity.get("y", 0.0))
+	var sequence := 0
+	for i in range(chars.size() - 1, -1, -1):
+		var frame := _digit_frame_for_char(entity, chars[i])
+		if frame.is_empty():
+			continue
+		tx -= float(frame.get("textureWidth", entity.get("width", 1.0)))
+		var digit := _digit_texture_rect(frame, "Digit_%03d" % sequence)
+		digit.position = Vector2(tx, y)
+		container.add_child(digit)
+		sequence += 1
+
+
+func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: PackedStringArray) -> void:
+	var frames: Array[Dictionary] = []
+	var total_width := 0.0
+	for value: String in chars:
+		var frame := _digit_frame_for_char(entity, value)
+		if frame.is_empty():
+			continue
+		frames.append(frame)
+		total_width += float(frame.get("textureWidth", entity.get("width", 1.0)))
+
+	var tx := float(entity.get("x", 0.0)) - total_width * 0.5
+	var y := float(entity.get("y", 0.0))
+	for i in range(frames.size()):
+		var frame := frames[i]
+		var digit := _digit_texture_rect(frame, "Digit_%03d" % i)
+		digit.position = Vector2(tx, y)
+		container.add_child(digit)
+		tx += float(frame.get("textureWidth", entity.get("width", 1.0)))
+
+
+func _digit_frame_for_char(entity: Dictionary, value: String) -> Dictionary:
+	if value.length() != 1 or value < "0" or value > "9":
+		return {}
+	var frames: Variant = entity.get("spriteFrames", [])
+	if not frames is Array:
+		return {}
+	var index := int(value)
+	if index < 0 or index >= frames.size():
+		return {}
+	var frame: Variant = frames[index]
+	if not frame is Dictionary:
+		return {}
+	return frame.duplicate(true)
+
+
+func _digit_texture_rect(frame: Dictionary, node_name: String) -> TextureRect:
+	var digit := TextureRect.new()
+	digit.name = node_name
+	digit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	digit.texture = _texture_for_entity_part(frame, "")
+	digit.stretch_mode = TextureRect.STRETCH_SCALE
+	digit.size = Vector2(
+			max(float(frame.get("textureWidth", 1.0)), 1.0),
+			max(float(frame.get("textureHeight", 1.0)), 1.0))
+	return digit
 
 
 func _set_bar_fill(id: String, value: float, limit: float) -> void:

@@ -113,6 +113,7 @@ public final class VosRenderMetadataExporter {
         if (sprite == null) {
             sprite = SpriteMetadata.empty();
         }
+        String spriteFrames = spriteFramesJson(spriteRefs, sprites);
 
         double x = doubleAttribute(entity, "x", 0.0);
         double y = doubleAttribute(entity, "y", 0.0);
@@ -120,20 +121,20 @@ public final class VosRenderMetadataExporter {
             SpriteMetadata bodySprite = spriteForReference(sprites, entity.getAttribute("body"), sprite);
             SpriteMetadata tailSprite = spriteForReference(sprites, entity.getAttribute("tail"), sprite);
             entities.add(entityJson("LONG_" + id, "longNote", layer, x, y, sprite.width, sprite.height, spriteRefs,
-                    entity, true, id, sprite, bodySprite, tailSprite));
+                    entity, true, id, sprite, bodySprite, tailSprite, spriteFrames));
             entities.add(entityJson(id, "note", layer, x, y, sprite.width, sprite.height, spriteRefs, entity, true,
-                    id, sprite, null, null));
+                    id, sprite, null, null, spriteFrames));
             lanes.add(laneJson(id, laneForNoteId(id), x, sprite.width));
             return;
         }
 
         entities.add(entityJson(id == null ? "" : id, typeFor(id), layer, x, y, sprite.width, sprite.height,
-                spriteRefs, entity, id != null, id, sprite, null, null));
+                spriteRefs, entity, id != null, id, sprite, null, null, spriteFrames));
     }
 
     private static String entityJson(String id, String type, int layer, double x, double y, double width, double height,
             String[] spriteRefs, Element source, boolean named, String channel, SpriteMetadata sprite,
-            SpriteMetadata bodySprite, SpriteMetadata tailSprite) {
+            SpriteMetadata bodySprite, SpriteMetadata tailSprite, String spriteFrames) {
         List<String> fields = new ArrayList<String>();
         fields.add(JsonWriter.field("id", id));
         fields.add(JsonWriter.field("type", type));
@@ -155,12 +156,36 @@ public final class VosRenderMetadataExporter {
         }
         addSpriteFields(fields, "body", bodySprite);
         addSpriteFields(fields, "tail", tailSprite);
+        if (!spriteFrames.isEmpty()) {
+            fields.add(JsonWriter.rawField("spriteFrames", spriteFrames));
+        }
         String fillDirection = source.getAttribute("fill_direction");
         if (fillDirection != null && !fillDirection.trim().isEmpty()) {
             fields.add(JsonWriter.field("fillDirection", fillDirection));
         }
         fields.add(JsonWriter.rawField("sprites", JsonWriter.array(quoted(spriteRefs))));
         return JsonWriter.object(fields.toArray(new String[0]));
+    }
+
+    private static String spriteFramesJson(String[] spriteRefs, Map<String, SpriteMetadata> sprites) {
+        List<String> frames = new ArrayList<String>();
+        for (String spriteRef : spriteRefs) {
+            SpriteMetadata sprite = sprites.get(spriteRef);
+            if (sprite == null || sprite.texturePath.isEmpty()) {
+                continue;
+            }
+            frames.add(JsonWriter.object(
+                    JsonWriter.field("id", sprite.id),
+                    JsonWriter.field("texturePath", sprite.texturePath),
+                    JsonWriter.field("textureX", sprite.textureX),
+                    JsonWriter.field("textureY", sprite.textureY),
+                    JsonWriter.field("textureWidth", sprite.textureWidth),
+                    JsonWriter.field("textureHeight", sprite.textureHeight)));
+        }
+        if (frames.isEmpty()) {
+            return "";
+        }
+        return JsonWriter.array(frames.toArray(new String[0]));
     }
 
     private static SpriteMetadata spriteForReference(Map<String, SpriteMetadata> sprites, String reference,

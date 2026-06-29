@@ -40,7 +40,7 @@ final class JsonWriter {
 
     static String field(String name, double value) {
         if (Double.isNaN(value) || Double.isInfinite(value)) {
-            return string(name) + ":0.0";
+            throw new IllegalArgumentException("Non-finite JSON number for field: " + name);
         }
         return string(name) + ":" + value;
     }

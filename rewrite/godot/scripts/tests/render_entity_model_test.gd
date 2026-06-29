@@ -142,6 +142,22 @@ func _init() -> void:
 	var jam_bar: ColorRect = view.get_node("Entity_JAM_BAR")
 	if not _expect_float(jam_bar.size.x, 95.5, "jam bar half fill width"):
 		return
+	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), false, "pressed lane starts hidden"):
+		return
+
+	view.update_hud_state({
+		"pressedLanes": [0],
+	})
+	if not _expect_int(_count_children_with_prefix(view, "Pressed_PRESSED_NOTE_1_"), 3, "pressed lane one pieces"):
+		return
+	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), true, "pressed lane one first piece"):
+		return
+
+	view.update_hud_state({
+		"pressedLanes": [],
+	})
+	if not _expect_int(_count_children_with_prefix(view, "Pressed_PRESSED_NOTE_1_"), 0, "pressed lane clears"):
+		return
 
 	var gameplay_loader = GameplayLoader.new()
 	var chart: Dictionary = gameplay_loader.load_from_file("res://test/fixtures/gameplay.json")

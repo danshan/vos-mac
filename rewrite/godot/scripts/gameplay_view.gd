@@ -32,6 +32,7 @@ var _speed: float = 1.0
 var _hud_labels: Dictionary = {}
 var _bar_nodes: Dictionary = {}
 var _bar_rects: Dictionary = {}
+var _pressed_nodes: Array[Node] = []
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -105,6 +106,7 @@ func update_hud_state(state: Dictionary) -> void:
 
 	_set_bar_fill("LIFE_BAR", float(state.get("life", 0.0)), float(state.get("lifeLimit", 0.0)))
 	_set_bar_fill("JAM_BAR", float(state.get("jamBar", 0.0)), float(state.get("jamBarLimit", 0.0)))
+	_sync_pressed_lanes(state.get("pressedLanes", []))
 
 
 func _rebuild_entities() -> void:
@@ -115,17 +117,13 @@ func _rebuild_entities() -> void:
 	_hud_labels.clear()
 	_bar_nodes.clear()
 	_bar_rects.clear()
+	_clear_pressed_nodes()
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
 		if not _is_java_initial_entity(entity):
 			continue
-		var node := ColorRect.new()
-		node.name = _node_name(entity, index)
-		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
-		node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
-		node.color = _color_for_type(str(entity.get("type", "")))
+		var node := _entity_rect(entity, _node_name(entity, index))
 		add_child(node)
 		_register_bar_node(entity, node)
 		_register_hud_label(entity)
@@ -208,6 +206,52 @@ func _is_java_initial_entity(entity: Dictionary) -> bool:
 	if id.is_empty():
 		return true
 	return JAVA_INITIAL_ENTITY_IDS.has(id)
+
+
+func _entity_rect(entity: Dictionary, node_name: String) -> ColorRect:
+	var node := ColorRect.new()
+	node.name = node_name
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
+	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
+	node.color = _color_for_type(str(entity.get("type", "")))
+	return node
+
+
+func _sync_pressed_lanes(raw_lanes: Variant) -> void:
+	_clear_pressed_nodes()
+	if not raw_lanes is Array:
+		return
+
+	for raw_lane: Variant in raw_lanes:
+		var lane := int(raw_lane)
+		if lane < 0:
+			continue
+		var id := "PRESSED_NOTE_%d" % (lane + 1)
+		var piece_index := 0
+		for entity: Dictionary in _entities_by_id(id):
+			var node := _entity_rect(entity, "Pressed_%s_%03d" % [_safe_node_id(id), piece_index])
+			add_child(node)
+			_pressed_nodes.append(node)
+			piece_index += 1
+
+
+func _clear_pressed_nodes() -> void:
+	for node: Node in _pressed_nodes:
+		if not is_instance_valid(node):
+			continue
+		if node.get_parent() == self:
+			remove_child(node)
+		node.free()
+	_pressed_nodes.clear()
+
+
+func _entities_by_id(id: String) -> Array[Dictionary]:
+	var matches: Array[Dictionary] = []
+	for entity: Dictionary in _metadata.get("entities", []):
+		if str(entity.get("id", "")) == id:
+			matches.append(entity.duplicate(true))
+	return matches
 
 
 func _register_bar_node(entity: Dictionary, node: ColorRect) -> void:

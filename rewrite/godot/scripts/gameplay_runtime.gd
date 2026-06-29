@@ -120,6 +120,7 @@ func hud_state() -> Dictionary:
 	var state := result()
 	state["elapsedMs"] = int(round(_elapsed_ms))
 	state["durationMs"] = int(round(_duration_ms))
+	state["pressedLanes"] = _controller.pressed_lanes()
 	return state
 
 

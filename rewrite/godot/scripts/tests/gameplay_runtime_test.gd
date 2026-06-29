@@ -47,6 +47,15 @@ func _init() -> void:
 		return
 	if not _expect_int(hud_state.get("elapsedMs", 0), 0, "hud state elapsed"):
 		return
+	var pressed_lanes: Array = hud_state.get("pressedLanes", [])
+	if not _expect_int(pressed_lanes.size(), 1, "hud state pressed lane count"):
+		return
+	if not _expect_int(int(pressed_lanes[0]), 0, "hud state pressed lane"):
+		return
+	runtime.release_action("vos_lane_1", 1000.0)
+	var released_state: Dictionary = runtime.hud_state()
+	if not _expect_int(released_state.get("pressedLanes", []).size(), 0, "hud state released lane count"):
+		return
 
 	runtime.stop()
 	if not _expect_bool(runtime.start(chart, audio_manifest), true, "runtime restart"):

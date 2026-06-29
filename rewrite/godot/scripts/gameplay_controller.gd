@@ -71,6 +71,16 @@ func drain_audio_commands() -> Array[Dictionary]:
 	return drained
 
 
+func pressed_lanes() -> Array[int]:
+	var lanes: Array[int] = []
+	for raw_lane: Variant in _pressed_lanes.keys():
+		var lane := int(raw_lane)
+		if bool(_pressed_lanes.get(lane, false)):
+			lanes.append(lane)
+	lanes.sort()
+	return lanes
+
+
 func press_lane(lane: int, now_ms: float) -> Dictionary:
 	var audio_start_index := _audio_commands.size()
 	if lane < 0:

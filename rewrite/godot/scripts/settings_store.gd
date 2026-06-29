@@ -13,6 +13,8 @@ var _song_directories: Array[String] = []
 var _fullscreen_enabled: bool = false
 var _autoplay_enabled: bool = false
 var _autosound_enabled: bool = false
+var _audio_latency_ms: float = 0.0
+var _display_latency_ms: float = 0.0
 var _key_bindings: Array[String] = []
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
@@ -51,6 +53,22 @@ func set_autosound_enabled(enabled: bool) -> void:
 
 func autosound_enabled() -> bool:
 	return _autosound_enabled
+
+
+func set_audio_latency_ms(latency_ms: float) -> void:
+	_audio_latency_ms = latency_ms
+
+
+func audio_latency_ms() -> float:
+	return _audio_latency_ms
+
+
+func set_display_latency_ms(latency_ms: float) -> void:
+	_display_latency_ms = latency_ms
+
+
+func display_latency_ms() -> float:
+	return _display_latency_ms
 
 
 func set_key_bindings(bindings: Array[String]) -> void:

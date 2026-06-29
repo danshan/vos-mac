@@ -19,6 +19,12 @@ func _init() -> void:
 	store.set_speed_multiplier(2.0)
 	store.set_visibility_modifier("Hidden")
 	store.set_judgment_type("time")
+	if not _expect_bool(store.has_method("set_audio_latency_ms"), true, "audio latency setter"):
+		return
+	if not _expect_bool(store.has_method("set_display_latency_ms"), true, "display latency setter"):
+		return
+	store.set_audio_latency_ms(120.0)
+	store.set_display_latency_ms(45.0)
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -39,6 +45,10 @@ func _init() -> void:
 	if not _expect_string(store.visibility_modifier(), "Hidden", "visibility modifier"):
 		return
 	if not _expect_string(store.judgment_type(), "time", "judgment type"):
+		return
+	if not _expect_float(store.audio_latency_ms(), 120.0, "audio latency"):
+		return
+	if not _expect_float(store.display_latency_ms(), 45.0, "display latency"):
 		return
 
 	var directories: Array[String] = store.song_directories()

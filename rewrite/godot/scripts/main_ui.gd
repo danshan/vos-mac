@@ -238,6 +238,22 @@ func _show_settings() -> void:
 	autosound.button_pressed = _settings_store.autosound_enabled()
 	_content.add_child(autosound)
 
+	var audio_latency := SpinBox.new()
+	audio_latency.name = "AudioLatencySpinBox"
+	audio_latency.min_value = -60000.0
+	audio_latency.max_value = 60000.0
+	audio_latency.step = 1.0
+	audio_latency.value = _settings_store.audio_latency_ms()
+	_content.add_child(audio_latency)
+
+	var display_latency := SpinBox.new()
+	display_latency.name = "DisplayLatencySpinBox"
+	display_latency.min_value = -60000.0
+	display_latency.max_value = 60000.0
+	display_latency.step = 1.0
+	display_latency.value = _settings_store.display_latency_ms()
+	_content.add_child(display_latency)
+
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
 	for modifier: String in CHANNEL_MODIFIERS:
@@ -615,6 +631,14 @@ func _save_settings_from_controls() -> void:
 	if autosound is CheckBox:
 		_settings_store.set_autosound_enabled(autosound.button_pressed)
 
+	var audio_latency: Node = _content.get_node_or_null("AudioLatencySpinBox")
+	if audio_latency is SpinBox:
+		_settings_store.set_audio_latency_ms(float(audio_latency.value))
+
+	var display_latency: Node = _content.get_node_or_null("DisplayLatencySpinBox")
+	if display_latency is SpinBox:
+		_settings_store.set_display_latency_ms(float(display_latency.value))
+
 	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
@@ -660,6 +684,8 @@ func _gameplay_option_overrides() -> Dictionary:
 	return {
 		"autoplay": _settings_store.autoplay_enabled(),
 		"autosound": _settings_store.autosound_enabled(),
+		"audioLatencyMs": _settings_store.audio_latency_ms(),
+		"displayLatencyMs": _settings_store.display_latency_ms(),
 		"channelModifier": _settings_store.channel_modifier(),
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),

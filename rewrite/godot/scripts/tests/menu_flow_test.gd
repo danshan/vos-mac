@@ -37,6 +37,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/AutoSoundCheckBox"), true, "autosound checkbox"):
 		return
+	if not _expect_bool(ui.has_node("Content/AudioLatencySpinBox"), true, "audio latency spinbox"):
+		return
+	if not _expect_bool(ui.has_node("Content/DisplayLatencySpinBox"), true, "display latency spinbox"):
+		return
 	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
 		return
 	if not _expect_bool(ui.has_node("Content/SpeedTypeOption"), true, "speed type option"):
@@ -54,6 +58,8 @@ func _init() -> void:
 	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
 	ui.get_node("Content/AutoplayCheckBox").button_pressed = true
 	ui.get_node("Content/AutoSoundCheckBox").button_pressed = true
+	ui.get_node("Content/AudioLatencySpinBox").value = 120.0
+	ui.get_node("Content/DisplayLatencySpinBox").value = 45.0
 	ui.get_node("Content/ChannelModifierOption").select(1)
 	ui.get_node("Content/SpeedTypeOption").select(3)
 	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
@@ -71,6 +77,10 @@ func _init() -> void:
 	if not _expect_bool(ui.get_node("Content/AutoplayCheckBox").button_pressed, true, "persisted autoplay"):
 		return
 	if not _expect_bool(ui.get_node("Content/AutoSoundCheckBox").button_pressed, true, "persisted autosound"):
+		return
+	if not _expect_float(ui.get_node("Content/AudioLatencySpinBox").value, 120.0, "persisted audio latency"):
+		return
+	if not _expect_float(ui.get_node("Content/DisplayLatencySpinBox").value, 45.0, "persisted display latency"):
 		return
 	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
 			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
@@ -92,6 +102,10 @@ func _init() -> void:
 	if not _expect_bool(option_overrides.get("autoplay", false), true, "autoplay gameplay override"):
 		return
 	if not _expect_bool(option_overrides.get("autosound", false), true, "autosound gameplay override"):
+		return
+	if not _expect_float(float(option_overrides.get("audioLatencyMs", -1.0)), 120.0, "audio latency gameplay override"):
+		return
+	if not _expect_float(float(option_overrides.get("displayLatencyMs", -1.0)), 45.0, "display latency gameplay override"):
 		return
 	ui.get_node("Content/AutoplayCheckBox").button_pressed = false
 	ui.get_node("Content/AutoSoundCheckBox").button_pressed = false

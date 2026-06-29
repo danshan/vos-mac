@@ -85,6 +85,50 @@ func _init() -> void:
 	if not _expect_int(int(shuffled_notes[2].get("lane", -1)), 0, "shuffle lane seven"):
 		return
 
+	var random_chart: Dictionary = _valid_chart()
+	random_chart["channelModifier"] = "Random"
+	random_chart["channelMapsByMeasure"] = [
+		[6, 5, 4, 3, 2, 1, 0],
+		[0, 1, 2, 3, 4, 5, 6],
+	]
+	random_chart["notes"] = [
+		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 2, "lane": 0, "startMs": 2000.0, "measure": 1, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
+	var random_path := _chart_path("random_modifier")
+	if not _write_chart(random_path, random_chart):
+		return
+	var randomized_chart: Dictionary = loader.load_from_file(random_path)
+	if not _expect_bool(randomized_chart.is_empty(), false, "random chart load"):
+		return
+	var randomized_notes: Array = randomized_chart.get("notes", [])
+	if not _expect_int(int(randomized_notes[0].get("lane", -1)), 6, "random measure zero lane"):
+		return
+	if not _expect_int(int(randomized_notes[1].get("lane", -1)), 0, "random measure one lane"):
+		return
+
+	var random_hold_chart: Dictionary = _valid_chart()
+	random_hold_chart["channelModifier"] = "Random"
+	random_hold_chart["channelMapsByMeasure"] = [
+		[6, 5, 4, 3, 2, 1, 0],
+		[0, 1, 2, 3, 4, 5, 6],
+	]
+	random_hold_chart["notes"] = [
+		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": 2500.0, "endMeasure": 1, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+		{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 1, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
+	var random_hold_path := _chart_path("random_hold_modifier")
+	if not _write_chart(random_hold_path, random_hold_chart):
+		return
+	var randomized_hold_chart: Dictionary = loader.load_from_file(random_hold_path)
+	if not _expect_bool(randomized_hold_chart.is_empty(), false, "random hold chart load"):
+		return
+	var randomized_hold_notes: Array = randomized_hold_chart.get("notes", [])
+	if not _expect_int(int(randomized_hold_notes[0].get("lane", -1)), 6, "random hold lane"):
+		return
+	if not _expect_int(int(randomized_hold_notes[1].get("lane", -1)), 5, "random keeps map while long note crosses measure"):
+		return
+
 	if not _expect_rejected(loader, _chart_with("schemaVersion", 2), "bad schema"):
 		return
 	if not _expect_rejected(loader, _chart_with("keys", "7"), "string keys"):

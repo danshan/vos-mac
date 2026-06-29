@@ -13,6 +13,7 @@ const VALID_NOTE_KINDS := ["tap", "holdStart", "holdEnd"]
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MOD_MIRROR: String = "Mirror"
 const CHANNEL_MOD_SHUFFLE: String = "Shuffle"
+const CHANNEL_MOD_RANDOM: String = "Random"
 
 
 func load_from_file(path: String) -> Dictionary:
@@ -96,7 +97,15 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		if not speed_type is String or str(speed_type).is_empty():
 			return {}
 		normalized_chart["speedType"] = str(speed_type)
-	normalized_chart["notes"] = _notes_with_channel_modifier(normalized_notes, int(keys), channel_modifier, channel_map)
+	var channel_notes: Array[Dictionary] = _notes_with_channel_modifier(
+			normalized_notes,
+			int(keys),
+			channel_modifier,
+			channel_map,
+			normalized_chart.get("channelMapsByMeasure", []))
+	if channel_modifier == CHANNEL_MOD_RANDOM and normalized_notes.size() > 0 and channel_notes.is_empty():
+		return {}
+	normalized_chart["notes"] = channel_notes
 	normalized_chart["autoPlayEvents"] = normalized_events
 	return normalized_chart
 
@@ -208,6 +217,8 @@ func _normalized_channel_modifier(value: Variant) -> String:
 		return CHANNEL_MOD_MIRROR
 	if modifier == CHANNEL_MOD_SHUFFLE:
 		return CHANNEL_MOD_SHUFFLE
+	if modifier == CHANNEL_MOD_RANDOM:
+		return CHANNEL_MOD_RANDOM
 	return ""
 
 
@@ -215,7 +226,12 @@ func _channel_map_for_modifier(keys: int, modifier: String, raw_map: Variant) ->
 	var channel_map: Array[int] = []
 	if modifier != CHANNEL_MOD_SHUFFLE:
 		return channel_map
-	if raw_map is Array:
+	return _channel_map_from(raw_map, keys)
+
+
+func _channel_map_from(raw_map: Variant, keys: int) -> Array[int]:
+	var channel_map: Array[int] = []
+	if raw_map is Array and not raw_map.is_empty():
 		if raw_map.size() != keys:
 			return []
 		var used := {}
@@ -234,7 +250,15 @@ func _channel_map_for_modifier(keys: int, modifier: String, raw_map: Variant) ->
 	return channel_map
 
 
-func _notes_with_channel_modifier(notes: Array[Dictionary], keys: int, modifier: String, channel_map: Array[int]) -> Array[Dictionary]:
+func _notes_with_channel_modifier(
+		notes: Array[Dictionary],
+		keys: int,
+		modifier: String,
+		channel_map: Array[int],
+		raw_maps_by_measure: Variant) -> Array[Dictionary]:
+	if modifier == CHANNEL_MOD_RANDOM:
+		return _notes_with_random_channel_modifier(notes, keys, raw_maps_by_measure)
+
 	var remapped: Array[Dictionary] = []
 	for note: Dictionary in notes:
 		var mapped_note: Dictionary = note.duplicate(true)
@@ -244,3 +268,67 @@ func _notes_with_channel_modifier(notes: Array[Dictionary], keys: int, modifier:
 			mapped_note["lane"] = channel_map[int(mapped_note.get("lane", -1))]
 		remapped.append(mapped_note)
 	return remapped
+
+
+func _notes_with_random_channel_modifier(
+		notes: Array[Dictionary],
+		keys: int,
+		raw_maps_by_measure: Variant) -> Array[Dictionary]:
+	var remapped: Array[Dictionary] = []
+	var active_long_notes := {}
+	var current_measure: int = -1
+	var current_map: Array[int] = []
+
+	for note: Dictionary in notes:
+		var note_measure := _note_measure(note)
+		_release_finished_random_longs(active_long_notes, float(note.get("startMs", 0.0)))
+		if note_measure > current_measure:
+			if active_long_notes.is_empty():
+				current_map = _random_channel_map_for_measure(keys, raw_maps_by_measure, note_measure)
+				if current_map.is_empty():
+					return []
+			current_measure = note_measure
+
+		var source_lane := int(note.get("lane", -1))
+		var target_lane := int(current_map[source_lane])
+		var kind := str(note.get("kind", ""))
+		if kind == "holdStart":
+			active_long_notes[source_lane] = {
+				"targetLane": target_lane,
+				"endMs": float(note.get("endMs", note.get("startMs", 0.0))),
+			}
+		elif _random_target_lane_is_active(active_long_notes, target_lane):
+			continue
+
+		var mapped_note: Dictionary = note.duplicate(true)
+		mapped_note["lane"] = target_lane
+		remapped.append(mapped_note)
+	return remapped
+
+
+func _random_channel_map_for_measure(keys: int, raw_maps_by_measure: Variant, measure: int) -> Array[int]:
+	if raw_maps_by_measure is Array and measure >= 0 and measure < raw_maps_by_measure.size():
+		return _channel_map_from(raw_maps_by_measure[measure], keys)
+	return _channel_map_from([], keys)
+
+
+func _note_measure(note: Dictionary) -> int:
+	var measure: Variant = note.get("measure", 0)
+	if _is_integer_like(measure):
+		return int(measure)
+	return 0
+
+
+func _release_finished_random_longs(active_long_notes: Dictionary, now_ms: float) -> void:
+	for raw_source_lane: Variant in active_long_notes.keys():
+		var long_note: Dictionary = active_long_notes.get(raw_source_lane, {})
+		if float(long_note.get("endMs", 0.0)) <= now_ms:
+			active_long_notes.erase(raw_source_lane)
+
+
+func _random_target_lane_is_active(active_long_notes: Dictionary, target_lane: int) -> bool:
+	for raw_long_note: Variant in active_long_notes.values():
+		var long_note: Dictionary = raw_long_note if raw_long_note is Dictionary else {}
+		if int(long_note.get("targetLane", -1)) == target_lane:
+			return true
+	return false

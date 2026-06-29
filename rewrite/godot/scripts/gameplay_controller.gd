@@ -96,6 +96,7 @@ func render_state(now_ms: float) -> Dictionary:
 		"pills": _score_state.pills,
 		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
 		"longFlares": _active_longflares(),
+		"hiddenNotes": _hidden_note_indices(),
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -311,6 +312,14 @@ func _active_longflares() -> Array[Dictionary]:
 	flares.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a.get("lane", -1)) < int(b.get("lane", -1)))
 	return flares
+
+
+func _hidden_note_indices() -> Array[int]:
+	var hidden: Array[int] = []
+	for i in range(_notes.size()):
+		if str(_notes[i].get("state", STATE_NOT_JUDGED)) == STATE_DEAD:
+			hidden.append(i)
+	return hidden
 
 
 func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:

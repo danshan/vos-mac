@@ -254,6 +254,20 @@ func _init() -> void:
 	view.update_time(1000.0)
 	if not _expect_float(note_node.position.y, 473.0, "dynamic note node y at judgment"):
 		return
+	if not _expect_bool(note_node.visible, true, "dynamic note starts visible"):
+		return
+
+	view.update_hud_state({
+		"hiddenNotes": [0],
+	})
+	if not _expect_bool(note_node.visible, false, "judged note is hidden"):
+		return
+
+	view.update_hud_state({
+		"hiddenNotes": [],
+	})
+	if not _expect_bool(note_node.visible, true, "visible note is restored"):
+		return
 
 	view.free()
 	quit(0)

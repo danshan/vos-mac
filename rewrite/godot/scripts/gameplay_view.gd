@@ -115,6 +115,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_click_events(state.get("clickEvents", []))
 	_sync_pills(int(state.get("pills", 0)))
 	_sync_longflares(state.get("longFlares", []))
+	_sync_note_visibility(state.get("hiddenNotes", []))
 
 
 func _rebuild_entities() -> void:
@@ -311,6 +312,20 @@ func _sync_longflares(raw_flares: Variant) -> void:
 		_position_longflare_node(node, entity, lane_index)
 		add_child(node)
 		_longflare_nodes.append(node)
+
+
+func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
+	var hidden := {}
+	if raw_hidden_notes is Array:
+		for raw_index: Variant in raw_hidden_notes:
+			var index := int(raw_index)
+			if index >= 0:
+				hidden[index] = true
+
+	for i in range(_note_entries.size()):
+		var node: Variant = _note_entries[i].get("node")
+		if node is CanvasItem:
+			node.visible = not bool(hidden.get(i, false))
 
 
 func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:

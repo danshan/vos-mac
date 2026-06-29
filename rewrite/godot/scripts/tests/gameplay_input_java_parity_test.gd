@@ -15,6 +15,11 @@ func _init() -> void:
 		return
 	if not _expect_int(controller.result().get("score", 0), 200, "first hit score"):
 		return
+	var hidden_after_first: Array = controller.render_state(1000.0).get("hiddenNotes", [])
+	if not _expect_int(hidden_after_first.size(), 1, "first hit hidden note count"):
+		return
+	if not _expect_int(int(hidden_after_first[0]), 0, "first hit hidden note index"):
+		return
 
 	var early_press: Dictionary = controller.press_action("vos_lane_2", 1820.0)
 	if not _expect_bool(early_press.get("accepted", true), false, "early press rejected"):
@@ -47,6 +52,9 @@ func _init() -> void:
 		return
 	if not _expect_int(long_flares[0].get("lane", -1), 2, "long flare lane"):
 		return
+	var hidden_after_hold_head: Array = hold_render_state.get("hiddenNotes", [])
+	if not _expect_int(hidden_after_hold_head.size(), 2, "hold head keeps long note visible"):
+		return
 
 	var hold_tail: Dictionary = controller.release_action("vos_lane_3", 3300.0)
 	if not _expect_bool(hold_tail.get("accepted", false), true, "hold tail accepted"):
@@ -57,8 +65,14 @@ func _init() -> void:
 		return
 	if not _expect_int(controller.render_state(3300.0).get("longFlares", []).size(), 0, "long flare cleared after release"):
 		return
+	var hidden_after_hold_tail: Array = controller.render_state(3300.0).get("hiddenNotes", [])
+	if not _expect_int(hidden_after_hold_tail.size(), 3, "hold tail hides long note"):
+		return
 
 	controller.advance_to(4174.0)
+	var hidden_after_miss: Array = controller.render_state(4174.0).get("hiddenNotes", [])
+	if not _expect_int(hidden_after_miss.size(), 4, "miss hides note"):
+		return
 	var result: Dictionary = controller.result()
 	var judgments: Dictionary = result.get("judgments", {})
 	if not _expect_int(result.get("score", 0), 790, "final Java score"):

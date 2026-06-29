@@ -2,6 +2,7 @@ extends Control
 
 const AppState = preload("res://scripts/app_state.gd")
 const AudioManifestLoader = preload("res://scripts/audio_manifest_loader.gd")
+const CatalogStore = preload("res://scripts/catalog_store.gd")
 const ExporterClient = preload("res://scripts/exporter_client.gd")
 const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
@@ -170,6 +171,7 @@ func apply_layout_for_size(viewport_size: Vector2) -> void:
 
 
 func _on_start_pressed() -> void:
+	_refresh_song_entries_from_settings()
 	if _app_state.transition_to(AppState.SONG_SELECT):
 		_show_song_select()
 
@@ -476,6 +478,34 @@ func _show_gameplay_load_error(message: String) -> void:
 		_content.add_child(_status_label)
 	else:
 		_status_label.text = message
+
+
+func _refresh_song_entries_from_settings() -> void:
+	if not _song_entries.is_empty():
+		return
+	if _exporter_client == null or not _exporter_client.has_method("export_catalog"):
+		return
+
+	var next_entries: Array[Dictionary] = []
+	var directories := _settings_store.song_directories()
+	for i in range(directories.size()):
+		var source_path := directories[i]
+		var output_path := _catalog_export_path(i)
+		var result: Dictionary = _exporter_client.export_catalog(source_path, output_path)
+		if not bool(result.get("ok", false)):
+			continue
+
+		var catalog = CatalogStore.new()
+		if catalog.load_from_file(output_path):
+			for entry: Dictionary in catalog.entries():
+				next_entries.append(entry.duplicate(true))
+
+	if not next_entries.is_empty():
+		_song_entries = next_entries
+
+
+func _catalog_export_path(index: int) -> String:
+	return ProjectSettings.globalize_path("user://catalog/catalog_%d.json" % index)
 
 
 func _save_settings_from_controls() -> void:

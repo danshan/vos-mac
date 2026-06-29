@@ -22,6 +22,18 @@ func _init() -> void:
 	if not _expect_string(args[5], "charts/sample.vos", "source path value"):
 		return
 
+	var catalog_args: PackedStringArray = client.build_catalog_export_arguments("build/catalog.json", "charts")
+	if not _expect_int(catalog_args.size(), 6, "catalog export argument count"):
+		return
+	if not _expect_string(catalog_args[2], "--export-vos-catalog", "catalog export flag"):
+		return
+	if not _expect_string(catalog_args[3], "--output", "catalog output flag"):
+		return
+	if not _expect_string(catalog_args[4], "build/catalog.json", "catalog output value"):
+		return
+	if not _expect_string(catalog_args[5], "charts", "catalog source path value"):
+		return
+
 	var unconfigured_client = ExporterClient.new()
 	var result: Dictionary = unconfigured_client.export_selected("charts/sample.vos", "build/vos")
 	if not _expect_bool(result.get("ok", true), false, "unconfigured run result"):
@@ -29,6 +41,11 @@ func _init() -> void:
 	if not _expect_int(result.get("exit_code", 0), -1, "unconfigured exit code"):
 		return
 	if not _expect_string(result.get("error", ""), "not_configured", "unconfigured error"):
+		return
+	var catalog_result: Dictionary = unconfigured_client.export_catalog("charts", "build/catalog.json")
+	if not _expect_bool(catalog_result.get("ok", true), false, "unconfigured catalog result"):
+		return
+	if not _expect_string(catalog_result.get("error", ""), "not_configured", "unconfigured catalog error"):
 		return
 
 	quit(0)

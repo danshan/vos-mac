@@ -54,6 +54,13 @@ func count() -> int:
 	return _entries.size()
 
 
+func entries() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for entry: Dictionary in _entries:
+		result.append(entry.duplicate(true))
+	return result
+
+
 func filter(text: String) -> Array[Dictionary]:
 	var query: String = text.to_lower()
 	var results: Array[Dictionary] = []

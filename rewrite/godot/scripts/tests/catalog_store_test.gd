@@ -9,6 +9,8 @@ func _init() -> void:
 		return
 	if not _expect_int(store.count(), 1, "catalog count"):
 		return
+	if not _expect_int(store.entries().size(), 1, "catalog entries count"):
+		return
 	if not _expect_int(store.filter("canon").size(), 1, "title filter count"):
 		return
 	if not _expect_int(store.filter("pachelbel").size(), 1, "artist filter count"):

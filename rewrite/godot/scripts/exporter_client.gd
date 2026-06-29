@@ -26,6 +26,34 @@ func build_selected_export_arguments(out_dir: String, source_path: String) -> Pa
 	])
 
 
+func build_catalog_export_arguments(output_path: String, source_path: String) -> PackedStringArray:
+	return PackedStringArray([
+		"-jar",
+		_jar_path,
+		"--export-vos-catalog",
+		"--output",
+		output_path,
+		source_path,
+	])
+
+
+func export_catalog(source_path: String, output_path: String) -> Dictionary:
+	if not is_configured():
+		return {
+			"ok": false,
+			"exit_code": -1,
+			"error": ERROR_NOT_CONFIGURED,
+		}
+
+	var output: Array = []
+	var exit_code: int = OS.execute(_java_path, build_catalog_export_arguments(output_path, source_path), output, true, false)
+	return {
+		"ok": exit_code == 0,
+		"exit_code": exit_code,
+		"output": output,
+	}
+
+
 func export_selected(source_path: String, out_dir: String) -> Dictionary:
 	if not is_configured():
 		return {

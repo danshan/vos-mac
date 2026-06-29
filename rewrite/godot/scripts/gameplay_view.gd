@@ -65,6 +65,7 @@ var _visibility_nodes: Array[Node] = []
 var _status_nodes: Array[Node] = []
 var _bga_sprites: Dictionary = {}
 var _current_bga_sprite_id: int = -1
+var _last_update_time_ms: float = 0.0
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -95,6 +96,7 @@ func load_chart(chart: Dictionary) -> bool:
 
 
 func update_time(now_ms: float) -> void:
+	_last_update_time_ms = now_ms
 	if _metadata.is_empty() or _distance == null:
 		return
 
@@ -163,8 +165,8 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_click_events(state.get("clickEvents", []), hud_time_ms)
 	_sync_pills(int(state.get("pills", 0)))
 	_sync_longflares(state.get("longFlares", []), hud_time_ms)
-	_sync_note_visibility(state.get("hiddenNotes", []))
-	_sync_measure_visibility(state.get("hiddenMeasures", []))
+	_sync_note_visibility(state.get("hiddenNotes", []), _last_update_time_ms)
+	_sync_measure_visibility(state.get("hiddenMeasures", []), _last_update_time_ms)
 	_sync_status_texts(state.get("statusTexts", []))
 	_sync_bga_event(state.get("currentBgaEvent", {}))
 
@@ -760,7 +762,7 @@ func _sync_longflares(raw_flares: Variant, now_ms: float) -> void:
 		_longflare_nodes.append(node)
 
 
-func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
+func _sync_note_visibility(raw_hidden_notes: Variant, now_ms: float) -> void:
 	var hidden := {}
 	if raw_hidden_notes is Array:
 		for raw_index: Variant in raw_hidden_notes:
@@ -771,10 +773,13 @@ func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
 	for i in range(_note_entries.size()):
 		var node: Variant = _note_entries[i].get("node")
 		if node is CanvasItem:
-			node.visible = not bool(hidden.get(i, false))
+			var visible := not bool(hidden.get(i, false))
+			if visible and not node.visible:
+				_reset_animation_start_for_node(node, now_ms)
+			node.visible = visible
 
 
-func _sync_measure_visibility(raw_hidden_measures: Variant) -> void:
+func _sync_measure_visibility(raw_hidden_measures: Variant, now_ms: float) -> void:
 	var hidden := {}
 	if raw_hidden_measures is Array:
 		for raw_index: Variant in raw_hidden_measures:
@@ -785,7 +790,18 @@ func _sync_measure_visibility(raw_hidden_measures: Variant) -> void:
 	for i in range(_measure_entries.size()):
 		var node: Variant = _measure_entries[i].get("node")
 		if node is CanvasItem:
-			node.visible = not bool(hidden.get(i, false))
+			var visible := not bool(hidden.get(i, false))
+			if visible and not node.visible:
+				_reset_animation_start_for_node(node, now_ms)
+			node.visible = visible
+
+
+func _reset_animation_start_for_node(node: Node, now_ms: float) -> void:
+	if node is TextureRect and node.has_meta("spriteFrames"):
+		node.set_meta("animationStartMs", now_ms)
+		_apply_animation_frame(node, now_ms)
+	for child: Node in node.get_children():
+		_reset_animation_start_for_node(child, now_ms)
 
 
 func _sync_status_texts(raw_texts: Variant) -> void:

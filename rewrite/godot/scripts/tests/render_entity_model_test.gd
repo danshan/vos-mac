@@ -1018,6 +1018,25 @@ func _init() -> void:
 	measure_texture = measure_texture_node.texture
 	if not _expect_float(measure_texture.region.position.y, 138.0, "measure texture second frame y"):
 		return
+	var buffered_measure_view = GameplayView.new()
+	if not _expect_bool(buffered_measure_view.load_metadata(metadata), true, "buffered measure view metadata load"):
+		return
+	if not _expect_bool(buffered_measure_view.load_chart(chart), true, "buffered measure view chart load"):
+		return
+	var buffered_measure_node: TextureRect = buffered_measure_view.get_node("Measure_000")
+	buffered_measure_view.update_hud_state({
+		"hiddenMeasures": [0],
+		"elapsedMs": 0.0,
+	})
+	buffered_measure_view.update_time(200.0)
+	buffered_measure_view.update_hud_state({
+		"hiddenMeasures": [],
+		"elapsedMs": 200.0,
+	})
+	var buffered_measure_texture: AtlasTexture = buffered_measure_node.texture
+	if not _expect_float(buffered_measure_texture.region.position.y, 134.0, "measure animation starts when Java buffers it"):
+		return
+	buffered_measure_view.free()
 	var long_note_head_texture: AtlasTexture = long_note_head.texture
 	if not _expect_float(long_note_head_texture.region.position.y, 158.0, "long note head advances from Java frame speed"):
 		return

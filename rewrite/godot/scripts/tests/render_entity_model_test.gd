@@ -236,6 +236,16 @@ func _init() -> void:
 		push_error("Expected gameplay fixture to load.")
 		quit(1)
 		return
+	chart["visualTiming"] = [
+		{
+			"timeMs": 0.0,
+			"bpm": 120.0,
+		},
+		{
+			"timeMs": 500.0,
+			"bpm": 240.0,
+		},
+	]
 	if not _expect_bool(view.load_chart(chart), true, "view chart load"):
 		return
 	if not _expect_bool(view.has_node("Note_000"), true, "dynamic note node"):
@@ -246,7 +256,7 @@ func _init() -> void:
 	var note_node: ColorRect = view.get_node("Note_000")
 	if not _expect_float(note_node.position.x, 5.0, "dynamic note node x"):
 		return
-	if not _expect_float(note_node.position.y, 280.5, "dynamic note node y at zero"):
+	if not _expect_float(note_node.position.y, 184.25, "dynamic note node y with visual timing at zero"):
 		return
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return

@@ -226,9 +226,24 @@ func _rebuild_note_nodes() -> void:
 
 func _configure_distance() -> void:
 	var timing = TimingModel.new()
-	timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
+	if not _load_visual_timing(timing):
+		timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
 	timing.finish()
 	_distance = NoteDistanceCalculator.new(timing, float(_metadata.get("measureSize", 385.0)))
+
+
+func _load_visual_timing(timing: TimingModel) -> bool:
+	var changes: Variant = _chart.get("visualTiming", [])
+	if not changes is Array:
+		return false
+
+	var loaded := false
+	for raw_change: Variant in changes:
+		if not raw_change is Dictionary:
+			continue
+		timing.add_change(float(raw_change.get("timeMs", 0.0)), float(raw_change.get("bpm", 0.0)))
+		loaded = true
+	return loaded
 
 
 func _lane_for_index(lane_index: int) -> Dictionary:

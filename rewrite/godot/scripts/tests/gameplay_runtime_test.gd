@@ -36,6 +36,8 @@ func _init() -> void:
 		return
 	if not _test_java_bga_events_follow_game_time(audio_manifest):
 		return
+	if not _test_java_bga_events_consume_one_per_frame(audio_manifest):
+		return
 	if not _test_java_manual_start_gates_game_time(audio_manifest):
 		return
 	if not _test_java_latency_splits_judgment_display_and_autosound(audio_manifest):
@@ -442,6 +444,47 @@ func _test_java_bga_events_follow_game_time(audio_manifest: Dictionary) -> bool:
 	var future_bga_state: Dictionary = runtime.hud_state()
 	var future_bga_event: Dictionary = future_bga_state.get("currentBgaEvent", {})
 	if not _expect_int(future_bga_event.get("spriteId", -1), 9, "future bga sprite id"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_bga_events_consume_one_per_frame(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:bga-event-queue",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [],
+		"autoPlayEvents": [],
+		"bgaEvents": [
+			{"startMs": 1000.0, "spriteId": 7},
+			{"startMs": 1000.0, "spriteId": 8},
+		],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "bga queue runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	var first_state: Dictionary = runtime.hud_state()
+	var first_event: Dictionary = first_state.get("currentBgaEvent", {})
+	if not _expect_int(first_event.get("spriteId", -1), 7, "first queued bga sprite id"):
+		return false
+
+	var repeated_state: Dictionary = runtime.hud_state()
+	var repeated_event: Dictionary = repeated_state.get("currentBgaEvent", {})
+	if not _expect_int(repeated_event.get("spriteId", -1), 7, "queued bga holds within same frame"):
+		return false
+
+	runtime.advance_to(1001.0)
+	var second_state: Dictionary = runtime.hud_state()
+	var second_event: Dictionary = second_state.get("currentBgaEvent", {})
+	if not _expect_int(second_event.get("spriteId", -1), 8, "second queued bga sprite id"):
 		return false
 
 	runtime.free()

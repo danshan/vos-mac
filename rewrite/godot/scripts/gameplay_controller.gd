@@ -57,6 +57,8 @@ var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
 var _auto_play_events: Array[Dictionary] = []
 var _bga_events: Array[Dictionary] = []
+var _bga_event_index: int = 0
+var _current_bga_event_state: Dictionary = {}
 var _buffer_events: Array[Dictionary] = []
 var _buffer_event_index: int = 0
 var _buffer_timer_ms: float = 0.0
@@ -106,6 +108,8 @@ func load_chart(chart: Dictionary) -> bool:
 	_notes = _normalized_notes(_chart.get("notes", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
 	_bga_events = _normalized_bga_events(_chart.get("bgaEvents", []))
+	_bga_event_index = 0
+	_current_bga_event_state.clear()
 	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []),
 			_chart.get("bgaEvents", []))
 	_buffer_event_index = 0
@@ -255,7 +259,7 @@ func render_state(now_ms: float, status_now_ms: float = -1.0) -> Dictionary:
 		"audioPitchScale": _audio_pitch_scale,
 		"gameSpeedPitch": _game_speed_pitch,
 	}
-	var current_bga_event := _current_bga_event(now_ms)
+	var current_bga_event := _current_bga_event()
 	if not current_bga_event.is_empty():
 		state["currentBgaEvent"] = current_bga_event
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
@@ -360,6 +364,7 @@ func advance_to(now_ms: float, display_now_ms: float = -1.0,
 	_update_render_speed_state(speed_now_ms)
 	_advance_event_buffer(render_now_ms)
 	_update_distance_state(render_now_ms)
+	_advance_bga_event(now_ms)
 	_advance_auto_play(sound_now_ms)
 	judged += _advance_note_autoplay(now_ms)
 	_advance_note_autosound(sound_now_ms)
@@ -725,13 +730,18 @@ func _current_measure(now_ms: float) -> int:
 	return count
 
 
-func _current_bga_event(now_ms: float) -> Dictionary:
-	var current: Dictionary = {}
-	for event: Dictionary in _bga_events:
-		if float(event.get("startMs", 0.0)) > now_ms:
-			break
-		current = event
-	return current.duplicate(true)
+func _advance_bga_event(now_ms: float) -> void:
+	if _bga_event_index >= _bga_events.size():
+		return
+	var event := _bga_events[_bga_event_index]
+	if float(event.get("startMs", 0.0)) > now_ms:
+		return
+	_current_bga_event_state = event.duplicate(true)
+	_bga_event_index += 1
+
+
+func _current_bga_event() -> Dictionary:
+	return _current_bga_event_state.duplicate(true)
 
 
 func _normalized_bool(value: Variant) -> bool:

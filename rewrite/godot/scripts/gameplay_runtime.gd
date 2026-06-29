@@ -196,7 +196,7 @@ func hud_state() -> Dictionary:
 	state["minute"] = _display_minute
 	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
-	state.merge(_controller.render_state(_judgment_time_ms()), true)
+	state.merge(_controller.render_state(_judgment_time_ms(), _game_time_ms), true)
 	if not _game_started:
 		var status_texts: Array = state.get("statusTexts", []).duplicate()
 		status_texts.append(JAVA_MANUAL_START_PROMPT)

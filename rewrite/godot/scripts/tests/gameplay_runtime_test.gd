@@ -538,7 +538,7 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 	if not _expect_int(runtime.audio_play_event_count(), 2, "latency autosound uses game time"):
 		return false
 	var delayed_status: Array = delayed_state.get("statusTexts", [])
-	if not _expect_string(str(delayed_status[1]), "Current Measure: 0", "latency status uses judgment time"):
+	if not _expect_string(str(delayed_status[1]), "Current Measure: 1", "latency measure status uses game time"):
 		return false
 	if not _expect_bool(delayed_state.has("currentBgaEvent"), false, "latency bga waits for judgment time"):
 		return false

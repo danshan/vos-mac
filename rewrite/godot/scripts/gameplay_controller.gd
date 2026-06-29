@@ -238,13 +238,14 @@ func pressed_lanes() -> Array[int]:
 	return lanes
 
 
-func render_state(now_ms: float) -> Dictionary:
+func render_state(now_ms: float, status_now_ms: float = -1.0) -> Dictionary:
+	var status_time_ms := status_now_ms if status_now_ms >= 0.0 else now_ms
 	var state := {
 		"pills": _score_state.pills,
 		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
 		"longFlares": _active_longflares(),
 		"hiddenNotes": _hidden_note_indices(),
-		"statusTexts": _status_texts(now_ms),
+		"statusTexts": _status_texts(status_time_ms),
 		"renderSpeed": _render_speed,
 		"targetSpeed": _target_render_speed,
 		"masterVolume": _master_volume,

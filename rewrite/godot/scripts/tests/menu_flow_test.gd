@@ -35,12 +35,21 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
 		return
+	if not _expect_bool(ui.has_node("Content/SpeedTypeOption"), true, "speed type option"):
+		return
+	if not _expect_bool(ui.has_node("Content/SpeedMultiplierSpinBox"), true, "speed multiplier spinbox"):
+		return
+	if not _expect_bool(ui.has_node("Content/VisibilityModifierOption"), true, "visibility modifier option"):
+		return
 	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
 		return
 
 	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
 	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
 	ui.get_node("Content/ChannelModifierOption").select(1)
+	ui.get_node("Content/SpeedTypeOption").select(3)
+	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
+	ui.get_node("Content/VisibilityModifierOption").select(1)
 	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
@@ -52,6 +61,14 @@ func _init() -> void:
 		return
 	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
 			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
+		return
+	if not _expect_string(ui.get_node("Content/SpeedTypeOption").get_item_text(
+			ui.get_node("Content/SpeedTypeOption").selected), "RegulSpeed", "persisted speed type"):
+		return
+	if not _expect_float(ui.get_node("Content/SpeedMultiplierSpinBox").value, 2.0, "persisted speed multiplier"):
+		return
+	if not _expect_string(ui.get_node("Content/VisibilityModifierOption").get_item_text(
+			ui.get_node("Content/VisibilityModifierOption").selected), "Hidden", "persisted visibility modifier"):
 		return
 	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
 		return
@@ -75,6 +92,10 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Note_000"), true, "gameplay note node"):
 		return
 	if not _expect_float(ui.get_node("Content/GameplayArea/GameplayView/Note_000").position.x, 165.0, "gameplay mirrored note x"):
+		return
+	if not _expect_float(ui.get_node("Content/GameplayArea/GameplayView/Note_000").position.y, -8.25, "gameplay regul speed note y"):
+		return
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Visibility_Hidden_000"), true, "gameplay hidden visibility"):
 		return
 	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return

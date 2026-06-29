@@ -12,6 +12,8 @@ const SettingsStore = preload("res://scripts/settings_store.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
 const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
+const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
+const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
 
 var _built: bool = false
 var _app_state = AppState.new()
@@ -225,6 +227,30 @@ func _show_settings() -> void:
 	var selected_modifier := CHANNEL_MODIFIERS.find(_settings_store.channel_modifier())
 	channel_modifier.select(max(selected_modifier, 0))
 	_content.add_child(channel_modifier)
+
+	var speed_type := OptionButton.new()
+	speed_type.name = "SpeedTypeOption"
+	for option: String in SPEED_TYPES:
+		speed_type.add_item(option)
+	var selected_speed_type := SPEED_TYPES.find(_settings_store.speed_type())
+	speed_type.select(max(selected_speed_type, 0))
+	_content.add_child(speed_type)
+
+	var speed_multiplier := SpinBox.new()
+	speed_multiplier.name = "SpeedMultiplierSpinBox"
+	speed_multiplier.min_value = 0.5
+	speed_multiplier.max_value = 10.0
+	speed_multiplier.step = 0.5
+	speed_multiplier.value = _settings_store.speed_multiplier()
+	_content.add_child(speed_multiplier)
+
+	var visibility_modifier := OptionButton.new()
+	visibility_modifier.name = "VisibilityModifierOption"
+	for option: String in VISIBILITY_MODIFIERS:
+		visibility_modifier.add_item(option)
+	var selected_visibility := VISIBILITY_MODIFIERS.find(_settings_store.visibility_modifier())
+	visibility_modifier.select(max(selected_visibility, 0))
+	_content.add_child(visibility_modifier)
 
 	var key_bindings := GridContainer.new()
 	key_bindings.name = "KeyBindings"
@@ -559,6 +585,18 @@ func _save_settings_from_controls() -> void:
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
 
+	var speed_type: Node = _content.get_node_or_null("SpeedTypeOption")
+	if speed_type is OptionButton:
+		_settings_store.set_speed_type(speed_type.get_item_text(speed_type.selected))
+
+	var speed_multiplier: Node = _content.get_node_or_null("SpeedMultiplierSpinBox")
+	if speed_multiplier is SpinBox:
+		_settings_store.set_speed_multiplier(float(speed_multiplier.value))
+
+	var visibility_modifier: Node = _content.get_node_or_null("VisibilityModifierOption")
+	if visibility_modifier is OptionButton:
+		_settings_store.set_visibility_modifier(visibility_modifier.get_item_text(visibility_modifier.selected))
+
 	var bindings: Array[String] = []
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
 		var key_input: Node = _content.get_node_or_null("KeyBindings/KeyBinding%d" % (i + 1))
@@ -583,6 +621,9 @@ func _parse_song_directories(text: String) -> Array[String]:
 func _gameplay_option_overrides() -> Dictionary:
 	return {
 		"channelModifier": _settings_store.channel_modifier(),
+		"speedType": _settings_store.speed_type(),
+		"speedMultiplier": _settings_store.speed_multiplier(),
+		"visibilityModifier": _settings_store.visibility_modifier(),
 	}
 
 

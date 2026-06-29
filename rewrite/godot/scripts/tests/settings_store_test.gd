@@ -13,6 +13,9 @@ func _init() -> void:
 	store.set_key_bindings(input_bindings)
 	input_bindings[0] = "Mutated"
 	store.set_channel_modifier("Mirror")
+	store.set_speed_type("RegulSpeed")
+	store.set_speed_multiplier(2.0)
+	store.set_visibility_modifier("Hidden")
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -21,6 +24,12 @@ func _init() -> void:
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key bindings"):
 		return
 	if not _expect_string(store.channel_modifier(), "Mirror", "channel modifier"):
+		return
+	if not _expect_string(store.speed_type(), "RegulSpeed", "speed type"):
+		return
+	if not _expect_float(store.speed_multiplier(), 2.0, "speed multiplier"):
+		return
+	if not _expect_string(store.visibility_modifier(), "Hidden", "visibility modifier"):
 		return
 
 	var directories: Array[String] = store.song_directories()
@@ -54,6 +63,14 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
+	if absf(actual - expected) > 0.0001:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

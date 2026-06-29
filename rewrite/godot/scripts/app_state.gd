@@ -25,7 +25,9 @@ func current() -> String:
 	return _current
 
 
-func transition_to(next: String) -> void:
+func transition_to(next: String) -> bool:
 	var allowed: Array = _ALLOWED_TRANSITIONS.get(_current, [])
 	if allowed.has(next):
 		_current = next
+		return true
+	return false

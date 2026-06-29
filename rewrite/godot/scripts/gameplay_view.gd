@@ -57,6 +57,7 @@ var _combo_counter_states: Dictionary = {}
 var _bar_nodes: Dictionary = {}
 var _bar_rects: Dictionary = {}
 var _pressed_nodes: Array[Node] = []
+var _pressed_lane_nodes: Dictionary = {}
 var _judgment_node: Node = null
 var _click_nodes: Array[Node] = []
 var _pill_nodes: Array[Node] = []
@@ -667,21 +668,39 @@ func _apply_judgment_effect_scale(node: Control, now_ms: float) -> void:
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:
-	_clear_pressed_nodes()
+	var active_lanes := {}
+	if raw_lanes is Array:
+		for raw_lane: Variant in raw_lanes:
+			var lane := int(raw_lane)
+			if lane >= 0:
+				active_lanes[lane] = true
+
+	for raw_lane: Variant in _pressed_lane_nodes.keys():
+		var lane := int(raw_lane)
+		if bool(active_lanes.get(lane, false)):
+			continue
+		_clear_pressed_lane(lane)
+
 	if not raw_lanes is Array:
 		return
 
 	for raw_lane: Variant in raw_lanes:
 		var lane := int(raw_lane)
-		if lane < 0:
+		if lane < 0 or _pressed_lane_nodes.has(lane):
 			continue
 		var id := "PRESSED_NOTE_%d" % (lane + 1)
 		var piece_index := 0
+		var lane_nodes: Array[Node] = []
 		for entity: Dictionary in _entities_by_id(id):
-			var node := _entity_rect(entity, "Pressed_%s_%03d" % [_safe_node_id(id), piece_index])
+			var pressed_entity := entity.duplicate(true)
+			pressed_entity["animationStartMs"] = _last_update_time_ms
+			var node := _entity_rect(pressed_entity, "Pressed_%s_%03d" % [_safe_node_id(id), piece_index])
+			_update_animation_frames_for_node(node, _last_update_time_ms)
 			add_child(node)
 			_pressed_nodes.append(node)
+			lane_nodes.append(node)
 			piece_index += 1
+		_pressed_lane_nodes[lane] = lane_nodes
 
 
 func _sync_judgment_event(raw_event: Variant, now_ms: float) -> void:
@@ -1009,6 +1028,19 @@ func _one_shot_animation_finished(entity: Dictionary, event: Dictionary, now_ms:
 
 func _clear_pressed_nodes() -> void:
 	_clear_nodes(_pressed_nodes)
+	_pressed_lane_nodes.clear()
+
+
+func _clear_pressed_lane(lane: int) -> void:
+	var raw_nodes: Variant = _pressed_lane_nodes.get(lane, [])
+	var lane_nodes: Array[Node] = []
+	if raw_nodes is Array:
+		for raw_node: Variant in raw_nodes:
+			if raw_node is Node:
+				_pressed_nodes.erase(raw_node)
+				lane_nodes.append(raw_node)
+	_clear_nodes(lane_nodes)
+	_pressed_lane_nodes.erase(lane)
 
 
 func _clear_judgment_node() -> void:

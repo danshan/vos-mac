@@ -231,6 +231,26 @@ func _init() -> void:
 					"textureHeight": 3.0,
 				},
 			]
+		if str(entity.get("id", "")) == "PRESSED_NOTE_1" and int(entity.get("layer", 0)) == 3:
+			entity["frameSpeed"] = 0.005
+			entity["spriteFrames"] = [
+				{
+					"id": "pressed_note_lane_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 134.0,
+					"textureWidth": 28.0,
+					"textureHeight": 3.0,
+				},
+				{
+					"id": "pressed_note_lane_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 138.0,
+					"textureWidth": 28.0,
+					"textureHeight": 3.0,
+				},
+			]
 		if str(entity.get("id", "")) == "EFFECT_JUDGMENT_COOL":
 			entity["frameSpeed"] = 0.005
 			entity["spriteFrames"] = [
@@ -587,8 +607,24 @@ func _init() -> void:
 	var pressed_lane_node: Control = view.get_node("Pressed_PRESSED_NOTE_1_000")
 	if not _expect_int(pressed_lane_node.z_index, 3, "pressed lane Java layer"):
 		return
+	if not _expect_bool(pressed_lane_node is TextureRect, true, "pressed lane texture node"):
+		return
+	var pressed_lane_texture_node: TextureRect = pressed_lane_node
+	if not _expect_bool(pressed_lane_texture_node.texture is AtlasTexture, true, "pressed lane atlas texture"):
+		return
+	var pressed_lane_texture: AtlasTexture = pressed_lane_texture_node.texture
+	if not _expect_float(pressed_lane_texture.region.position.y, 134.0, "pressed lane starts on first frame"):
+		return
 	var pressed_keyboard_node: Control = view.get_node("Pressed_PRESSED_NOTE_1_001")
 	if not _expect_int(pressed_keyboard_node.z_index, 8, "pressed keyboard Java layer"):
+		return
+	view.update_time(200.0)
+	view.update_hud_state({
+		"pressedLanes": [0],
+	})
+	pressed_lane_texture_node = view.get_node("Pressed_PRESSED_NOTE_1_000")
+	pressed_lane_texture = pressed_lane_texture_node.texture
+	if not _expect_float(pressed_lane_texture.region.position.y, 138.0, "pressed lane advances while held"):
 		return
 
 	view.update_hud_state({

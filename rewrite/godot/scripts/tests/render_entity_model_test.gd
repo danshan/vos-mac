@@ -60,7 +60,7 @@ func _init() -> void:
 	var view = GameplayView.new()
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
-	if not _expect_int(view.get_child_count(), 52, "static entity node count"):
+	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 52, "static entity node count"):
 		return
 	if not _expect_bool(view.has_node("Entity_BGA"), true, "bga node"):
 		return
@@ -73,6 +73,68 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Entity_EFFECT_JUDGMENT_COOL"), true, "judgment cool node"):
 		return
 	if not _expect_bool(view.has_node("Entity_NOTE_1"), false, "note template is not static"):
+		return
+	if not _expect_bool(view.has_method("update_hud_state"), true, "view hud state method"):
+		return
+	if not _expect_bool(view.has_node("Hud_SCORE_COUNTER"), true, "score hud label"):
+		return
+	if not _expect_bool(view.has_node("Hud_COMBO_COUNTER"), true, "combo hud label"):
+		return
+	if not _expect_bool(view.has_node("Hud_JAM_COUNTER"), true, "jam hud label"):
+		return
+	if not _expect_bool(view.has_node("Hud_MINUTE_COUNTER"), true, "minute hud label"):
+		return
+	if not _expect_bool(view.has_node("Hud_SECOND_COUNTER"), true, "second hud label"):
+		return
+	if not _expect_bool(view.has_node("Hud_COUNTER_JUDGMENT_COOL"), true, "cool counter hud label"):
+		return
+
+	view.update_hud_state({
+		"score": 12345,
+		"combo": 12,
+		"maxCombo": 34,
+		"jamCombo": 2,
+		"jamBar": 25,
+		"jamBarLimit": 50,
+		"life": 12000,
+		"lifeLimit": 24000,
+		"elapsedMs": 83000.0,
+		"judgments": {
+			"cool": 7,
+			"good": 3,
+			"bad": 1,
+			"miss": 2,
+		},
+	})
+	if not _expect_string(view.get_node("Hud_SCORE_COUNTER").text, "12345", "score hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_COMBO_COUNTER").text, "11", "combo hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_JAM_COUNTER").text, "2", "jam hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_MAXCOMBO_COUNTER").text, "34", "max combo hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_MINUTE_COUNTER").text, "1", "minute hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_SECOND_COUNTER").text, "23", "second hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_COOL").text, "7", "cool counter hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_GOOD").text, "3", "good counter hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_BAD").text, "1", "bad counter hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_MISS").text, "2", "miss counter hud text"):
+		return
+
+	var life_bar: ColorRect = view.get_node("Entity_LIFE_BAR")
+	if not _expect_float(life_bar.size.y, 150.5, "life bar half fill height"):
+		return
+	if not _expect_float(life_bar.position.y, 397.5, "life bar half fill y"):
+		return
+
+	var jam_bar: ColorRect = view.get_node("Entity_JAM_BAR")
+	if not _expect_float(jam_bar.size.x, 95.5, "jam bar half fill width"):
 		return
 
 	var gameplay_loader = GameplayLoader.new()
@@ -117,6 +179,14 @@ func _entity_by_id(entities: Array, id: String) -> Dictionary:
 		if entity is Dictionary and str(entity.get("id", "")) == id:
 			return entity
 	return {}
+
+
+func _count_children_with_prefix(node: Node, prefix: String) -> int:
+	var count := 0
+	for child: Node in node.get_children():
+		if child.name.begins_with(prefix):
+			count += 1
+	return count
 
 
 func _expect_float(actual: float, expected: float, label: String) -> bool:

@@ -40,6 +40,8 @@ func _process(_delta: float) -> void:
 		return
 	if _runtime.has_method("elapsed_ms") and _gameplay_view.has_method("update_time"):
 		_gameplay_view.update_time(_runtime.elapsed_ms())
+	if _runtime.has_method("hud_state") and _gameplay_view.has_method("update_hud_state"):
+		_gameplay_view.update_hud_state(_runtime.hud_state())
 
 
 func build() -> void:
@@ -297,6 +299,8 @@ func _show_gameplay() -> void:
 	if not _runtime.start(bundle.get("chart", {}), bundle.get("audioManifest", {})):
 		_show_gameplay_load_error("Unable to start gameplay")
 		return
+	if _runtime.has_method("hud_state") and _gameplay_view.has_method("update_hud_state"):
+		_gameplay_view.update_hud_state(_runtime.hud_state())
 
 	_status_label = _label("Status", "Playing", HORIZONTAL_ALIGNMENT_CENTER)
 	_content.add_child(_status_label)

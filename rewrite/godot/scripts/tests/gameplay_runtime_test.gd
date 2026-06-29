@@ -32,6 +32,21 @@ func _init() -> void:
 		return
 	if not _expect_int(runtime.audio_play_event_count(), 2, "note hit play event"):
 		return
+	if not _expect_bool(runtime.has_method("hud_state"), true, "runtime hud state method"):
+		return
+	var hud_state: Dictionary = runtime.hud_state()
+	if not _expect_int(hud_state.get("score", 0), 200, "hud state score"):
+		return
+	if not _expect_int(hud_state.get("combo", 0), 1, "hud state combo"):
+		return
+	if not _expect_int(hud_state.get("jamBar", 0), 2, "hud state jam bar"):
+		return
+	if not _expect_int(hud_state.get("life", 0), 24000, "hud state life"):
+		return
+	if not _expect_int(hud_state.get("lifeLimit", 0), 24000, "hud state life limit"):
+		return
+	if not _expect_int(hud_state.get("elapsedMs", 0), 0, "hud state elapsed"):
+		return
 
 	runtime.stop()
 	if not _expect_bool(runtime.start(chart, audio_manifest), true, "runtime restart"):

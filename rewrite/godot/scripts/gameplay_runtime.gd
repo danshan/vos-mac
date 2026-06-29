@@ -116,6 +116,13 @@ func result() -> Dictionary:
 	return _last_result.duplicate(true)
 
 
+func hud_state() -> Dictionary:
+	var state := result()
+	state["elapsedMs"] = int(round(_elapsed_ms))
+	state["durationMs"] = int(round(_duration_ms))
+	return state
+
+
 func audio_play_event_count() -> int:
 	if _audio_pool == null:
 		return 0

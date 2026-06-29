@@ -66,6 +66,13 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER"), true, "gameplay score hud"):
+		return
+
+	ui.get_node("GameplayRuntime").press_action("vos_lane_1", 1000.0)
+	ui._process(0.0)
+	if not _expect_string(ui.get_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER").text, "200", "gameplay score hud update"):
+		return
 
 	ui.complete_game({"score": 200, "maxCombo": 0})
 	if not _expect_string(ui.current_state(), AppState.RESULT, "result state"):

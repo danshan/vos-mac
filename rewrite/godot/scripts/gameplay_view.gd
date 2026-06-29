@@ -10,6 +10,9 @@ var _chart: Dictionary = {}
 var _note_entries: Array[Dictionary] = []
 var _distance = null
 var _speed: float = 1.0
+var _hud_labels: Dictionary = {}
+var _bar_nodes: Dictionary = {}
+var _bar_rects: Dictionary = {}
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -64,11 +67,35 @@ func update_time(now_ms: float) -> void:
 			node.size.y = note_height
 
 
+func update_hud_state(state: Dictionary) -> void:
+	_set_hud_text("SCORE_COUNTER", _int_text(state.get("score", 0)))
+	_set_combo_text("COMBO_COUNTER", int(state.get("combo", 0)), 2)
+	_set_combo_text("JAM_COUNTER", int(state.get("jamCombo", 0)), 1)
+	_set_hud_text("MAXCOMBO_COUNTER", _int_text(state.get("maxCombo", 0)))
+
+	var elapsed_seconds := int(floor(max(float(state.get("elapsedMs", 0.0)), 0.0) / 1000.0))
+	_set_hud_text("MINUTE_COUNTER", _int_text(elapsed_seconds / 60))
+	_set_hud_text("SECOND_COUNTER", "%02d" % (elapsed_seconds % 60))
+
+	var judgments: Dictionary = state.get("judgments", {})
+	_set_hud_text("COUNTER_JUDGMENT_PERFECT", _int_text(judgments.get("perfect", 0)))
+	_set_hud_text("COUNTER_JUDGMENT_COOL", _int_text(judgments.get("cool", 0)))
+	_set_hud_text("COUNTER_JUDGMENT_GOOD", _int_text(judgments.get("good", 0)))
+	_set_hud_text("COUNTER_JUDGMENT_BAD", _int_text(judgments.get("bad", 0)))
+	_set_hud_text("COUNTER_JUDGMENT_MISS", _int_text(judgments.get("miss", 0)))
+
+	_set_bar_fill("LIFE_BAR", float(state.get("life", 0.0)), float(state.get("lifeLimit", 0.0)))
+	_set_bar_fill("JAM_BAR", float(state.get("jamBar", 0.0)), float(state.get("jamBarLimit", 0.0)))
+
+
 func _rebuild_entities() -> void:
 	for child in get_children():
 		remove_child(child)
 		child.free()
 	_note_entries.clear()
+	_hud_labels.clear()
+	_bar_nodes.clear()
+	_bar_rects.clear()
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -81,6 +108,8 @@ func _rebuild_entities() -> void:
 		node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
 		node.color = _color_for_type(str(entity.get("type", "")))
 		add_child(node)
+		_register_bar_node(entity, node)
+		_register_hud_label(entity)
 		index += 1
 
 
@@ -153,6 +182,105 @@ func _note_template_for(lane: Dictionary, kind: String) -> Dictionary:
 func _is_note_template(entity: Dictionary) -> bool:
 	var type := str(entity.get("type", ""))
 	return type == "note" or type == "longNote"
+
+
+func _register_bar_node(entity: Dictionary, node: ColorRect) -> void:
+	if str(entity.get("type", "")) != "bar":
+		return
+	var id := str(entity.get("id", ""))
+	if id.is_empty():
+		return
+	_bar_nodes[id] = node
+	_bar_rects[id] = {
+		"position": node.position,
+		"size": node.size,
+		"fillDirection": str(entity.get("fillDirection", "left_to_right")),
+	}
+
+
+func _register_hud_label(entity: Dictionary) -> void:
+	if not _is_hud_counter(entity):
+		return
+
+	var id := str(entity.get("id", ""))
+	var label := Label.new()
+	label.name = "Hud_%s" % _safe_node_id(id)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	label.text = "0"
+
+	var digit_width: float = max(float(entity.get("width", 0.0)), 1.0)
+	var digit_height: float = max(float(entity.get("height", 0.0)), 1.0)
+	var label_width: float = max(digit_width * 8.0, digit_width)
+	if str(entity.get("type", "")) == "comboCounter":
+		label_width = max(digit_width * 6.0, digit_width)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.position.x = float(entity.get("x", 0.0)) - label_width * 0.5
+	else:
+		label.position.x = float(entity.get("x", 0.0)) - label_width
+	label.position.y = float(entity.get("y", 0.0))
+	label.size = Vector2(label_width, max(digit_height * 1.4, digit_height))
+	label.add_theme_font_size_override("font_size", int(round(max(digit_height, 8.0))))
+
+	_hud_labels[id] = label
+	add_child(label)
+
+
+func _is_hud_counter(entity: Dictionary) -> bool:
+	var type := str(entity.get("type", ""))
+	return (type == "numberCounter" or type == "comboCounter") and not str(entity.get("id", "")).is_empty()
+
+
+func _set_hud_text(id: String, text: String) -> void:
+	var label: Variant = _hud_labels.get(id)
+	if label is Label:
+		label.text = text
+
+
+func _set_combo_text(id: String, value: int, threshold: int) -> void:
+	if value < threshold:
+		_set_hud_text(id, "")
+		return
+	_set_hud_text(id, _int_text(value - max(threshold - 1, 0)))
+
+
+func _set_bar_fill(id: String, value: float, limit: float) -> void:
+	var node: Variant = _bar_nodes.get(id)
+	var rect: Dictionary = _bar_rects.get(id, {})
+	if not node is ColorRect or rect.is_empty():
+		return
+
+	var base_position: Vector2 = rect.get("position", Vector2.ZERO)
+	var base_size: Vector2 = rect.get("size", Vector2.ZERO)
+	var ratio := 0.0
+	if limit > 0.0:
+		ratio = clamp(value / limit, 0.0, 1.0)
+
+	node.position = base_position
+	node.size = base_size
+
+	match str(rect.get("fillDirection", "left_to_right")):
+		"right_to_left":
+			node.size.x = base_size.x * ratio
+			node.position.x = base_position.x + base_size.x - node.size.x
+		"up_to_down":
+			node.size.y = base_size.y * ratio
+			node.position.y = base_position.y + base_size.y - node.size.y
+		"down_to_up":
+			node.size.y = base_size.y * ratio
+		_:
+			node.size.x = base_size.x * ratio
+
+
+func _int_text(value: Variant) -> String:
+	if value is int or value is float:
+		return "%d" % int(value)
+	return "0"
+
+
+func _safe_node_id(value: String) -> String:
+	return value.replace(" ", "_")
 
 
 func _node_name(entity: Dictionary, index: int) -> String:

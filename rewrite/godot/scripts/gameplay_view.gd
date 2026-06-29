@@ -114,13 +114,14 @@ func update_time(now_ms: float) -> void:
 func update_hud_state(state: Dictionary) -> void:
 	var hud_time_ms := float(state.get("elapsedMs", 0.0))
 	_set_hud_text("SCORE_COUNTER", _int_text(state.get("score", 0)))
+	_set_hud_text("FPS_COUNTER", _int_text(state.get("fps", 0)))
 	_set_combo_text("COMBO_COUNTER", int(state.get("combo", 0)), 2, hud_time_ms)
 	_set_combo_text("JAM_COUNTER", int(state.get("jamCombo", 0)), 1, hud_time_ms)
 	_set_hud_text("MAXCOMBO_COUNTER", _int_text(state.get("maxCombo", 0)))
 
 	var elapsed_seconds := int(floor(max(hud_time_ms, 0.0) / 1000.0))
-	_set_hud_text("MINUTE_COUNTER", _int_text(elapsed_seconds / 60))
-	_set_hud_text("SECOND_COUNTER", "%02d" % (elapsed_seconds % 60))
+	_set_hud_text("MINUTE_COUNTER", _int_text(state.get("minute", elapsed_seconds / 60)))
+	_set_hud_text("SECOND_COUNTER", "%02d" % int(state.get("second", elapsed_seconds % 60)))
 
 	var judgments: Dictionary = state.get("judgments", {})
 	_set_hud_text("COUNTER_JUDGMENT_PERFECT", _int_text(judgments.get("perfect", 0)))

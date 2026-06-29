@@ -245,6 +245,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Hud_JAM_COUNTER"), true, "jam hud label"):
 		return
+	if not _expect_bool(view.has_node("Hud_FPS_COUNTER"), true, "fps hud label"):
+		return
 	if not _expect_bool(view.has_node("Hud_MINUTE_COUNTER"), true, "minute hud label"):
 		return
 	if not _expect_bool(view.has_node("Hud_SECOND_COUNTER"), true, "second hud label"):
@@ -262,6 +264,9 @@ func _init() -> void:
 		"life": 12000,
 		"lifeLimit": 24000,
 		"elapsedMs": 83000.0,
+		"fps": 144,
+		"minute": 2,
+		"second": 5,
 		"judgments": {
 			"cool": 7,
 			"good": 3,
@@ -291,9 +296,11 @@ func _init() -> void:
 		return
 	if not _expect_string(view.get_node("Hud_MAXCOMBO_COUNTER").text, "34", "max combo hud text"):
 		return
-	if not _expect_string(view.get_node("Hud_MINUTE_COUNTER").text, "1", "minute hud text"):
+	if not _expect_string(view.get_node("Hud_FPS_COUNTER").text, "144", "fps hud text"):
 		return
-	if not _expect_string(view.get_node("Hud_SECOND_COUNTER").text, "23", "second hud text"):
+	if not _expect_string(view.get_node("Hud_MINUTE_COUNTER").text, "2", "minute hud text"):
+		return
+	if not _expect_string(view.get_node("Hud_SECOND_COUNTER").text, "05", "second hud text"):
 		return
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_COOL").text, "7", "cool counter hud text"):
 		return

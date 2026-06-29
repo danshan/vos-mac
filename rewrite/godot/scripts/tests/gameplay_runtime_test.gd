@@ -16,6 +16,9 @@ func _init() -> void:
 	if not _expect_bool(audio_manifest.is_empty(), false, "audio fixture load"):
 		return
 
+	if not _test_java_fps_timer(chart, audio_manifest):
+		return
+
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
 	if not _expect_bool(runtime.start(chart, audio_manifest), true, "runtime start"):
@@ -88,6 +91,37 @@ func _init() -> void:
 
 	runtime.free()
 	quit(0)
+
+
+func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var long_chart := chart.duplicate(true)
+	long_chart["durationMs"] = 65000
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(long_chart, audio_manifest), true, "fps timer runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	if not _expect_int(initial_state.get("fps", -1), 0, "initial fps counter"):
+		return false
+	if not _expect_int(initial_state.get("minute", -1), 0, "initial minute counter"):
+		return false
+	if not _expect_int(initial_state.get("second", -1), 0, "initial second counter"):
+		return false
+
+	for i in range(60):
+		runtime.advance_to(float((i + 1) * 1000))
+
+	var one_minute_state: Dictionary = runtime.hud_state()
+	if not _expect_int(one_minute_state.get("fps", -1), 1, "java fps counter"):
+		return false
+	if not _expect_int(one_minute_state.get("minute", -1), 1, "java minute rollover"):
+		return false
+	if not _expect_int(one_minute_state.get("second", -1), 0, "java second rollover"):
+		return false
+
+	runtime.free()
+	return true
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

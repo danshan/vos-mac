@@ -12,6 +12,11 @@ var _audio_pool: Node = null
 var _running: bool = false
 var _elapsed_ms: float = 0.0
 var _duration_ms: float = 0.0
+var _fps_elapsed_ms: float = 0.0
+var _fps_frame_count: int = 0
+var _display_fps: int = 0
+var _display_minute: int = 0
+var _display_second: int = 0
 var _last_result: Dictionary = {}
 
 
@@ -57,6 +62,11 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 
 	_elapsed_ms = 0.0
 	_duration_ms = float(chart.get("durationMs", 0.0))
+	_fps_elapsed_ms = 0.0
+	_fps_frame_count = 0
+	_display_fps = 0
+	_display_minute = 0
+	_display_second = 0
 	_last_result.clear()
 	_running = true
 	return true
@@ -88,7 +98,10 @@ func advance_to(now_ms: float) -> void:
 	if not _running:
 		return
 
-	_elapsed_ms = max(now_ms, _elapsed_ms)
+	var next_elapsed_ms: float = max(now_ms, _elapsed_ms)
+	var delta_ms: float = next_elapsed_ms - _elapsed_ms
+	_elapsed_ms = next_elapsed_ms
+	_update_fps_counter(delta_ms)
 	_controller.advance_to(_elapsed_ms)
 	_apply_audio_commands()
 
@@ -120,6 +133,9 @@ func hud_state() -> Dictionary:
 	var state := result()
 	state["elapsedMs"] = int(round(_elapsed_ms))
 	state["durationMs"] = int(round(_duration_ms))
+	state["fps"] = _display_fps
+	state["minute"] = _display_minute
+	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
 	state.merge(_controller.render_state(_elapsed_ms), true)
 	return state
@@ -149,6 +165,22 @@ func _time_for_input(now_ms: float) -> float:
 	if now_ms >= 0.0:
 		return now_ms
 	return _elapsed_ms
+
+
+func _update_fps_counter(delta_ms: float) -> void:
+	_fps_elapsed_ms += delta_ms
+	_fps_frame_count += 1
+	if _fps_elapsed_ms < 1000.0:
+		return
+
+	_display_fps = _fps_frame_count
+	_fps_elapsed_ms -= 1000.0
+	_fps_frame_count = 0
+	if _display_second >= 59:
+		_display_second = 0
+		_display_minute += 1
+	else:
+		_display_second += 1
 
 
 func _mark_input_handled() -> void:

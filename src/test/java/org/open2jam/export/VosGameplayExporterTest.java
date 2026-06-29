@@ -26,7 +26,7 @@ class VosGameplayExporterTest {
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
                 note(0, "tap", 0.0, 1),
-                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array()), json);
+                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array(measure(0.0)), JsonWriter.array()), json);
     }
 
     @Test
@@ -37,7 +37,7 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", 0.0, 2)),
-                JsonWriter.array(autoPlayEvent(0.0, 1))), json);
+                JsonWriter.array(measure(0.0)), JsonWriter.array(autoPlayEvent(0.0, 1))), json);
     }
 
     @Test
@@ -48,7 +48,8 @@ class VosGameplayExporterTest {
         assertThrows(IllegalArgumentException.class, () -> new VosGameplayExporter().exportGameplay(textFile));
     }
 
-    private static String gameplayJson(File source, String notes, String autoPlayEvents) throws Exception {
+    private static String gameplayJson(File source, String notes, String measures, String autoPlayEvents)
+            throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
                 JsonWriter.field("format", "VOS"),
@@ -58,6 +59,7 @@ class VosGameplayExporterTest {
                 JsonWriter.field("bpm", 120.0),
                 JsonWriter.field("durationMs", 123000),
                 JsonWriter.rawField("notes", notes),
+                JsonWriter.rawField("measures", measures),
                 JsonWriter.rawField("autoPlayEvents", autoPlayEvents));
     }
 
@@ -88,5 +90,9 @@ class VosGameplayExporterTest {
                 JsonWriter.field("sampleId", sampleId),
                 JsonWriter.field("volume", 1.0),
                 JsonWriter.field("pan", 0.0));
+    }
+
+    private static String measure(double startMs) {
+        return JsonWriter.object(JsonWriter.field("startMs", startMs));
     }
 }

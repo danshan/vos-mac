@@ -22,6 +22,7 @@ public final class VosGameplayExporter {
         List<ExportNote> notes = new ArrayList<ExportNote>();
         EnumMap<Event.Channel, ExportNote> pendingLongNotes = new EnumMap<Event.Channel, ExportNote>(
                 Event.Channel.class);
+        List<String> measures = new ArrayList<String>();
         List<String> autoPlayEvents = new ArrayList<String>();
         for (Event event : timedEvents) {
             int lane = laneFor(event.getChannel());
@@ -44,6 +45,8 @@ public final class VosGameplayExporter {
                     default:
                         break;
                 }
+            } else if (event.getChannel() == Event.Channel.MEASURE) {
+                measures.add(measureEvent(event));
             } else if (event.getChannel() == Event.Channel.AUTO_PLAY) {
                 autoPlayEvents.add(autoPlayEvent(event));
             }
@@ -58,6 +61,7 @@ public final class VosGameplayExporter {
                 JsonWriter.field("bpm", chart.getBPM()),
                 JsonWriter.field("durationMs", chart.getDuration() * 1000),
                 JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))),
+                JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))),
                 JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
     }
 
@@ -88,6 +92,10 @@ public final class VosGameplayExporter {
                 JsonWriter.field("sampleId", sample.sample_id),
                 JsonWriter.field("volume", sample.volume),
                 JsonWriter.field("pan", sample.pan));
+    }
+
+    private static String measureEvent(Event event) {
+        return JsonWriter.object(JsonWriter.field("startMs", event.getTime()));
     }
 
     private static int laneFor(Event.Channel channel) {

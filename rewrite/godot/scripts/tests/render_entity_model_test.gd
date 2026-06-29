@@ -240,6 +240,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Note_000"), true, "dynamic note node"):
 		return
+	if not _expect_bool(view.has_node("Measure_000"), true, "dynamic measure node"):
+		return
 
 	var note_node: ColorRect = view.get_node("Note_000")
 	if not _expect_float(note_node.position.x, 5.0, "dynamic note node x"):
@@ -249,6 +251,15 @@ func _init() -> void:
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):
+		return
+	var measure_node: ColorRect = view.get_node("Measure_000")
+	if not _expect_float(measure_node.position.x, 5.0, "dynamic measure node x"):
+		return
+	if not _expect_float(measure_node.position.y, 479.0, "dynamic measure node y at zero"):
+		return
+	if not _expect_float(measure_node.size.x, 188.0, "dynamic measure node width"):
+		return
+	if not _expect_float(measure_node.size.y, 3.0, "dynamic measure node height"):
 		return
 
 	view.update_time(1000.0)

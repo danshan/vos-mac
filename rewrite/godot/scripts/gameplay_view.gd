@@ -27,6 +27,7 @@ var _model = RenderEntityModel.new()
 var _metadata: Dictionary = {}
 var _chart: Dictionary = {}
 var _note_entries: Array[Dictionary] = []
+var _measure_entries: Array[Dictionary] = []
 var _distance = null
 var _speed: float = 1.0
 var _hud_labels: Dictionary = {}
@@ -90,6 +91,16 @@ func update_time(now_ms: float) -> void:
 			node.position.y = start_y - note_height
 			node.size.y = note_height
 
+	for entry: Dictionary in _measure_entries:
+		var measure: Dictionary = entry.get("measure", {})
+		var node: Variant = entry.get("node")
+		if not node is ColorRect:
+			continue
+		node.position.y = judgment_line - _distance.calculate_hi_speed(
+				now_ms,
+				float(measure.get("startMs", 0.0)),
+				_speed) - 1.0
+
 
 func update_hud_state(state: Dictionary) -> void:
 	_set_hud_text("SCORE_COUNTER", _int_text(state.get("score", 0)))
@@ -123,6 +134,7 @@ func _rebuild_entities() -> void:
 		remove_child(child)
 		child.free()
 	_note_entries.clear()
+	_measure_entries.clear()
 	_hud_labels.clear()
 	_bar_nodes.clear()
 	_bar_rects.clear()
@@ -150,6 +162,12 @@ func _rebuild_note_nodes() -> void:
 			remove_child(node)
 			node.free()
 	_note_entries.clear()
+	for entry: Dictionary in _measure_entries:
+		var node: Variant = entry.get("node")
+		if node is Node:
+			remove_child(node)
+			node.free()
+	_measure_entries.clear()
 
 	if _metadata.is_empty() or _chart.is_empty():
 		return
@@ -182,6 +200,26 @@ func _rebuild_note_nodes() -> void:
 			"note": note,
 			"node": node,
 			"height": node.size.y,
+		})
+		index += 1
+
+	var measure_template := _first_entity_by_id("MEASURE_MARK")
+	if measure_template.is_empty():
+		return
+	var measures: Variant = _chart.get("measures", [])
+	if not measures is Array:
+		return
+
+	index = 0
+	for raw_measure: Variant in measures:
+		if not raw_measure is Dictionary:
+			continue
+		var measure: Dictionary = raw_measure.duplicate(true)
+		var node := _entity_rect(measure_template, "Measure_%03d" % index)
+		add_child(node)
+		_measure_entries.append({
+			"measure": measure,
+			"node": node,
 		})
 		index += 1
 

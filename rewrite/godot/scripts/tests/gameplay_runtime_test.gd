@@ -32,6 +32,8 @@ func _init() -> void:
 		return
 	if not _test_java_bga_events_follow_game_time(audio_manifest):
 		return
+	if not _test_java_manual_start_gates_game_time(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -390,6 +392,55 @@ func _test_java_bga_events_follow_game_time(audio_manifest: Dictionary) -> bool:
 	var future_bga_state: Dictionary = runtime.hud_state()
 	var future_bga_event: Dictionary = future_bga_state.get("currentBgaEvent", {})
 	if not _expect_int(future_bga_event.get("spriteId", -1), 9, "future bga sprite id"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:manual-start",
+		"format": "VOS",
+		"manualStart": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 0.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "manual start runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	var waiting_state: Dictionary = runtime.hud_state()
+	if not _expect_int(waiting_state.get("elapsedMs", -1), 1000, "manual start elapsed advances"):
+		return false
+	if not _expect_int(waiting_state.get("gameTimeMs", -1), 0, "manual start game time waits"):
+		return false
+	var waiting_status: Array = waiting_state.get("statusTexts", [])
+	if not _expect_string(str(waiting_status[3]), "Press any note button to start the game.", "manual start status"):
+		return false
+
+	var hit: Dictionary = runtime.press_action("vos_lane_1")
+	if not _expect_bool(hit.get("accepted", false), true, "manual start first input accepted"):
+		return false
+	var started_state: Dictionary = runtime.hud_state()
+	var started_status: Array = started_state.get("statusTexts", [])
+	if not _expect_int(started_status.size(), 3, "manual start prompt clears"):
+		return false
+	if not _expect_int(started_state.get("gameTimeMs", -1), 0, "manual start input begins at zero"):
+		return false
+
+	runtime.advance_to(1500.0)
+	var running_state: Dictionary = runtime.hud_state()
+	if not _expect_int(running_state.get("gameTimeMs", -1), 500, "manual start game time after input"):
 		return false
 
 	runtime.free()

@@ -7,6 +7,7 @@ const GameplayController = preload("res://scripts/gameplay_controller.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 
 const JAVA_FINISH_DELAY_MS: float = 10000.0
+const JAVA_MANUAL_START_PROMPT: String = "Press any note button to start the game."
 
 var _controller = GameplayController.new()
 var _input_map = InputMapStore.new()
@@ -22,6 +23,8 @@ var _display_fps: int = 0
 var _display_minute: int = 0
 var _display_second: int = 0
 var _last_result: Dictionary = {}
+var _manual_start: bool = false
+var _game_started: bool = true
 
 
 func _ready() -> void:
@@ -84,6 +87,8 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	_display_minute = 0
 	_display_second = 0
 	_last_result.clear()
+	_manual_start = bool(chart.get("manualStart", false))
+	_game_started = not _manual_start
 	_running = true
 	return true
 
@@ -123,8 +128,11 @@ func advance_to(now_ms: float) -> void:
 	var delta_ms: float = next_elapsed_ms - _elapsed_ms
 	var audio_state := _controller.audio_state()
 	_elapsed_ms = next_elapsed_ms
-	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
 	_update_fps_counter(delta_ms)
+	if not _game_started:
+		return
+
+	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
 	_controller.advance_to(_game_time_ms)
 	_apply_audio_commands()
 
@@ -136,6 +144,8 @@ func advance_to(now_ms: float) -> void:
 
 
 func press_action(action: String, now_ms: float = -1.0) -> Dictionary:
+	if _starts_game(action):
+		_game_started = true
 	var hit_time := _time_for_input(now_ms)
 	var response: Dictionary = _controller.press_action(action, hit_time)
 	_apply_audio_commands()
@@ -165,6 +175,10 @@ func hud_state() -> Dictionary:
 	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
 	state.merge(_controller.render_state(_game_time_ms), true)
+	if not _game_started:
+		var status_texts: Array = state.get("statusTexts", []).duplicate()
+		status_texts.append(JAVA_MANUAL_START_PROMPT)
+		state["statusTexts"] = status_texts
 	return state
 
 
@@ -199,6 +213,12 @@ func _time_for_input(now_ms: float) -> float:
 	if now_ms >= 0.0:
 		return now_ms
 	return _game_time_ms
+
+
+func _starts_game(action: String) -> bool:
+	if _game_started:
+		return false
+	return _input_map.lane_for_action(action) >= 0
 
 
 func _update_fps_counter(delta_ms: float) -> void:

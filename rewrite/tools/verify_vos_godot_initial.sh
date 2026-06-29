@@ -15,6 +15,7 @@ run_godot_test() {
 
 run_godot_test res://scripts/tests/app_state_test.gd
 run_godot_test res://scripts/tests/main_ui_test.gd
+run_godot_test res://scripts/tests/fullscreen_setting_test.gd
 run_godot_test res://scripts/tests/menu_flow_test.gd
 run_godot_test res://scripts/tests/main_ui_catalog_export_flow_test.gd
 run_godot_test res://scripts/tests/main_ui_export_flow_test.gd

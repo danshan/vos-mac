@@ -34,6 +34,7 @@ var _gameplay_area: Control = null
 var _gameplay_view: Control = null
 var _exporter_client = ExporterClient.new()
 var _settings_store = SettingsStore.new()
+var _last_requested_window_mode: int = -1
 
 
 func _ready() -> void:
@@ -105,6 +106,10 @@ func is_exporter_configured() -> bool:
 	if _exporter_client == null or not _exporter_client.has_method("is_configured"):
 		return false
 	return _exporter_client.is_configured()
+
+
+func last_requested_window_mode() -> int:
+	return _last_requested_window_mode
 
 
 func complete_game(result: Dictionary) -> void:
@@ -664,6 +669,7 @@ func _save_settings_from_controls() -> void:
 	var fullscreen: Node = _content.get_node_or_null("FullscreenCheckBox")
 	if fullscreen is CheckBox:
 		_settings_store.set_fullscreen_enabled(fullscreen.button_pressed)
+		_apply_window_mode_from_settings()
 
 	var autoplay: Node = _content.get_node_or_null("AutoplayCheckBox")
 	if autoplay is CheckBox:
@@ -744,6 +750,13 @@ func _parse_song_directories(text: String) -> Array[String]:
 		if not path.is_empty():
 			directories.append(path)
 	return directories
+
+
+func _apply_window_mode_from_settings() -> void:
+	var target_mode := DisplayServer.WINDOW_MODE_FULLSCREEN if _settings_store.fullscreen_enabled() else DisplayServer.WINDOW_MODE_WINDOWED
+	_last_requested_window_mode = target_mode
+	if DisplayServer.window_get_mode() != target_mode:
+		DisplayServer.window_set_mode(target_mode)
 
 
 func _gameplay_option_overrides() -> Dictionary:

@@ -30,6 +30,8 @@ const JAVA_TAP_NOTE_HEIGHT: float = 7.0
 const JAVA_BEAT_JUDGMENT_FACTOR: float = 0.664
 const JUDGMENT_TYPE_BEAT: String = "beat"
 const JUDGMENT_TYPE_TIME: String = "time"
+const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
+const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -51,6 +53,7 @@ var _distance = null
 var _timing = null
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
+var _speed_type: String = SPEED_TYPE_HI_SPEED
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -66,6 +69,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_timer_ms = 0.0
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
+	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
 	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
@@ -492,6 +496,12 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 	return JAVA_RENDER_SPEED
 
 
+func _normalized_speed_type(value: Variant) -> String:
+	if str(value) == SPEED_TYPE_REGUL_SPEED:
+		return SPEED_TYPE_REGUL_SPEED
+	return SPEED_TYPE_HI_SPEED
+
+
 func _advance_event_buffer(now_ms: float) -> void:
 	if _distance == null:
 		_buffer_event_index = _buffer_events.size()
@@ -507,6 +517,8 @@ func _can_buffer_next_event(now_ms: float) -> bool:
 
 
 func _distance_for(now_ms: float, target_ms: float) -> float:
+	if _speed_type == SPEED_TYPE_REGUL_SPEED:
+		return _distance.calculate_regul_speed(now_ms, target_ms, _render_speed)
 	return _distance.calculate_hi_speed(now_ms, target_ms, _render_speed)
 
 

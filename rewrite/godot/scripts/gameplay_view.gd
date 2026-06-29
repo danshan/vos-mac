@@ -8,6 +8,8 @@ const COMBO_WOBBLE_PIXELS: float = 10.0
 const COMBO_WOBBLE_SPEED: float = 0.5
 const COMBO_SHOW_TIME_MS: float = 4000.0
 const JAVA_RENDER_SPEED: float = 1.0
+const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
+const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
@@ -35,6 +37,7 @@ var _note_entries: Array[Dictionary] = []
 var _measure_entries: Array[Dictionary] = []
 var _distance = null
 var _speed: float = 1.0
+var _speed_type: String = SPEED_TYPE_HI_SPEED
 var _hud_labels: Dictionary = {}
 var _hud_digit_entities: Dictionary = {}
 var _combo_counter_states: Dictionary = {}
@@ -86,13 +89,12 @@ func update_time(now_ms: float) -> void:
 			continue
 
 		var note_height: float = float(entry.get("height", 1.0))
-		var start_y: float = judgment_line - _distance.calculate_hi_speed(
+		var start_y: float = judgment_line - _distance_for(
 				now_ms,
-				float(note.get("startMs", 0.0)),
-				_speed)
+				float(note.get("startMs", 0.0)))
 		var end_ms: Variant = note.get("endMs", null)
 		if end_ms is int or end_ms is float:
-			var end_y: float = judgment_line - _distance.calculate_hi_speed(now_ms, float(end_ms), _speed)
+			var end_y: float = judgment_line - _distance_for(now_ms, float(end_ms))
 			node.position.y = min(start_y, end_y) - note_height
 			node.size.y = max(absf(start_y - end_y) + note_height, note_height)
 			if bool(entry.get("longNote", false)):
@@ -106,10 +108,9 @@ func update_time(now_ms: float) -> void:
 		var node: Variant = entry.get("node")
 		if not node is Control:
 			continue
-		node.position.y = judgment_line - _distance.calculate_hi_speed(
+		node.position.y = judgment_line - _distance_for(
 				now_ms,
-				float(measure.get("startMs", 0.0)),
-				_speed) - 1.0
+				float(measure.get("startMs", 0.0))) - 1.0
 
 
 func update_hud_state(state: Dictionary) -> void:
@@ -246,6 +247,7 @@ func _configure_distance() -> void:
 	timing.finish()
 	_distance = NoteDistanceCalculator.new(timing, float(_metadata.get("measureSize", 385.0)))
 	_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
+	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
 
 
 func _load_visual_timing(timing: TimingModel) -> bool:
@@ -266,6 +268,18 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 	if value is int or value is float:
 		return max(float(value), 0.001)
 	return JAVA_RENDER_SPEED
+
+
+func _normalized_speed_type(value: Variant) -> String:
+	if str(value) == SPEED_TYPE_REGUL_SPEED:
+		return SPEED_TYPE_REGUL_SPEED
+	return SPEED_TYPE_HI_SPEED
+
+
+func _distance_for(now_ms: float, target_ms: float) -> float:
+	if _speed_type == SPEED_TYPE_REGUL_SPEED:
+		return _distance.calculate_regul_speed(now_ms, target_ms, _speed)
+	return _distance.calculate_hi_speed(now_ms, target_ms, _speed)
 
 
 func _lane_for_index(lane_index: int) -> Dictionary:

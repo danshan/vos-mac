@@ -752,10 +752,17 @@ func _normalized_speed_type(value: Variant) -> String:
 
 func _status_texts(now_ms: float) -> Array[String]:
 	return [
-		"%s: x%.1f" % [_java_speed_type_name(), _target_render_speed],
+		"%s: x%s" % [_java_speed_type_name(), _java_double_text(_target_render_speed)],
 		"Current Measure: %d" % _current_measure(now_ms),
 		"Game Speed: %+d" % _game_speed_pitch,
 	]
+
+
+func _java_double_text(value: float) -> String:
+	var text := "%.12f" % value
+	while text.ends_with("0") and not text.ends_with(".0"):
+		text = text.substr(0, text.length() - 1)
+	return text
 
 
 func _java_speed_type_name() -> String:

@@ -26,6 +26,8 @@ func _init() -> void:
 		return
 	if not _test_java_speed_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_java_speed_status_preserves_multiplier_text(chart, audio_manifest):
+		return
 	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
 		return
 	if not _test_custom_misc_key_bindings(chart, audio_manifest):
@@ -223,6 +225,23 @@ func _test_java_speed_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionary
 	var speed_down_state: Dictionary = runtime.hud_state()
 	var speed_down_status: Array = speed_down_state.get("statusTexts", [])
 	if not _expect_string(str(speed_down_status[0]), "HI-SPEED: x1.5", "speed down status"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_speed_status_preserves_multiplier_text(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var speed_chart := chart.duplicate(true)
+	speed_chart["speedMultiplier"] = 1.25
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(speed_chart, audio_manifest), true, "speed text runtime start"):
+		return false
+
+	var state: Dictionary = runtime.hud_state()
+	var status_texts: Array = state.get("statusTexts", [])
+	if not _expect_string(str(status_texts[0]), "HI-SPEED: x1.25", "speed multiplier Java text"):
 		return false
 
 	runtime.free()

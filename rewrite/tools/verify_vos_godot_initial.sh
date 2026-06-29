@@ -11,6 +11,7 @@ godot --headless --path rewrite/godot --script res://scripts/tests/score_state_j
 godot --headless --path rewrite/godot --script res://scripts/tests/note_distance_java_parity_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/render_entity_model_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/settings_store_test.gd
+godot --headless --path rewrite/godot --script res://scripts/tests/input_map_store_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/catalog_store_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/gameplay_loader_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/audio_manifest_loader_test.gd

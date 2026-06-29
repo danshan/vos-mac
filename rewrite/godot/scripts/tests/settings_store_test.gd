@@ -9,15 +9,25 @@ func _init() -> void:
 	store.set_song_directories(input_directories)
 	input_directories.append("/tmp/input-mutated")
 	store.set_fullscreen_enabled(true)
+	var input_bindings: Array[String] = ["A", "S", "D", "Space", "J", "K", "L"]
+	store.set_key_bindings(input_bindings)
+	input_bindings[0] = "Mutated"
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
 	if not _expect_bool(store.fullscreen_enabled(), true, "fullscreen enabled"):
 		return
+	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key bindings"):
+		return
 
 	var directories: Array[String] = store.song_directories()
 	directories.append("/tmp/other")
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "defensive copy"):
+		return
+
+	var bindings: Array[String] = store.key_bindings()
+	bindings[1] = "Other"
+	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key binding defensive copy"):
 		return
 
 	quit(0)

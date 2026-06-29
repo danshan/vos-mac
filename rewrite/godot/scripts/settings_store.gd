@@ -2,6 +2,7 @@ extends RefCounted
 
 var _song_directories: Array[String] = []
 var _fullscreen_enabled: bool = false
+var _key_bindings: Array[String] = []
 
 
 func set_song_directories(paths: Array[String]) -> void:
@@ -18,3 +19,11 @@ func set_fullscreen_enabled(enabled: bool) -> void:
 
 func fullscreen_enabled() -> bool:
 	return _fullscreen_enabled
+
+
+func set_key_bindings(bindings: Array[String]) -> void:
+	_key_bindings = bindings.duplicate()
+
+
+func key_bindings() -> Array[String]:
+	return _key_bindings.duplicate()

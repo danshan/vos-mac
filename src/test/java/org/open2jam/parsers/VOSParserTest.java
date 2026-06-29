@@ -147,7 +147,7 @@ class VOSParserTest {
 
         for (int lane = 0; lane < expectedChannels.length; lane++) {
             File chartFile = VosFixtureFactory.writeFixture(tempDir, "tap-lane-" + (lane + 1) + ".vos",
-                    5, 0x80 + lane * 0x10);
+                    5, true, true, false, 0x80 + lane * 0x10);
 
             VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
             EventList events = chart.getEvents().getEventsFromThisChannel(expectedChannels[lane]);

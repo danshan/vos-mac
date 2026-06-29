@@ -26,7 +26,7 @@ public final class VosFixtureFactory {
     }
 
     public static File writeFixture(File directory, String fileName, int level, boolean includeLevel,
-            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride)
+            boolean includeChannelData, boolean includeLongNote, String title, int noteCountOverride)
             throws IOException {
         byte[] bytes = buildFixture(level, includeLevel, includeChannelData, includeLongNote, title,
                 noteCountOverride);
@@ -44,8 +44,10 @@ public final class VosFixtureFactory {
         return writeBytes(directory, fileName, bytes);
     }
 
-    public static File writeFixture(File directory, String fileName, int level, int keyboard) throws IOException {
-        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, keyboard);
+    public static File writeFixture(File directory, String fileName, int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, int keyboard) throws IOException {
+        byte[] bytes = buildFixture(level, includeLevel, includeChannelData, includeLongNote, "Canon in D", null,
+                false, keyboard);
         return writeBytes(directory, fileName, bytes);
     }
 

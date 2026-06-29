@@ -4,6 +4,9 @@ var _assets_by_sample_id: Dictionary = {}
 var _preloaded_streams: Dictionary = {}
 var _play_events: Array[Dictionary] = []
 var _registered_players: Dictionary = {}
+var _master_volume: float = 1.0
+var _key_volume: float = 1.0
+var _bgm_volume: float = 1.0
 
 
 func load_manifest(manifest: Dictionary) -> bool:
@@ -42,6 +45,13 @@ func has_sample(sample_id: int) -> bool:
 
 func preloaded_sample_count() -> int:
 	return _preloaded_streams.size()
+
+
+func set_volume_state(master_volume: float, key_volume: float, bgm_volume: float) -> void:
+	_master_volume = _clamped_volume(master_volume)
+	_key_volume = _clamped_volume(key_volume)
+	_bgm_volume = _clamped_volume(bgm_volume)
+	_update_active_player_volumes()
 
 
 func apply_audio_commands(commands: Array) -> Array[Dictionary]:
@@ -94,6 +104,13 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	var player := AudioStreamPlayer.new()
 	player.name = "Sample_%d_%d" % [sample_id, _play_events.size() + 1]
 	player.stream = stream
+	var sample_volume := _clamped_volume(float(command.get("volume", 1.0)))
+	var uses_bgm_channel := _asset_uses_bgm_channel(asset)
+	var channel_volume := _channel_volume(uses_bgm_channel)
+	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
+	player.volume_db = _volume_db_for_linear(effective_volume)
+	player.set_meta("sample_volume", sample_volume)
+	player.set_meta("uses_bgm_channel", uses_bgm_channel)
 	add_child(player)
 	if player.is_inside_tree():
 		player.play()
@@ -105,6 +122,10 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 		"role": str(asset.get("role", "")),
 		"player": player.name,
 		"registeredInstance": should_register,
+		"sampleVolume": sample_volume,
+		"masterVolume": _master_volume,
+		"channelVolume": channel_volume,
+		"effectiveVolume": effective_volume,
 	}
 	_copy_command_field(command, event, "action")
 	_copy_command_field(command, event, "source")
@@ -169,6 +190,36 @@ func _load_stream_for_asset(asset: Dictionary) -> AudioStream:
 	if path.is_empty():
 		return null
 	return AudioStreamWAV.load_from_file(path)
+
+
+func _asset_uses_bgm_channel(asset: Dictionary) -> bool:
+	var role := str(asset.get("role", "")).to_lower()
+	return role == "background" or role == "bgm"
+
+
+func _channel_volume(uses_bgm_channel: bool) -> float:
+	if uses_bgm_channel:
+		return _bgm_volume
+	return _key_volume
+
+
+func _update_active_player_volumes() -> void:
+	for child in get_children():
+		if child is AudioStreamPlayer and child.has_meta("sample_volume") and child.has_meta("uses_bgm_channel"):
+			var sample_volume := float(child.get_meta("sample_volume"))
+			var uses_bgm_channel := bool(child.get_meta("uses_bgm_channel"))
+			var effective_volume := _clamped_volume(_master_volume * _channel_volume(uses_bgm_channel) * sample_volume)
+			(child as AudioStreamPlayer).volume_db = _volume_db_for_linear(effective_volume)
+
+
+func _clamped_volume(volume: float) -> float:
+	return clampf(volume, 0.0, 1.0)
+
+
+func _volume_db_for_linear(volume: float) -> float:
+	if volume <= 0.0:
+		return -80.0
+	return linear_to_db(volume)
 
 
 func _instance_key(command: Dictionary) -> String:

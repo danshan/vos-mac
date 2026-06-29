@@ -41,6 +41,15 @@ const SPEED_STEP: float = 0.5
 const SPEED_MIN: float = 0.5
 const SPEED_MAX: float = 10.0
 const SPEED_FACTOR: float = 0.005
+const VOLUME_ACTION_MAIN_UP: String = "main_volume_up"
+const VOLUME_ACTION_MAIN_DOWN: String = "main_volume_down"
+const VOLUME_ACTION_KEY_UP: String = "key_volume_up"
+const VOLUME_ACTION_KEY_DOWN: String = "key_volume_down"
+const VOLUME_ACTION_BGM_UP: String = "bgm_volume_up"
+const VOLUME_ACTION_BGM_DOWN: String = "bgm_volume_down"
+const VOLUME_STEP: float = 0.05
+const VOLUME_MIN: float = 0.0
+const VOLUME_MAX: float = 1.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -70,6 +79,9 @@ var _has_distance_update_ms: bool = false
 var _last_speed_update_ms: float = 0.0
 var _has_speed_update_ms: bool = false
 var _pressed_misc_actions: Dictionary = {}
+var _master_volume: float = 1.0
+var _key_volume: float = 1.0
+var _bgm_volume: float = 1.0
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -101,6 +113,9 @@ func load_chart(chart: Dictionary) -> bool:
 	_has_distance_update_ms = false
 	_last_speed_update_ms = 0.0
 	_has_speed_update_ms = true
+	_master_volume = 1.0
+	_key_volume = 1.0
+	_bgm_volume = 1.0
 	return true
 
 
@@ -136,6 +151,24 @@ func press_misc_action(action: String) -> Dictionary:
 		SPEED_ACTION_DOWN:
 			_target_render_speed = max(_target_render_speed - SPEED_STEP, SPEED_MIN)
 			return {"pressed": true, "accepted": true, "action": action, "targetSpeed": _target_render_speed}
+		VOLUME_ACTION_MAIN_UP:
+			_master_volume = _clamped_volume(_master_volume + VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "masterVolume": _master_volume}
+		VOLUME_ACTION_MAIN_DOWN:
+			_master_volume = _clamped_volume(_master_volume - VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "masterVolume": _master_volume}
+		VOLUME_ACTION_KEY_UP:
+			_key_volume = _clamped_volume(_key_volume + VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "keyVolume": _key_volume}
+		VOLUME_ACTION_KEY_DOWN:
+			_key_volume = _clamped_volume(_key_volume - VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "keyVolume": _key_volume}
+		VOLUME_ACTION_BGM_UP:
+			_bgm_volume = _clamped_volume(_bgm_volume + VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "bgmVolume": _bgm_volume}
+		VOLUME_ACTION_BGM_DOWN:
+			_bgm_volume = _clamped_volume(_bgm_volume - VOLUME_STEP)
+			return {"pressed": true, "accepted": true, "action": action, "bgmVolume": _bgm_volume}
 		_:
 			return {"pressed": true, "accepted": false, "reason": "unknown_misc_action"}
 
@@ -153,6 +186,14 @@ func drain_audio_commands() -> Array[Dictionary]:
 		drained.append(command.duplicate(true))
 	_audio_commands.clear()
 	return drained
+
+
+func volume_state() -> Dictionary:
+	return {
+		"masterVolume": _master_volume,
+		"keyVolume": _key_volume,
+		"bgmVolume": _bgm_volume,
+	}
 
 
 func pressed_lanes() -> Array[int]:
@@ -174,6 +215,9 @@ func render_state(now_ms: float) -> Dictionary:
 		"statusTexts": _status_texts(now_ms),
 		"renderSpeed": _render_speed,
 		"targetSpeed": _target_render_speed,
+		"masterVolume": _master_volume,
+		"keyVolume": _key_volume,
+		"bgmVolume": _bgm_volume,
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -767,6 +811,10 @@ func _sample_command(action: String, source: String, trigger: String, sample: Di
 func _emit_audio_command(command: Dictionary) -> Dictionary:
 	_audio_commands.append(command.duplicate(true))
 	return command.duplicate(true)
+
+
+func _clamped_volume(volume: float) -> float:
+	return clampf(volume, VOLUME_MIN, VOLUME_MAX)
 
 
 func _audio_commands_since(start_index: int) -> Array[Dictionary]:

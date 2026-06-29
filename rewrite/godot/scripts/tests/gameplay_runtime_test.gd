@@ -26,6 +26,8 @@ func _init() -> void:
 		return
 	if not _test_java_speed_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -211,6 +213,55 @@ func _test_java_speed_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionary
 	return true
 
 
+func _test_java_volume_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "volume misc runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(initial_state.get("masterVolume", -1.0)), 1.0, "initial master volume"):
+		return false
+	if not _expect_float(float(initial_state.get("keyVolume", -1.0)), 1.0, "initial key volume"):
+		return false
+	if not _expect_float(float(initial_state.get("bgmVolume", -1.0)), 1.0, "initial bgm volume"):
+		return false
+
+	_send_input_action(runtime, "main_volume_down", true)
+	var main_down_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(main_down_state.get("masterVolume", -1.0)), 0.95, "main volume down"):
+		return false
+
+	_send_input_action(runtime, "main_volume_down", true)
+	var repeated_main_down_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(repeated_main_down_state.get("masterVolume", -1.0)), 0.95, "held main volume down does not repeat"):
+		return false
+
+	_send_input_action(runtime, "main_volume_down", false)
+	_send_input_action(runtime, "main_volume_down", true)
+	var second_main_down_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(second_main_down_state.get("masterVolume", -1.0)), 0.9, "second main volume down"):
+		return false
+
+	_send_input_action(runtime, "main_volume_up", true)
+	var main_up_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(main_up_state.get("masterVolume", -1.0)), 0.95, "main volume up"):
+		return false
+
+	_send_input_action(runtime, "key_volume_down", true)
+	var key_down_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(key_down_state.get("keyVolume", -1.0)), 0.95, "key volume down"):
+		return false
+
+	_send_input_action(runtime, "bgm_volume_down", true)
+	var bgm_down_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(bgm_down_state.get("bgmVolume", -1.0)), 0.95, "bgm volume down"):
+		return false
+
+	runtime.free()
+	return true
+
+
 func _test_java_finish_uses_buffered_autoplay(audio_manifest: Dictionary) -> bool:
 	var chart := {
 		"schemaVersion": 1,
@@ -302,6 +353,13 @@ func _test_java_finish_waits_for_note_layer(audio_manifest: Dictionary) -> bool:
 
 	runtime.free()
 	return true
+
+
+func _send_input_action(runtime: GameplayRuntime, action: String, pressed: bool) -> void:
+	var input_event := InputEventAction.new()
+	input_event.action = action
+	input_event.pressed = pressed
+	runtime._unhandled_input(input_event)
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

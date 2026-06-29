@@ -4,9 +4,21 @@ const LANE_COUNT: int = 7
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
 const ACTION_SPEED_UP: String = "speed_up"
 const ACTION_SPEED_DOWN: String = "speed_down"
+const ACTION_MAIN_VOLUME_UP: String = "main_volume_up"
+const ACTION_MAIN_VOLUME_DOWN: String = "main_volume_down"
+const ACTION_KEY_VOLUME_UP: String = "key_volume_up"
+const ACTION_KEY_VOLUME_DOWN: String = "key_volume_down"
+const ACTION_BGM_VOLUME_UP: String = "bgm_volume_up"
+const ACTION_BGM_VOLUME_DOWN: String = "bgm_volume_down"
 const DEFAULT_MISC_KEY_BINDINGS: Dictionary = {
 	ACTION_SPEED_UP: "Up",
 	ACTION_SPEED_DOWN: "Down",
+	ACTION_MAIN_VOLUME_UP: "2",
+	ACTION_MAIN_VOLUME_DOWN: "1",
+	ACTION_KEY_VOLUME_UP: "4",
+	ACTION_KEY_VOLUME_DOWN: "3",
+	ACTION_BGM_VOLUME_UP: "6",
+	ACTION_BGM_VOLUME_DOWN: "5",
 }
 
 var _key_bindings: Array[String] = DEFAULT_KEY_BINDINGS.duplicate()
@@ -53,7 +65,16 @@ func lane_for_action(action: String) -> int:
 
 
 func misc_actions() -> Array[String]:
-	return [ACTION_SPEED_UP, ACTION_SPEED_DOWN]
+	return [
+		ACTION_SPEED_UP,
+		ACTION_SPEED_DOWN,
+		ACTION_MAIN_VOLUME_UP,
+		ACTION_MAIN_VOLUME_DOWN,
+		ACTION_KEY_VOLUME_UP,
+		ACTION_KEY_VOLUME_DOWN,
+		ACTION_BGM_VOLUME_UP,
+		ACTION_BGM_VOLUME_DOWN,
+	]
 
 
 func apply_to_godot_input_map() -> bool:

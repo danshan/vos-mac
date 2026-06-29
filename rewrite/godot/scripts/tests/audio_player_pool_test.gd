@@ -49,18 +49,39 @@ func _init() -> void:
 	var stopped: int = pool.stop_all()
 	if not _expect_int(stopped, 1, "stopped players"):
 		return
+	if not _expect_bool(pool.has_method("set_volume_state"), true, "volume state method"):
+		return
+	pool.set_volume_state(0.5, 0.25, 0.75)
 
 	var note_play: Dictionary = pool.apply_audio_command({
 		"action": "playSample",
 		"source": "note",
 		"trigger": "keysound",
 		"sampleId": 1,
+		"volume": 0.8,
 		"noteId": 100,
 	})
 	if not _expect_bool(note_play.get("played", false), true, "note keysound command played"):
 		return
 	if not _expect_bool(note_play.get("registeredInstance", false), true, "note keysound registers instance"):
 		return
+	if not _expect_float(float(note_play.get("sampleVolume", -1.0)), 0.8, "note sample volume"):
+		return
+	if not _expect_float(float(note_play.get("masterVolume", -1.0)), 0.5, "note master volume"):
+		return
+	if not _expect_float(float(note_play.get("channelVolume", -1.0)), 0.25, "note channel volume"):
+		return
+	if not _expect_float(float(note_play.get("effectiveVolume", -1.0)), 0.1, "note effective volume"):
+		return
+	var note_player: Node = pool.get_node(str(note_play.get("player", "")))
+	if not _expect_bool(note_player is AudioStreamPlayer, true, "note player node type"):
+		return
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.1, "note player initial db volume"):
+		return
+	pool.set_volume_state(0.4, 0.5, 0.75)
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.16, "active note player volume update"):
+		return
+	pool.set_volume_state(0.5, 0.25, 0.75)
 
 	var note_stop: Dictionary = pool.apply_audio_command({
 		"action": "stopSample",
@@ -105,12 +126,20 @@ func _init() -> void:
 		return
 
 	var batch_results: Array[Dictionary] = pool.apply_audio_commands([
-		{"action": "playSample", "source": "autoPlay", "trigger": "autosound", "sampleId": 2},
+		{"action": "playSample", "source": "autoPlay", "trigger": "autosound", "sampleId": 2, "volume": 0.8},
 		{"action": "unknown", "sampleId": 2},
 	])
 	if not _expect_int(batch_results.size(), 2, "batch result count"):
 		return
 	if not _expect_bool(batch_results[0].get("played", false), true, "batch autoplay played"):
+		return
+	if not _expect_float(float(batch_results[0].get("sampleVolume", -1.0)), 0.8, "autoplay sample volume"):
+		return
+	if not _expect_float(float(batch_results[0].get("masterVolume", -1.0)), 0.5, "autoplay master volume"):
+		return
+	if not _expect_float(float(batch_results[0].get("channelVolume", -1.0)), 0.75, "autoplay channel volume"):
+		return
+	if not _expect_float(float(batch_results[0].get("effectiveVolume", -1.0)), 0.3, "autoplay effective volume"):
 		return
 	if not _expect_string(batch_results[1].get("reason", ""), "unknown_action", "unknown action reason"):
 		return
@@ -137,6 +166,14 @@ func _expect_int(actual: int, expected: int, label: String) -> bool:
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
+	if absf(actual - expected) > 0.0001:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

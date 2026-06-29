@@ -37,11 +37,35 @@ func _init() -> void:
 		return
 	if not _expect_bool(InputMap.has_action("speed_down"), true, "speed down input action exists"):
 		return
+	if not _expect_bool(InputMap.has_action("main_volume_up"), true, "main volume up input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("main_volume_down"), true, "main volume down input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("key_volume_up"), true, "key volume up input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("key_volume_down"), true, "key volume down input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("bgm_volume_up"), true, "bgm volume up input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("bgm_volume_down"), true, "bgm volume down input action exists"):
+		return
 	if not _expect_int(InputMap.action_get_events("vos_lane_1").size(), 1, "first input action event count"):
 		return
 	if not _expect_int(InputMap.action_get_events("speed_up").size(), 1, "speed up input action event count"):
 		return
 	if not _expect_int(InputMap.action_get_events("speed_down").size(), 1, "speed down input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("main_volume_up").size(), 1, "main volume up input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("main_volume_down").size(), 1, "main volume down input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("key_volume_up").size(), 1, "key volume up input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("key_volume_down").size(), 1, "key volume down input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("bgm_volume_up").size(), 1, "bgm volume up input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("bgm_volume_down").size(), 1, "bgm volume down input action event count"):
 		return
 
 	quit(0)

@@ -681,6 +681,24 @@ func _init() -> void:
 	if not _expect_float(mirrored_note_node.position.x, 165.0, "mirrored dynamic note x"):
 		return
 	mirror_view.free()
+	var shuffle_chart: Dictionary = chart.duplicate(true)
+	shuffle_chart["channelModifier"] = "Shuffle"
+	shuffle_chart["channelMap"] = [6, 4, 2, 3, 1, 5, 0]
+	var shuffle_path := _chart_path("shuffle_modifier_render")
+	if not _write_chart(shuffle_path, shuffle_chart):
+		return
+	var shuffled_chart: Dictionary = gameplay_loader.load_from_file(shuffle_path)
+	if not _expect_bool(shuffled_chart.is_empty(), false, "shuffled render chart load"):
+		return
+	var shuffle_view = GameplayView.new()
+	if not _expect_bool(shuffle_view.load_metadata(metadata), true, "shuffle view metadata load"):
+		return
+	if not _expect_bool(shuffle_view.load_chart(shuffled_chart), true, "shuffle view chart load"):
+		return
+	var shuffled_note_node: Control = shuffle_view.get_node("Note_000")
+	if not _expect_float(shuffled_note_node.position.x, 165.0, "shuffled dynamic note x"):
+		return
+	shuffle_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):

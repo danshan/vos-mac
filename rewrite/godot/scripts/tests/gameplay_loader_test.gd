@@ -63,6 +63,28 @@ func _init() -> void:
 	if not _expect_int(int(mirrored_notes[2].get("lane", -1)), 0, "mirror lane seven to one"):
 		return
 
+	var shuffle_chart: Dictionary = _valid_chart()
+	shuffle_chart["channelModifier"] = "Shuffle"
+	shuffle_chart["channelMap"] = [6, 4, 2, 3, 1, 5, 0]
+	shuffle_chart["notes"] = [
+		{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 2, "lane": 1, "startMs": 1100.0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 3, "lane": 6, "startMs": 1200.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
+	var shuffle_path := _chart_path("shuffle_modifier")
+	if not _write_chart(shuffle_path, shuffle_chart):
+		return
+	var shuffled_chart: Dictionary = loader.load_from_file(shuffle_path)
+	if not _expect_bool(shuffled_chart.is_empty(), false, "shuffle chart load"):
+		return
+	var shuffled_notes: Array = shuffled_chart.get("notes", [])
+	if not _expect_int(int(shuffled_notes[0].get("lane", -1)), 6, "shuffle lane one"):
+		return
+	if not _expect_int(int(shuffled_notes[1].get("lane", -1)), 4, "shuffle lane two"):
+		return
+	if not _expect_int(int(shuffled_notes[2].get("lane", -1)), 0, "shuffle lane seven"):
+		return
+
 	if not _expect_rejected(loader, _chart_with("schemaVersion", 2), "bad schema"):
 		return
 	if not _expect_rejected(loader, _chart_with("keys", "7"), "string keys"):

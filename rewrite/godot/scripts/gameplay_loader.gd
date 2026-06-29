@@ -12,6 +12,7 @@ const REQUIRED_NOTE_FIELDS: Array[String] = [
 const VALID_NOTE_KINDS := ["tap", "holdStart", "holdEnd"]
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MOD_MIRROR: String = "Mirror"
+const CHANNEL_MOD_SHUFFLE: String = "Shuffle"
 
 
 func load_from_file(path: String) -> Dictionary:
@@ -75,6 +76,11 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	if channel_modifier.is_empty():
 		return {}
 	normalized_chart["channelModifier"] = channel_modifier
+	var channel_map: Array[int] = _channel_map_for_modifier(int(keys), channel_modifier, normalized_chart.get("channelMap", []))
+	if channel_modifier == CHANNEL_MOD_SHUFFLE:
+		if channel_map.is_empty():
+			return {}
+		normalized_chart["channelMap"] = channel_map
 	if normalized_chart.has("rank"):
 		var rank: Variant = normalized_chart.get("rank")
 		if not _is_integer_like(rank) or int(rank) < 0:
@@ -90,7 +96,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		if not speed_type is String or str(speed_type).is_empty():
 			return {}
 		normalized_chart["speedType"] = str(speed_type)
-	normalized_chart["notes"] = _notes_with_channel_modifier(normalized_notes, int(keys), channel_modifier)
+	normalized_chart["notes"] = _notes_with_channel_modifier(normalized_notes, int(keys), channel_modifier, channel_map)
 	normalized_chart["autoPlayEvents"] = normalized_events
 	return normalized_chart
 
@@ -200,14 +206,41 @@ func _normalized_channel_modifier(value: Variant) -> String:
 		return CHANNEL_MOD_NONE
 	if modifier == CHANNEL_MOD_MIRROR:
 		return CHANNEL_MOD_MIRROR
+	if modifier == CHANNEL_MOD_SHUFFLE:
+		return CHANNEL_MOD_SHUFFLE
 	return ""
 
 
-func _notes_with_channel_modifier(notes: Array[Dictionary], keys: int, modifier: String) -> Array[Dictionary]:
+func _channel_map_for_modifier(keys: int, modifier: String, raw_map: Variant) -> Array[int]:
+	var channel_map: Array[int] = []
+	if modifier != CHANNEL_MOD_SHUFFLE:
+		return channel_map
+	if raw_map is Array:
+		if raw_map.size() != keys:
+			return []
+		var used := {}
+		for raw_lane: Variant in raw_map:
+			if not _is_integer_like(raw_lane):
+				return []
+			var lane := int(raw_lane)
+			if lane < 0 or lane >= keys or used.has(lane):
+				return []
+			channel_map.append(lane)
+			used[lane] = true
+		return channel_map
+	for lane in range(keys):
+		channel_map.append(lane)
+	channel_map.shuffle()
+	return channel_map
+
+
+func _notes_with_channel_modifier(notes: Array[Dictionary], keys: int, modifier: String, channel_map: Array[int]) -> Array[Dictionary]:
 	var remapped: Array[Dictionary] = []
 	for note: Dictionary in notes:
 		var mapped_note: Dictionary = note.duplicate(true)
 		if modifier == CHANNEL_MOD_MIRROR:
 			mapped_note["lane"] = keys - 1 - int(mapped_note.get("lane", -1))
+		elif modifier == CHANNEL_MOD_SHUFFLE:
+			mapped_note["lane"] = channel_map[int(mapped_note.get("lane", -1))]
 		remapped.append(mapped_note)
 	return remapped

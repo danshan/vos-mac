@@ -59,6 +59,7 @@ func _init() -> void:
 		"trigger": "keysound",
 		"sampleId": 1,
 		"volume": 0.8,
+		"pan": -1.5,
 		"noteId": 100,
 	})
 	if not _expect_bool(note_play.get("played", false), true, "note keysound command played"):
@@ -73,8 +74,12 @@ func _init() -> void:
 		return
 	if not _expect_float(float(note_play.get("effectiveVolume", -1.0)), 0.1, "note effective volume"):
 		return
+	if not _expect_float(float(note_play.get("pan", 0.0)), -1.0, "note clamped pan"):
+		return
 	var note_player: Node = pool.get_node(str(note_play.get("player", "")))
 	if not _expect_bool(note_player is AudioStreamPlayer, true, "note player node type"):
+		return
+	if not _expect_float(float(note_player.get_meta("pan", 0.0)), -1.0, "note player pan metadata"):
 		return
 	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.1, "note player initial db volume"):
 		return
@@ -126,7 +131,7 @@ func _init() -> void:
 		return
 
 	var batch_results: Array[Dictionary] = pool.apply_audio_commands([
-		{"action": "playSample", "source": "autoPlay", "trigger": "autosound", "sampleId": 2, "volume": 0.8},
+		{"action": "playSample", "source": "autoPlay", "trigger": "autosound", "sampleId": 2, "volume": 0.8, "pan": 0.5},
 		{"action": "unknown", "sampleId": 2},
 	])
 	if not _expect_int(batch_results.size(), 2, "batch result count"):
@@ -140,6 +145,8 @@ func _init() -> void:
 	if not _expect_float(float(batch_results[0].get("channelVolume", -1.0)), 0.75, "autoplay channel volume"):
 		return
 	if not _expect_float(float(batch_results[0].get("effectiveVolume", -1.0)), 0.3, "autoplay effective volume"):
+		return
+	if not _expect_float(float(batch_results[0].get("pan", 0.0)), 0.5, "autoplay pan"):
 		return
 	if not _expect_string(batch_results[1].get("reason", ""), "unknown_action", "unknown action reason"):
 		return

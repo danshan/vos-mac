@@ -105,12 +105,14 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	player.name = "Sample_%d_%d" % [sample_id, _play_events.size() + 1]
 	player.stream = stream
 	var sample_volume := _clamped_volume(float(command.get("volume", 1.0)))
+	var pan := _clamped_pan(float(command.get("pan", 0.0)))
 	var uses_bgm_channel := _asset_uses_bgm_channel(asset)
 	var channel_volume := _channel_volume(uses_bgm_channel)
 	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
 	player.volume_db = _volume_db_for_linear(effective_volume)
 	player.set_meta("sample_volume", sample_volume)
 	player.set_meta("uses_bgm_channel", uses_bgm_channel)
+	player.set_meta("pan", pan)
 	add_child(player)
 	if player.is_inside_tree():
 		player.play()
@@ -126,6 +128,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 		"masterVolume": _master_volume,
 		"channelVolume": channel_volume,
 		"effectiveVolume": effective_volume,
+		"pan": pan,
 	}
 	_copy_command_field(command, event, "action")
 	_copy_command_field(command, event, "source")
@@ -214,6 +217,10 @@ func _update_active_player_volumes() -> void:
 
 func _clamped_volume(volume: float) -> float:
 	return clampf(volume, 0.0, 1.0)
+
+
+func _clamped_pan(pan: float) -> float:
+	return clampf(pan, -1.0, 1.0)
 
 
 func _volume_db_for_linear(volume: float) -> float:

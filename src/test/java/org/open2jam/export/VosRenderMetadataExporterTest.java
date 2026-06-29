@@ -1,0 +1,29 @@
+package org.open2jam.export;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
+
+class VosRenderMetadataExporterTest {
+    @Test
+    void exportsDefaultO2JamRenderMetadata() throws Exception {
+        String json = new VosRenderMetadataExporter().exportDefaultMetadata();
+
+        assertTrue(json.contains("\"schemaVersion\":1"));
+        assertTrue(json.contains("\"format\":\"VOS_RENDER_METADATA\""));
+        assertTrue(json.contains("\"skin\":\"o2jam\""));
+        assertTrue(json.contains("\"baseWidth\":800.0"));
+        assertTrue(json.contains("\"baseHeight\":600.0"));
+        assertTrue(json.contains("\"judgmentLine\":480"));
+        assertTrue(json.contains("\"measureSize\":385.0"));
+        assertTrue(json.contains("\"id\":\"NOTE_1\""));
+        assertTrue(json.contains("\"id\":\"LONG_NOTE_1\""));
+        assertTrue(json.contains("\"id\":\"JAM_BAR\""));
+        assertTrue(json.contains("\"id\":\"SCORE_COUNTER\""));
+        assertTrue(json.contains("\"id\":\"EFFECT_JUDGMENT_COOL\""));
+        assertTrue(json.contains("\"channel\":\"NOTE_1\""));
+        assertTrue(json.contains("\"lane\":0"));
+        assertTrue(json.contains("\"x\":5.0"));
+        assertTrue(json.contains("\"width\":28.0"));
+    }
+}

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mvn -s .mvn/settings.xml -Dtest=JsonWriterTest,VosCatalogExporterTest,VosGameplayExporterTest,VosAudioExporterTest,MainVosExportCliTest test
+mvn -s .mvn/settings.xml -Dtest=JsonWriterTest,VosCatalogExporterTest,VosGameplayExporterTest,VosAudioExporterTest,VosRenderMetadataExporterTest,MainVosExportCliTest test
 
 godot --headless --path rewrite/godot --script res://scripts/tests/app_state_test.gd
 godot --headless --path rewrite/godot --script res://scripts/tests/main_ui_test.gd

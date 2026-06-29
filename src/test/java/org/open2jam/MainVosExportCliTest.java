@@ -74,6 +74,21 @@ class MainVosExportCliTest {
     }
 
     @Test
+    void exportsVosRenderMetadataFromCliWithoutStartingGui() throws Exception {
+        File outputFile = new File(tempDir, "exports/render/render-metadata.json");
+        CliResult result = runCli("--export-vos-render-metadata", "--output", outputFile.getPath());
+
+        assertEquals(0, result.status);
+        assertEquals("", result.stdout);
+        assertEquals("", result.stderr);
+        assertTrue(outputFile.getParentFile().isDirectory());
+        String json = Files.readString(outputFile.toPath(), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"format\":\"VOS_RENDER_METADATA\""));
+        assertTrue(json.contains("\"id\":\"NOTE_1\""));
+        assertTrue(json.contains("\"id\":\"JAM_BAR\""));
+    }
+
+    @Test
     void ignoresUnknownCliArgumentsSoGuiStartupCanContinue() throws Exception {
         CliResult result = runCli("--unknown");
 
@@ -94,6 +109,9 @@ class MainVosExportCliTest {
                 new String[] {"--export-vos-audio", "--output", "manifest.json", "--asset-dir"},
                 "Usage: open2jam --export-vos-audio --output <manifest> --asset-dir <directory> <file.vos>");
         assertUsageError(
+                new String[] {"--export-vos-render-metadata", "--output"},
+                "Usage: open2jam --export-vos-render-metadata --output <file>");
+        assertUsageError(
                 new String[] {"--export-vos-selected", "--out-dir"},
                 "Usage: open2jam --export-vos-selected --out-dir <directory> <file.vos>");
     }
@@ -111,6 +129,7 @@ class MainVosExportCliTest {
         assertTrue(new File(outDir, "catalog.json").isFile());
         assertTrue(new File(outDir, "gameplay.json").isFile());
         assertTrue(new File(outDir, "audio-manifest.json").isFile());
+        assertTrue(new File(outDir, "render-metadata.json").isFile());
         File assetDir = new File(outDir, "audio");
         assertTrue(assetDir.isDirectory());
         assertTrue(new File(assetDir, "sample-1.wav").isFile());

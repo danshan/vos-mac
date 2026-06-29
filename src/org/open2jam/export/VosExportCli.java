@@ -13,6 +13,7 @@ public final class VosExportCli {
     private static final String EXPORT_CATALOG = "--export-vos-catalog";
     private static final String EXPORT_GAMEPLAY = "--export-vos-gameplay";
     private static final String EXPORT_AUDIO = "--export-vos-audio";
+    private static final String EXPORT_RENDER_METADATA = "--export-vos-render-metadata";
     private static final String EXPORT_SELECTED = "--export-vos-selected";
 
     private VosExportCli() {
@@ -22,6 +23,7 @@ public final class VosExportCli {
         return EXPORT_CATALOG.equals(arg)
                 || EXPORT_GAMEPLAY.equals(arg)
                 || EXPORT_AUDIO.equals(arg)
+                || EXPORT_RENDER_METADATA.equals(arg)
                 || EXPORT_SELECTED.equals(arg);
     }
 
@@ -39,6 +41,9 @@ public final class VosExportCli {
             }
             if (EXPORT_AUDIO.equals(args[0])) {
                 return exportAudio(args, err);
+            }
+            if (EXPORT_RENDER_METADATA.equals(args[0])) {
+                return exportRenderMetadata(args, err);
             }
             return exportSelected(args, err);
         } catch (Exception e) {
@@ -74,6 +79,15 @@ public final class VosExportCli {
         return STATUS_SUCCESS;
     }
 
+    private static int exportRenderMetadata(String[] args, PrintStream err) throws Exception {
+        if (args.length != 3 || !"--output".equals(args[1])) {
+            err.println("Usage: open2jam --export-vos-render-metadata --output <file>");
+            return STATUS_USAGE_ERROR;
+        }
+        writeJson(new File(args[2]), new VosRenderMetadataExporter().exportDefaultMetadata());
+        return STATUS_SUCCESS;
+    }
+
     private static int exportSelected(String[] args, PrintStream err) throws Exception {
         if (args.length != 4 || !"--out-dir".equals(args[1])) {
             err.println("Usage: open2jam --export-vos-selected --out-dir <directory> <file.vos>");
@@ -86,6 +100,8 @@ public final class VosExportCli {
         writeJson(ExportPaths.child(outDir, "catalog.json"), new VosCatalogExporter().exportCatalog(input));
         writeJson(ExportPaths.child(outDir, "gameplay.json"), new VosGameplayExporter().exportGameplay(input));
         writeJson(ExportPaths.child(outDir, "audio-manifest.json"), new VosAudioExporter().exportAudio(input, audioDir));
+        writeJson(ExportPaths.child(outDir, "render-metadata.json"),
+                new VosRenderMetadataExporter().exportDefaultMetadata());
         return STATUS_SUCCESS;
     }
 

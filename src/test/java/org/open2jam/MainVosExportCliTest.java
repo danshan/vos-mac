@@ -35,6 +35,45 @@ class MainVosExportCliTest {
     }
 
     @Test
+    void exportsVosGameplayFromCliWithoutStartingGui() throws Exception {
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "gameplay.vos", 7, true, true, false);
+        File outputFile = new File(tempDir, "exports/gameplay/gameplay.json");
+        CliResult result = runCli("--export-vos-gameplay", "--output", outputFile.getPath(), chartFile.getPath());
+
+        assertEquals(0, result.status);
+        assertEquals("", result.stdout);
+        assertEquals("", result.stderr);
+        assertTrue(outputFile.getParentFile().isDirectory());
+        String json = Files.readString(outputFile.toPath(), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"format\":\"VOS\""));
+        assertTrue(json.contains("\"title\":\"Canon in D\""));
+        assertTrue(json.contains("\"notes\""));
+    }
+
+    @Test
+    void exportsVosAudioFromCliWithoutStartingGui() throws Exception {
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "audio.vos", 7, VOS_DROID_CHANNEL_COUNT,
+                VOS_DROID_PLAYABLE_CHANNEL_INDEX, INCLUDE_DISTRACTOR_NOTE);
+        File manifestFile = new File(tempDir, "exports/audio/audio-manifest.json");
+        File assetDir = new File(tempDir, "exports/audio-assets");
+        CliResult result = runCli("--export-vos-audio", "--output", manifestFile.getPath(),
+                "--asset-dir", assetDir.getPath(), chartFile.getPath());
+
+        assertEquals(0, result.status);
+        assertEquals("", result.stdout);
+        assertEquals("", result.stderr);
+        assertTrue(manifestFile.getParentFile().isDirectory());
+        assertTrue(manifestFile.isFile());
+        assertTrue(assetDir.isDirectory());
+        assertTrue(new File(assetDir, "sample-1.wav").isFile());
+        assertTrue(new File(assetDir, "sample-2.wav").isFile());
+        String json = Files.readString(manifestFile.toPath(), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"assets\""));
+        assertTrue(json.contains("\"fileName\":\"sample-1.wav\""));
+        assertTrue(json.contains("\"fileName\":\"sample-2.wav\""));
+    }
+
+    @Test
     void ignoresUnknownCliArgumentsSoGuiStartupCanContinue() throws Exception {
         CliResult result = runCli("--unknown");
 
@@ -45,12 +84,18 @@ class MainVosExportCliTest {
 
     @Test
     void reportsUsageErrorsForVosExportCommands() throws Exception {
-        CliResult result = runCli("--export-vos-catalog", "--output");
-
-        assertEquals(2, result.status);
-        assertEquals("", result.stdout);
-        assertTrue(result.stderr.contains(
-                "Usage: open2jam --export-vos-catalog --output <file> <file-or-directory>"));
+        assertUsageError(
+                new String[] {"--export-vos-catalog", "--output"},
+                "Usage: open2jam --export-vos-catalog --output <file> <file-or-directory>");
+        assertUsageError(
+                new String[] {"--export-vos-gameplay", "--output"},
+                "Usage: open2jam --export-vos-gameplay --output <file> <file.vos>");
+        assertUsageError(
+                new String[] {"--export-vos-audio", "--output", "manifest.json", "--asset-dir"},
+                "Usage: open2jam --export-vos-audio --output <manifest> --asset-dir <directory> <file.vos>");
+        assertUsageError(
+                new String[] {"--export-vos-selected", "--out-dir"},
+                "Usage: open2jam --export-vos-selected --out-dir <directory> <file.vos>");
     }
 
     @Test
@@ -70,6 +115,14 @@ class MainVosExportCliTest {
         assertTrue(assetDir.isDirectory());
         assertTrue(new File(assetDir, "sample-1.wav").isFile());
         assertTrue(new File(assetDir, "sample-2.wav").isFile());
+    }
+
+    private static void assertUsageError(String[] args, String expectedUsage) throws Exception {
+        CliResult result = runCli(args);
+
+        assertEquals(2, result.status);
+        assertEquals("", result.stdout);
+        assertTrue(result.stderr.contains(expectedUsage));
     }
 
     private static CliResult runCli(String... args) throws Exception {

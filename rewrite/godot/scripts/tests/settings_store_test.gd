@@ -4,8 +4,10 @@ const SettingsStore = preload("res://scripts/settings_store.gd")
 
 func _init() -> void:
 	var store = SettingsStore.new()
+	var input_directories: Array[String] = ["/tmp/vos"]
 
-	store.set_song_directories(["/tmp/vos"])
+	store.set_song_directories(input_directories)
+	input_directories.append("/tmp/input-mutated")
 	store.set_fullscreen_enabled(true)
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):

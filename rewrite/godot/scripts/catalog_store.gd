@@ -1,5 +1,20 @@
 extends RefCounted
 
+const REQUIRED_ENTRY_FIELDS: Array[String] = [
+	"id",
+	"format",
+	"sourcePath",
+	"title",
+	"artist",
+	"keys",
+	"level",
+	"levelKnown",
+	"bpm",
+	"durationMs",
+	"noteCount",
+	"exportStatus",
+]
+
 var _entries: Array[Dictionary] = []
 
 
@@ -22,8 +37,14 @@ func load_from_file(path: String) -> bool:
 
 	var next_entries: Array[Dictionary] = []
 	for raw_entry: Variant in raw_entries:
-		if raw_entry is Dictionary:
-			next_entries.append(raw_entry)
+		if not raw_entry is Dictionary:
+			return false
+
+		var entry: Dictionary = raw_entry
+		if not _is_valid_entry(entry):
+			return false
+
+		next_entries.append(entry)
 
 	_entries = next_entries
 	return true
@@ -44,3 +65,10 @@ func filter(text: String) -> Array[Dictionary]:
 			results.append(entry)
 
 	return results
+
+
+func _is_valid_entry(entry: Dictionary) -> bool:
+	for field: String in REQUIRED_ENTRY_FIELDS:
+		if not entry.has(field):
+			return false
+	return true

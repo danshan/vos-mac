@@ -16,8 +16,13 @@ func _init() -> void:
 	if not _expect_int(store.filter("missing").size(), 0, "missing filter count"):
 		return
 
-	var missing_store = CatalogStore.new()
-	if not _expect_bool(missing_store.load_from_file("res://test/fixtures/missing.json"), false, "missing file load"):
+	if not _expect_bool(store.load_from_file("res://test/fixtures/missing.json"), false, "missing file load"):
+		return
+	if not _expect_int(store.count(), 1, "count after missing file load"):
+		return
+	if not _expect_bool(store.load_from_file("res://test/fixtures/malformed_catalog.json"), false, "malformed file load"):
+		return
+	if not _expect_int(store.count(), 1, "count after malformed file load"):
 		return
 
 	quit(0)

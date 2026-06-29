@@ -13,6 +13,7 @@ var _input_map = InputMapStore.new()
 var _audio_pool: Node = null
 var _running: bool = false
 var _elapsed_ms: float = 0.0
+var _game_time_ms: float = 0.0
 var _duration_ms: float = 0.0
 var _finish_after_ms: float = -1.0
 var _fps_elapsed_ms: float = 0.0
@@ -74,6 +75,7 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 		return false
 
 	_elapsed_ms = 0.0
+	_game_time_ms = 0.0
 	_duration_ms = float(chart.get("durationMs", 0.0))
 	_finish_after_ms = -1.0
 	_fps_elapsed_ms = 0.0
@@ -101,6 +103,10 @@ func elapsed_ms() -> float:
 	return _elapsed_ms
 
 
+func game_time_ms() -> float:
+	return _game_time_ms
+
+
 func set_key_bindings(bindings: Array) -> bool:
 	if not _input_map.set_key_bindings(bindings):
 		return false
@@ -115,9 +121,11 @@ func advance_to(now_ms: float) -> void:
 
 	var next_elapsed_ms: float = max(now_ms, _elapsed_ms)
 	var delta_ms: float = next_elapsed_ms - _elapsed_ms
+	var audio_state := _controller.audio_state()
 	_elapsed_ms = next_elapsed_ms
+	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
 	_update_fps_counter(delta_ms)
-	_controller.advance_to(_elapsed_ms)
+	_controller.advance_to(_game_time_ms)
 	_apply_audio_commands()
 
 	if _controller.note_layer_empty() and _controller.event_buffer_empty():
@@ -150,12 +158,13 @@ func result() -> Dictionary:
 func hud_state() -> Dictionary:
 	var state := result()
 	state["elapsedMs"] = int(round(_elapsed_ms))
+	state["gameTimeMs"] = int(round(_game_time_ms))
 	state["durationMs"] = int(round(_duration_ms))
 	state["fps"] = _display_fps
 	state["minute"] = _display_minute
 	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
-	state.merge(_controller.render_state(_elapsed_ms), true)
+	state.merge(_controller.render_state(_game_time_ms), true)
 	return state
 
 
@@ -189,7 +198,7 @@ func _apply_audio_commands() -> void:
 func _time_for_input(now_ms: float) -> float:
 	if now_ms >= 0.0:
 		return now_ms
-	return _elapsed_ms
+	return _game_time_ms
 
 
 func _update_fps_counter(delta_ms: float) -> void:

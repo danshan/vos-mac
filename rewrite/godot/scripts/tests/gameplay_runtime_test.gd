@@ -277,6 +277,7 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 		"hasteModeNormalizeSpeed": true,
 		"notes": [
 			{"id": 1, "lane": 0, "startMs": 6100.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 9200.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"measures": [
 			{"startMs": 0.0},
@@ -286,6 +287,9 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 			{"startMs": 4000.0},
 			{"startMs": 5000.0},
 			{"startMs": 6000.0},
+			{"startMs": 7000.0},
+			{"startMs": 8000.0},
+			{"startMs": 9000.0},
 		],
 		"autoPlayEvents": [],
 	}
@@ -318,6 +322,14 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 	if not _expect_int(events.size(), 1, "haste audio event count"):
 		return false
 	if not _expect_float(float(events[0].get("pitchScale", -1.0)), expected_pitch, "haste event pitch scale"):
+		return false
+
+	runtime.advance_to(9000.0)
+	var accelerated_hit: Dictionary = runtime.press_action("vos_lane_2")
+	if not _expect_bool(accelerated_hit.get("accepted", false), true, "haste game time hit accepted"):
+		return false
+	var expected_hit_time := 9200.0 - (6001.0 + (9000.0 - 6001.0) * expected_pitch)
+	if not _expect_float(float(accelerated_hit.get("hitTime", 0.0)), expected_hit_time, "haste game time hit window"):
 		return false
 
 	runtime.free()

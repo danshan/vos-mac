@@ -21,6 +21,17 @@ import org.junit.jupiter.api.io.TempDir;
 import org.open2jam.parsers.utils.SampleData;
 
 class VOSParserTest {
+    private static final boolean LONG_NOTE_ONLY = true;
+    private static final boolean INCLUDE_DISTRACTOR_NOTE = true;
+    private static final boolean PLAYABLE_ONLY = false;
+    private static final boolean REPEATED_LIVE_SAMPLES = true;
+    private static final int VOS_DROID_CHANNEL_COUNT = 17;
+    private static final int VOS_DROID_PLAYABLE_CHANNEL_INDEX = 16;
+    private static final int EMBEDDED_MIDI_CHANNEL = 0;
+    private static final int EMBEDDED_MIDI_PROGRAM = 40;
+    private static final int EMBEDDED_MIDI_CONTROLLER = 7;
+    private static final int EMBEDDED_MIDI_CONTROLLER_VALUE = 96;
+
     @TempDir
     File tempDir;
 
@@ -135,7 +146,7 @@ class VOSParserTest {
         };
 
         for (int lane = 0; lane < expectedChannels.length; lane++) {
-            File chartFile = VosFixtureFactory.writeTapNoteFixture(tempDir, "tap-lane-" + (lane + 1) + ".vos",
+            File chartFile = VosFixtureFactory.writeFixture(tempDir, "tap-lane-" + (lane + 1) + ".vos",
                     5, 0x80 + lane * 0x10);
 
             VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
@@ -152,7 +163,7 @@ class VOSParserTest {
 
     @Test
     void mapsLongNotesToHoldAndReleaseEvents() throws Exception {
-        File chartFile = VosFixtureFactory.writeLongNoteFixture(tempDir, "long.vos", 5);
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "long.vos", 5, LONG_NOTE_ONLY);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList allEvents = chart.getEvents();
@@ -178,7 +189,8 @@ class VOSParserTest {
 
     @Test
     void mapsOnlyVosPlayableChannelToEvents() throws Exception {
-        File chartFile = VosFixtureFactory.writePlayableChannelFixture(tempDir, "playable-channel.vos", 5);
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "playable-channel.vos", 5,
+                VOS_DROID_CHANNEL_COUNT, VOS_DROID_PLAYABLE_CHANNEL_INDEX, INCLUDE_DISTRACTOR_NOTE);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList events = chart.getEvents();
@@ -191,7 +203,8 @@ class VOSParserTest {
 
     @Test
     void mapsVosSoundChannelsToAutoplayEvents() throws Exception {
-        File chartFile = VosFixtureFactory.writePlayableChannelFixture(tempDir, "sound-channel.vos", 5);
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "sound-channel.vos", 5,
+                VOS_DROID_CHANNEL_COUNT, VOS_DROID_PLAYABLE_CHANNEL_INDEX, INCLUDE_DISTRACTOR_NOTE);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList events = chart.getEvents();
@@ -203,8 +216,10 @@ class VOSParserTest {
 
     @Test
     void preservesEmbeddedMidiNotesInVosDroidBackgroundPlayback() throws Exception {
-        File chartFile = VosFixtureFactory.writePlayableOnlyFixture(tempDir, "embedded-midi-background.vos", 5,
-                VosFixtureFactory.midiWithChannelState(0, 40, 7, 96));
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "embedded-midi-background.vos", 5,
+                VOS_DROID_CHANNEL_COUNT, VOS_DROID_PLAYABLE_CHANNEL_INDEX, PLAYABLE_ONLY,
+                EMBEDDED_MIDI_CHANNEL, EMBEDDED_MIDI_PROGRAM, EMBEDDED_MIDI_CONTROLLER,
+                EMBEDDED_MIDI_CONTROLLER_VALUE);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList autoplayEvents = chart.getEvents().getEventsFromThisChannel(Event.Channel.AUTO_PLAY);
@@ -215,8 +230,10 @@ class VOSParserTest {
 
     @Test
     void usesVosDroidFallbackInstrumentForPlayableOnlyLiveMidi() throws Exception {
-        File chartFile = VosFixtureFactory.writePlayableChannelFixture(tempDir, "playable-only-live-midi.vos", 5,
-                VosFixtureFactory.midiWithChannelState(0, 40, 7, 96));
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "playable-only-live-midi.vos", 5,
+                VOS_DROID_CHANNEL_COUNT, VOS_DROID_PLAYABLE_CHANNEL_INDEX, INCLUDE_DISTRACTOR_NOTE,
+                EMBEDDED_MIDI_CHANNEL, EMBEDDED_MIDI_PROGRAM, EMBEDDED_MIDI_CONTROLLER,
+                EMBEDDED_MIDI_CONTROLLER_VALUE);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_3).get(0);
@@ -227,8 +244,9 @@ class VOSParserTest {
 
     @Test
     void usesVosDroidSourceInstrumentForOverlappedLiveMidi() throws Exception {
-        File chartFile = VosFixtureFactory.writeSourceOverlapFixture(tempDir, "source-overlap-live-midi.vos", 5,
-                VosFixtureFactory.midiWithChannelState(0, 40, 7, 96));
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "source-overlap-live-midi.vos", 5,
+                0x000, 0x000, EMBEDDED_MIDI_CHANNEL, EMBEDDED_MIDI_PROGRAM, EMBEDDED_MIDI_CONTROLLER,
+                EMBEDDED_MIDI_CONTROLLER_VALUE);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_1).get(0);
@@ -239,8 +257,8 @@ class VOSParserTest {
 
     @Test
     void reusesIdenticalLiveMidiSamplesAcrossVosNotes() throws Exception {
-        File chartFile = VosFixtureFactory.writeRepeatedLiveSampleFixture(tempDir, "repeated-live-samples.vos", 5,
-                VosFixtureFactory.minimalMidi());
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "repeated-live-samples.vos", 5, 2,
+                REPEATED_LIVE_SAMPLES);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         EventList events = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_1);
@@ -251,8 +269,8 @@ class VOSParserTest {
 
     @Test
     void splitsVosDroidPlayableSourceIntoLiveSampleAtSameSongPosition() throws Exception {
-        File chartFile = VosFixtureFactory.writeSourceOverlapFixture(tempDir, "source-overlap-live-timing.vos", 5,
-                VosFixtureFactory.minimalMidi(), 0x300, 0x172);
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "source-overlap-live-timing.vos", 5,
+                0x300, 0x172);
 
         VOSChart chart = (VOSChart) ChartParser.parseFile(chartFile).get(0);
         Event event = chart.getEvents().getEventsFromThisChannel(Event.Channel.NOTE_1).get(0);
@@ -285,7 +303,7 @@ class VOSParserTest {
 
     @Test
     void rejectsNegativeChannelNoteCount() throws Exception {
-        File chartFile = VosFixtureFactory.writeFixtureWithNoteCount(tempDir, "negative-note-count.vos", -1);
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "negative-note-count.vos", 4, Integer.valueOf(-1));
 
         assertNull(ChartParser.parseFile(chartFile));
     }

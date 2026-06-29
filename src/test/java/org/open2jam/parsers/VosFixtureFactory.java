@@ -22,9 +22,7 @@ public final class VosFixtureFactory {
     public static File writeFixture(File directory, String fileName, int level, boolean includeLevel,
             boolean includeChannelData, boolean includeLongNote, String title) throws IOException {
         byte[] bytes = buildFixture(level, includeLevel, includeChannelData, includeLongNote, title);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
+        return writeBytes(directory, fileName, bytes);
     }
 
     public static byte[] buildFixture(int level, boolean includeLevel, boolean includeChannelData,
@@ -32,48 +30,65 @@ public final class VosFixtureFactory {
         return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, null);
     }
 
-    static File writeLongNoteFixture(File directory, String fileName, int level) throws IOException {
-        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, true);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
+    public static File writeFixture(File directory, String fileName, int level, boolean longNoteOnly)
+            throws IOException {
+        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, longNoteOnly);
+        return writeBytes(directory, fileName, bytes);
     }
 
-    static File writeTapNoteFixture(File directory, String fileName, int level, int keyboard) throws IOException {
+    public static File writeFixture(File directory, String fileName, int level, int keyboard) throws IOException {
         byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, keyboard);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
+        return writeBytes(directory, fileName, bytes);
     }
 
-    static File writePlayableChannelFixture(File directory, String fileName, int level) throws IOException {
-        return writePlayableChannelFixture(directory, fileName, level, minimalMidi());
-    }
-
-    static File writePlayableChannelFixture(File directory, String fileName, int level, byte[] embeddedMidi)
-            throws IOException {
+    public static File writeFixture(File directory, String fileName, int level, int channelCount,
+            int playableChannelIndex, boolean includeDistractorNote) throws IOException {
         byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, 0x80,
-                17, 16, true, embeddedMidi);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
+                channelCount, playableChannelIndex, includeDistractorNote, minimalMidi());
+        return writeBytes(directory, fileName, bytes);
     }
 
-    static File writePlayableOnlyFixture(File directory, String fileName, int level, byte[] embeddedMidi)
-            throws IOException {
+    public static File writeFixture(File directory, String fileName, int level, int channelCount,
+            int playableChannelIndex, boolean includeDistractorNote, int midiChannel, int program,
+            int controller, int controllerValue) throws IOException {
         byte[] bytes = buildFixture(level, true, true, false, "Canon in D", null, false, 0x80,
-                17, 16, false, embeddedMidi);
+                channelCount, playableChannelIndex, includeDistractorNote,
+                midiWithChannelState(midiChannel, program, controller, controllerValue));
+        return writeBytes(directory, fileName, bytes);
+    }
+
+    public static File writeFixture(File directory, String fileName, int level, int sequencer, int duration)
+            throws IOException {
+        return writeSourceOverlapFixture(directory, fileName, level, minimalMidi(), sequencer, duration);
+    }
+
+    public static File writeFixture(File directory, String fileName, int level, int sequencer, int duration,
+            int midiChannel, int program, int controller, int controllerValue) throws IOException {
+        return writeSourceOverlapFixture(directory, fileName, level,
+                midiWithChannelState(midiChannel, program, controller, controllerValue), sequencer, duration);
+    }
+
+    public static File writeFixture(File directory, String fileName, int level, int repeatedLiveSampleCount,
+            boolean repeatedLiveSamples) throws IOException {
+        if (!repeatedLiveSamples || repeatedLiveSampleCount != 2) {
+            throw new IllegalArgumentException("Only the existing two-note repeated live sample fixture is supported");
+        }
+        return writeRepeatedLiveSampleFixture(directory, fileName, level, minimalMidi());
+    }
+
+    public static File writeFixture(File directory, String fileName, int level, Integer noteCountOverride)
+            throws IOException {
+        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", noteCountOverride);
+        return writeBytes(directory, fileName, bytes);
+    }
+
+    private static File writeBytes(File directory, String fileName, byte[] bytes) throws IOException {
         File file = new File(directory, fileName);
         Files.write(file.toPath(), bytes);
         return file;
     }
 
-    static File writeSourceOverlapFixture(File directory, String fileName, int level, byte[] embeddedMidi)
-            throws IOException {
-        return writeSourceOverlapFixture(directory, fileName, level, embeddedMidi, 0x000, 0x000);
-    }
-
-    static File writeSourceOverlapFixture(File directory, String fileName, int level, byte[] embeddedMidi,
+    private static File writeSourceOverlapFixture(File directory, String fileName, int level, byte[] embeddedMidi,
             int sequencer, int duration) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
@@ -104,12 +119,10 @@ public final class VosFixtureFactory {
 
         int channelEnd = out.size();
         out.write(embeddedMidi);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), patchSegmentAddresses(out.toByteArray(), channelEnd));
-        return file;
+        return writeBytes(directory, fileName, patchSegmentAddresses(out.toByteArray(), channelEnd));
     }
 
-    static File writeRepeatedLiveSampleFixture(File directory, String fileName, int level, byte[] embeddedMidi)
+    private static File writeRepeatedLiveSampleFixture(File directory, String fileName, int level, byte[] embeddedMidi)
             throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         writeInt(out, 3);
@@ -139,16 +152,7 @@ public final class VosFixtureFactory {
 
         int channelEnd = out.size();
         out.write(embeddedMidi);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), patchSegmentAddresses(out.toByteArray(), channelEnd));
-        return file;
-    }
-
-    static File writeFixtureWithNoteCount(File directory, String fileName, int noteCount) throws IOException {
-        byte[] bytes = buildFixture(4, true, true, false, "Canon in D", noteCount);
-        File file = new File(directory, fileName);
-        Files.write(file.toPath(), bytes);
-        return file;
+        return writeBytes(directory, fileName, patchSegmentAddresses(out.toByteArray(), channelEnd));
     }
 
     private static byte[] buildFixture(int level, boolean includeLevel,
@@ -252,7 +256,7 @@ public final class VosFixtureFactory {
         return bytes;
     }
 
-    static byte[] minimalMidi() throws IOException {
+    private static byte[] minimalMidi() throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("MThd".getBytes(StandardCharsets.US_ASCII));
         writeIntBE(out, 6);
@@ -270,7 +274,7 @@ public final class VosFixtureFactory {
         return out.toByteArray();
     }
 
-    static byte[] midiWithChannelState(int channel, int program, int controller, int controllerValue)
+    private static byte[] midiWithChannelState(int channel, int program, int controller, int controllerValue)
             throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         out.write("MThd".getBytes(StandardCharsets.US_ASCII));

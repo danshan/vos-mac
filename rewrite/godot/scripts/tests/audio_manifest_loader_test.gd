@@ -31,7 +31,7 @@ func _init() -> void:
 	float_sample_manifest["assets"][0]["sampleId"] = 3.0
 	if not _expect_loaded(loader, float_sample_manifest, "float sample id"):
 		return
-	var normalized_manifest: Dictionary = loader.load_from_file("user://float_sample_id_audio_manifest.json")
+	var normalized_manifest: Dictionary = loader.load_from_file(_manifest_path("float sample id"))
 	var normalized_assets: Array = normalized_manifest.get("assets", [])
 	if not _expect_int(normalized_assets[0].get("sampleId", -1), 3, "normalized float sample id"):
 		return
@@ -43,7 +43,7 @@ func _init() -> void:
 	minimal_manifest["assets"][0].erase("preload")
 	if not _expect_loaded(loader, minimal_manifest, "missing optional fields"):
 		return
-	var loaded_minimal: Dictionary = loader.load_from_file("user://missing_optional_fields_audio_manifest.json")
+	var loaded_minimal: Dictionary = loader.load_from_file(_manifest_path("missing optional fields"))
 	if not _expect_bool(loaded_minimal.has("chartId"), false, "optional chart id absent"):
 		return
 	var minimal_assets: Array = loaded_minimal.get("assets", [])
@@ -133,7 +133,7 @@ func _manifest_without_asset_field(field: String) -> Dictionary:
 
 
 func _expect_loaded(loader: RefCounted, manifest: Dictionary, label: String) -> bool:
-	var path: String = "user://%s_audio_manifest.json" % label.replace(" ", "_")
+	var path: String = _manifest_path(label)
 	if not _write_json(path, JSON.stringify(manifest)):
 		return false
 
@@ -142,7 +142,7 @@ func _expect_loaded(loader: RefCounted, manifest: Dictionary, label: String) -> 
 
 
 func _expect_rejected(loader: RefCounted, manifest: Dictionary, label: String) -> bool:
-	var path: String = "user://%s_audio_manifest.json" % label.replace(" ", "_")
+	var path: String = _manifest_path(label)
 	if not _write_json(path, JSON.stringify(manifest)):
 		return false
 
@@ -151,12 +151,16 @@ func _expect_rejected(loader: RefCounted, manifest: Dictionary, label: String) -
 
 
 func _expect_non_dictionary_root(loader: RefCounted) -> bool:
-	var path: String = "user://non_dictionary_audio_manifest.json"
+	var path: String = _manifest_path("non dictionary")
 	if not _write_json(path, JSON.stringify([])):
 		return false
 
 	var loaded: Dictionary = loader.load_from_file(path)
 	return _expect_bool(loaded.is_empty(), true, "non-dictionary root")
+
+
+func _manifest_path(label: String) -> String:
+	return "%s/open2jam_%s_audio_manifest.json" % [OS.get_temp_dir(), label.replace(" ", "_")]
 
 
 func _write_json(path: String, content: String) -> bool:

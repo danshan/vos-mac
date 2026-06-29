@@ -488,6 +488,7 @@ func _sync_judgment_event(raw_event: Variant) -> void:
 	var entity := _first_entity_by_id("EFFECT_JUDGMENT_%s" % result)
 	if entity.is_empty():
 		return
+	entity["animationStartMs"] = float(raw_event.get("startMs", 0.0))
 	_judgment_node = _entity_rect(entity, "Judgment_EFFECT_JUDGMENT_%s" % result)
 	add_child(_judgment_node)
 
@@ -504,7 +505,9 @@ func _sync_click_events(raw_events: Variant) -> void:
 		if not raw_event is Dictionary:
 			continue
 		var sequence := int(raw_event.get("sequence", 0))
-		var node := _entity_rect(entity, "Click_EFFECT_CLICK_%03d" % sequence)
+		var event_entity := entity.duplicate(true)
+		event_entity["animationStartMs"] = float(raw_event.get("startMs", 0.0))
+		var node := _entity_rect(event_entity, "Click_EFFECT_CLICK_%03d" % sequence)
 		_position_click_node(node, entity, int(raw_event.get("lane", -1)))
 		add_child(node)
 		_click_nodes.append(node)
@@ -536,7 +539,9 @@ func _sync_longflares(raw_flares: Variant) -> void:
 		var lane_index := int(raw_flare.get("lane", -1))
 		if lane_index < 0:
 			continue
-		var node := _entity_rect(entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
+		var flare_entity := entity.duplicate(true)
+		flare_entity["animationStartMs"] = float(raw_flare.get("startMs", 0.0))
+		var node := _entity_rect(flare_entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
 		_position_longflare_node(node, entity, lane_index)
 		add_child(node)
 		_longflare_nodes.append(node)

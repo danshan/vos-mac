@@ -29,10 +29,11 @@ func _init() -> void:
 
 	var time_ms_chart: Dictionary = _valid_chart()
 	time_ms_chart["autoPlayEvents"] = [{"timeMs": 25.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}]
-	if not _write_chart("user://time_ms_gameplay.json", time_ms_chart):
+	var time_ms_path := _chart_path("time_ms")
+	if not _write_chart(time_ms_path, time_ms_chart):
 		return
 
-	var normalized_chart: Dictionary = loader.load_from_file("user://time_ms_gameplay.json")
+	var normalized_chart: Dictionary = loader.load_from_file(time_ms_path)
 	if not _expect_bool(normalized_chart.is_empty(), false, "timeMs chart load"):
 		return
 	var normalized_events: Array = normalized_chart.get("autoPlayEvents", [])
@@ -128,12 +129,16 @@ func _chart_without_event_timestamp() -> Dictionary:
 
 
 func _expect_rejected(loader: RefCounted, chart: Dictionary, label: String) -> bool:
-	var path: String = "user://%s_gameplay.json" % label.replace(" ", "_")
+	var path: String = _chart_path(label)
 	if not _write_chart(path, chart):
 		return false
 
 	var loaded: Dictionary = loader.load_from_file(path)
 	return _expect_bool(loaded.is_empty(), true, label)
+
+
+func _chart_path(label: String) -> String:
+	return "%s/open2jam_%s_gameplay.json" % [OS.get_temp_dir(), label.replace(" ", "_")]
 
 
 func _write_chart(path: String, chart: Dictionary) -> bool:

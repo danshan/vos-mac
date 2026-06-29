@@ -116,6 +116,66 @@ func _init() -> void:
 					"textureHeight": 3.0,
 				},
 			]
+		if str(entity.get("id", "")) == "EFFECT_JUDGMENT_COOL":
+			entity["frameSpeed"] = 0.005
+			entity["spriteFrames"] = [
+				{
+					"id": "judgment_cool_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 180.0,
+					"textureWidth": 128.0,
+					"textureHeight": 128.0,
+				},
+				{
+					"id": "judgment_cool_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 308.0,
+					"textureWidth": 128.0,
+					"textureHeight": 128.0,
+				},
+			]
+		if str(entity.get("id", "")) == "EFFECT_CLICK":
+			entity["frameSpeed"] = 0.005
+			entity["spriteFrames"] = [
+				{
+					"id": "click_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 100.0,
+					"textureY": 180.0,
+					"textureWidth": 256.0,
+					"textureHeight": 256.0,
+				},
+				{
+					"id": "click_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 100.0,
+					"textureY": 436.0,
+					"textureWidth": 256.0,
+					"textureHeight": 256.0,
+				},
+			]
+		if str(entity.get("id", "")) == "EFFECT_LONGFLARE":
+			entity["frameSpeed"] = 0.005
+			entity["spriteFrames"] = [
+				{
+					"id": "longflare_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 0.0,
+					"textureY": 180.0,
+					"textureWidth": 128.0,
+					"textureHeight": 128.0,
+				},
+				{
+					"id": "longflare_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 0.0,
+					"textureY": 308.0,
+					"textureWidth": 128.0,
+					"textureHeight": 128.0,
+				},
+			]
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
@@ -241,17 +301,25 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Pill_PILL_1"), false, "pill starts hidden"):
 		return
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"notes": [],
+		"measures": [],
+	}), true, "empty chart load for effect animation"):
+		return
 
 	view.update_hud_state({
 		"judgmentEvent": {
 			"sequence": 1,
 			"result": "cool",
 			"lane": 0,
+			"startMs": 1000.0,
 		},
 		"clickEvents": [
 			{
 				"sequence": 2,
 				"lane": 0,
+				"startMs": 1000.0,
 			},
 		],
 		"pills": 1,
@@ -262,7 +330,24 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Pill_PILL_1"), true, "first pill node"):
 		return
-	var click_node: ColorRect = view.get_node("Click_EFFECT_CLICK_002")
+	var judgment_node: TextureRect = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
+	view.update_time(1000.0)
+	var judgment_texture: AtlasTexture = judgment_node.texture
+	if not _expect_float(judgment_texture.region.position.y, 180.0, "judgment effect starts on first frame"):
+		return
+	view.update_time(1200.0)
+	judgment_texture = judgment_node.texture
+	if not _expect_float(judgment_texture.region.position.y, 308.0, "judgment effect advances from event time"):
+		return
+	var click_node: TextureRect = view.get_node("Click_EFFECT_CLICK_002")
+	view.update_time(1000.0)
+	var click_texture: AtlasTexture = click_node.texture
+	if not _expect_float(click_texture.region.position.y, 180.0, "click effect starts on first frame"):
+		return
+	view.update_time(1200.0)
+	click_texture = click_node.texture
+	if not _expect_float(click_texture.region.position.y, 436.0, "click effect advances from event time"):
+		return
 	if not _expect_float(click_node.position.x, -109.0, "click node x"):
 		return
 	if not _expect_float(click_node.position.y, 352.0, "click node y"):
@@ -292,12 +377,21 @@ func _init() -> void:
 		"longFlares": [
 			{
 				"lane": 2,
+				"startMs": 3000.0,
 			},
 		],
 	})
 	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_002"), true, "longflare lane three node"):
 		return
-	var longflare_node: ColorRect = view.get_node("Longflare_EFFECT_LONGFLARE_002")
+	var longflare_node: TextureRect = view.get_node("Longflare_EFFECT_LONGFLARE_002")
+	view.update_time(3000.0)
+	var longflare_texture: AtlasTexture = longflare_node.texture
+	if not _expect_float(longflare_texture.region.position.y, 180.0, "longflare starts on first frame"):
+		return
+	view.update_time(3200.0)
+	longflare_texture = longflare_node.texture
+	if not _expect_float(longflare_texture.region.position.y, 308.0, "longflare advances from hold start"):
+		return
 	if not _expect_float(longflare_node.position.x, 5.0, "longflare node x"):
 		return
 

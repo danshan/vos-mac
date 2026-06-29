@@ -52,6 +52,8 @@ func _init() -> void:
 		return
 	if not _expect_int(long_flares[0].get("lane", -1), 2, "long flare lane"):
 		return
+	if not _expect_int(long_flares[0].get("startMs", -1), 3000, "long flare start time"):
+		return
 	var hidden_after_hold_head: Array = hold_render_state.get("hiddenNotes", [])
 	if not _expect_int(hidden_after_hold_head.size(), 2, "hold head keeps long note visible"):
 		return

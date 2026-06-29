@@ -435,6 +435,8 @@ func _update_animation_frames(now_ms: float) -> void:
 func _update_animation_frames_for_node(node: Node, now_ms: float) -> void:
 	if node is TextureRect:
 		_apply_animation_frame(node, now_ms)
+	if node is Control:
+		_apply_judgment_effect_scale(node, now_ms)
 	for child: Node in node.get_children():
 		_update_animation_frames_for_node(child, now_ms)
 
@@ -457,6 +459,17 @@ func _apply_animation_frame(node: TextureRect, now_ms: float) -> void:
 	if texture == null:
 		return
 	node.texture = texture
+
+
+func _apply_judgment_effect_scale(node: Control, now_ms: float) -> void:
+	if not bool(node.get_meta("judgmentEffect", false)):
+		return
+	var elapsed_ms: float = max(now_ms - float(node.get_meta("animationStartMs", 0.0)), 0.0)
+	var scale_factor := 1.0
+	if elapsed_ms < 100.0:
+		scale_factor = 0.5 + elapsed_ms / 200.0
+	node.pivot_offset = node.size * 0.5
+	node.scale = Vector2(scale_factor, scale_factor)
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:
@@ -490,6 +503,9 @@ func _sync_judgment_event(raw_event: Variant) -> void:
 		return
 	entity["animationStartMs"] = float(raw_event.get("startMs", 0.0))
 	_judgment_node = _entity_rect(entity, "Judgment_EFFECT_JUDGMENT_%s" % result)
+	if _judgment_node is Control:
+		_judgment_node.set_meta("judgmentEffect", true)
+		_judgment_node.pivot_offset = _judgment_node.size * 0.5
 	add_child(_judgment_node)
 
 

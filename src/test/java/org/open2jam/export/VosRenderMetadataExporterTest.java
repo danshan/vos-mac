@@ -21,6 +21,8 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"id\":\"JAM_BAR\""));
         assertTrue(json.contains("\"id\":\"SCORE_COUNTER\""));
         assertTrue(json.contains("\"id\":\"EFFECT_JUDGMENT_COOL\""));
+        assertTrue(json.contains(
+                "\"id\":\"EFFECT_JUDGMENT_COOL\",\"type\":\"judgmentEffect\",\"layer\":10,\"x\":-34.0"));
         assertTrue(json.contains("\"channel\":\"NOTE_1\""));
         assertTrue(json.contains("\"lane\":0"));
         assertTrue(json.contains("\"x\":5.0"));

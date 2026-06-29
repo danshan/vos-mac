@@ -132,6 +132,10 @@ public final class VosRenderMetadataExporter {
 
         double x = doubleAttribute(entity, "x", 0.0);
         double y = doubleAttribute(entity, "y", 0.0);
+        String type = typeFor(id);
+        if ("judgmentEffect".equals(type)) {
+            x -= sprite.width / 2.0;
+        }
         if (id != null && id.startsWith("NOTE_")) {
             SpriteMetadata bodySprite = spriteForReference(sprites, entity.getAttribute("body"), sprite);
             SpriteMetadata tailSprite = spriteForReference(sprites, entity.getAttribute("tail"), sprite);
@@ -143,7 +147,7 @@ public final class VosRenderMetadataExporter {
             return;
         }
 
-        entities.add(entityJson(id == null ? "" : id, typeFor(id), layer, x, y, sprite.width, sprite.height,
+        entities.add(entityJson(id == null ? "" : id, type, layer, x, y, sprite.width, sprite.height,
                 spriteRefs, entity, id != null, id, sprite, null, null, spriteFrames));
     }
 

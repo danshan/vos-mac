@@ -35,6 +35,9 @@ func _init() -> void:
 		return
 	if not _expect_bool(_entity_by_id(entities, "EFFECT_JUDGMENT_COOL").is_empty(), false, "cool judgment entity exists"):
 		return
+	var cool_effect: Dictionary = _entity_by_id(entities, "EFFECT_JUDGMENT_COOL")
+	if not _expect_float(cool_effect.get("x", 0.0), -34.0, "cool judgment Java anchored x"):
+		return
 
 	var lane: Dictionary = model.lane_for_channel(metadata, "NOTE_1")
 	if lane.is_empty():
@@ -270,13 +273,13 @@ func _init() -> void:
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_MISS").text, "2", "miss counter hud text"):
 		return
 
-	var life_bar: ColorRect = view.get_node("Entity_LIFE_BAR")
+	var life_bar: Control = view.get_node("Entity_LIFE_BAR")
 	if not _expect_float(life_bar.size.y, 150.5, "life bar half fill height"):
 		return
 	if not _expect_float(life_bar.position.y, 397.5, "life bar half fill y"):
 		return
 
-	var jam_bar: ColorRect = view.get_node("Entity_JAM_BAR")
+	var jam_bar: Control = view.get_node("Entity_JAM_BAR")
 	if not _expect_float(jam_bar.size.x, 95.5, "jam bar half fill width"):
 		return
 	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), false, "pressed lane starts hidden"):
@@ -335,9 +338,28 @@ func _init() -> void:
 	var judgment_texture: AtlasTexture = judgment_node.texture
 	if not _expect_float(judgment_texture.region.position.y, 180.0, "judgment effect starts on first frame"):
 		return
+	if not _expect_float(judgment_node.position.x, -34.0, "judgment effect Java anchored x"):
+		return
+	if not _expect_float(judgment_node.pivot_offset.x, 64.0, "judgment effect pivot x"):
+		return
+	if not _expect_float(judgment_node.pivot_offset.y, 64.0, "judgment effect pivot y"):
+		return
+	if not _expect_float(judgment_node.scale.x, 0.5, "judgment effect initial scale x"):
+		return
+	if not _expect_float(judgment_node.scale.y, 0.5, "judgment effect initial scale y"):
+		return
+	view.update_time(1050.0)
+	if not _expect_float(judgment_node.scale.x, 0.75, "judgment effect mid enter scale x"):
+		return
+	if not _expect_float(judgment_node.scale.y, 0.75, "judgment effect mid enter scale y"):
+		return
 	view.update_time(1200.0)
 	judgment_texture = judgment_node.texture
 	if not _expect_float(judgment_texture.region.position.y, 308.0, "judgment effect advances from event time"):
+		return
+	if not _expect_float(judgment_node.scale.x, 1.0, "judgment effect final scale x"):
+		return
+	if not _expect_float(judgment_node.scale.y, 1.0, "judgment effect final scale y"):
 		return
 	var click_node: TextureRect = view.get_node("Click_EFFECT_CLICK_002")
 	view.update_time(1000.0)

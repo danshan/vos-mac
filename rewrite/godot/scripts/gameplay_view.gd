@@ -570,7 +570,7 @@ func _sync_longflares(raw_flares: Variant) -> void:
 		var flare_entity := entity.duplicate(true)
 		flare_entity["animationStartMs"] = float(raw_flare.get("startMs", 0.0))
 		var node := _entity_rect(flare_entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
-		_position_longflare_node(node, entity, lane_index)
+		_position_longflare_node(node, entity, lane_index, raw_flare)
 		add_child(node)
 		_longflare_nodes.append(node)
 
@@ -599,12 +599,18 @@ func _position_click_node(node: Control, entity: Dictionary, lane_index: int) ->
 	node.position.y = float(_metadata.get("judgmentLine", 0.0)) - height * 0.5
 
 
-func _position_longflare_node(node: Control, entity: Dictionary, lane_index: int) -> void:
+func _position_longflare_node(node: Control, entity: Dictionary, lane_index: int, flare: Dictionary) -> void:
 	var lane := _lane_for_index(lane_index)
 	if lane.is_empty():
 		return
 	var width: float = max(float(entity.get("width", 0.0)), 1.0)
 	node.position.x = float(lane.get("x", 0.0)) + float(lane.get("width", 0.0)) * 0.5 - width * 0.5
+	var note_index := int(flare.get("noteIndex", -1))
+	if note_index < 0 or note_index >= _note_entries.size():
+		return
+	var note_node: Variant = _note_entries[note_index].get("node")
+	if note_node is Control:
+		node.position.y = note_node.position.y
 
 
 func _clear_pressed_nodes() -> void:

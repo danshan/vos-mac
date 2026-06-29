@@ -142,7 +142,10 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 		note["state"] = STATE_HOLDING
 		_notes[note_index] = note
 		_held_note_indices[lane] = note_index
-		_longflare_lanes[lane] = now_ms
+		_longflare_lanes[lane] = {
+			"noteIndex": note_index,
+			"startMs": now_ms,
+		}
 
 	return {
 		"pressed": true,
@@ -314,10 +317,13 @@ func _active_longflares() -> Array[Dictionary]:
 	var flares: Array[Dictionary] = []
 	for raw_lane: Variant in _longflare_lanes.keys():
 		var lane := int(raw_lane)
-		var start_ms := float(_longflare_lanes.get(lane, 0.0))
+		var raw_flare: Variant = _longflare_lanes.get(lane, {})
+		var flare: Dictionary = raw_flare if raw_flare is Dictionary else {"startMs": float(raw_flare)}
+		var start_ms := float(flare.get("startMs", 0.0))
 		if start_ms >= 0.0:
 			flares.append({
 				"lane": lane,
+				"noteIndex": int(flare.get("noteIndex", -1)),
 				"startMs": start_ms,
 			})
 	flares.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:

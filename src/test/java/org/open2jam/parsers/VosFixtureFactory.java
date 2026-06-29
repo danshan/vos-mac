@@ -25,6 +25,14 @@ public final class VosFixtureFactory {
         return writeBytes(directory, fileName, bytes);
     }
 
+    public static File writeFixture(File directory, String fileName, int level, boolean includeLevel,
+            boolean includeChannelData, boolean includeLongNote, String title, Integer noteCountOverride)
+            throws IOException {
+        byte[] bytes = buildFixture(level, includeLevel, includeChannelData, includeLongNote, title,
+                noteCountOverride);
+        return writeBytes(directory, fileName, bytes);
+    }
+
     public static byte[] buildFixture(int level, boolean includeLevel, boolean includeChannelData,
             boolean includeLongNote, String title) throws IOException {
         return buildFixture(level, includeLevel, includeChannelData, includeLongNote, title, null);
@@ -74,12 +82,6 @@ public final class VosFixtureFactory {
             throw new IllegalArgumentException("Only the existing two-note repeated live sample fixture is supported");
         }
         return writeRepeatedLiveSampleFixture(directory, fileName, level, minimalMidi());
-    }
-
-    public static File writeFixture(File directory, String fileName, int level, Integer noteCountOverride)
-            throws IOException {
-        byte[] bytes = buildFixture(level, true, true, false, "Canon in D", noteCountOverride);
-        return writeBytes(directory, fileName, bytes);
     }
 
     private static File writeBytes(File directory, String fileName, byte[] bytes) throws IOException {

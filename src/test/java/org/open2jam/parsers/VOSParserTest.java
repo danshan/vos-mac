@@ -303,7 +303,8 @@ class VOSParserTest {
 
     @Test
     void rejectsNegativeChannelNoteCount() throws Exception {
-        File chartFile = VosFixtureFactory.writeFixture(tempDir, "negative-note-count.vos", 4, Integer.valueOf(-1));
+        File chartFile = VosFixtureFactory.writeFixture(tempDir, "negative-note-count.vos", 4, true, true, false,
+                "Canon in D", -1);
 
         assertNull(ChartParser.parseFile(chartFile));
     }

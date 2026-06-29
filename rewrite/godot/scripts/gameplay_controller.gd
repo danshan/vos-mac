@@ -72,6 +72,7 @@ var _held_note_indices: Dictionary = {}
 var _longflare_lanes: Dictionary = {}
 var _distance = null
 var _timing = null
+var _autosound_enabled: bool = false
 var _autoplay_enabled: bool = false
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
@@ -108,6 +109,7 @@ func load_chart(chart: Dictionary) -> bool:
 			_chart.get("bgaEvents", []))
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
+	_autosound_enabled = _normalized_bool(_chart.get("autosound", false))
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
@@ -355,6 +357,7 @@ func advance_to(now_ms: float, display_now_ms: float = -1.0,
 	_update_distance_state(render_now_ms)
 	_advance_auto_play(sound_now_ms)
 	judged += _advance_note_autoplay(now_ms)
+	_advance_note_autosound(sound_now_ms)
 	for i in range(_notes.size()):
 		var note := _notes[i]
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
@@ -842,6 +845,22 @@ func _advance_note_autoplay(now_ms: float) -> int:
 			_apply_note_judgment(i, tail_hit_time, now_ms)
 			judged += 1
 	return judged
+
+
+func _advance_note_autosound(now_ms: float) -> void:
+	if not _autosound_enabled:
+		return
+
+	for i in range(_notes.size()):
+		var note := _notes[i]
+		if bool(note.get("samplePlayed", false)):
+			continue
+		var state := str(note.get("state", STATE_NOT_JUDGED))
+		if state != STATE_NOT_JUDGED and state != STATE_HOLDING:
+			continue
+		if float(note.get("startMs", 0.0)) > now_ms:
+			continue
+		_emit_note_play_command(i, AUDIO_TRIGGER_AUTOSOUND, true)
 
 
 func _begin_autoplay_hold(note_index: int, now_ms: float) -> void:

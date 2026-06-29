@@ -77,7 +77,36 @@ func _init() -> void:
 	if not _expect_int(tap_miss_commands.size(), 0, "unplayed tap miss has no stop command"):
 		return
 
+	if not _test_note_autosound():
+		return
+
 	quit(0)
+
+
+func _test_note_autosound() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_note_autosound_chart()), true, "note autosound chart load"):
+		return false
+
+	controller.advance_to(999.0)
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "note autosound before time"):
+		return false
+
+	controller.advance_to(1000.0)
+	var autosound_commands: Array[Dictionary] = controller.drain_audio_commands()
+	if not _expect_int(autosound_commands.size(), 1, "note autosound command count"):
+		return false
+	if not _expect_command(autosound_commands[0], "playSample", 1, "note", "autosound"):
+		return false
+
+	var hit: Dictionary = controller.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(hit.get("accepted", false), true, "note autosound hit accepted"):
+		return false
+	if not _expect_result_command_count(hit, 0, "note autosound avoids duplicate keysound"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "note autosound no drained duplicate"):
+		return false
+	return true
 
 
 func _chart() -> Dictionary:
@@ -98,6 +127,23 @@ func _chart() -> Dictionary:
 		"autoPlayEvents": [
 			{"startMs": 0.0, "sampleId": 9, "volume": 1.0, "pan": 0.0},
 		],
+	}
+
+
+func _note_autosound_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:note-autosound",
+		"format": "VOS",
+		"autosound": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
 	}
 
 

@@ -487,7 +487,7 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 		return false
 	if not _expect_int(delayed_state.get("displayTimeMs", -1), 1150, "latency display time"):
 		return false
-	if not _expect_int(runtime.audio_play_event_count(), 1, "latency autosound uses game time"):
+	if not _expect_int(runtime.audio_play_event_count(), 2, "latency autosound uses game time"):
 		return false
 	var delayed_status: Array = delayed_state.get("statusTexts", [])
 	if not _expect_string(str(delayed_status[1]), "Current Measure: 0", "latency status uses judgment time"):
@@ -497,6 +497,8 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 
 	var hit: Dictionary = runtime.press_action("vos_lane_1")
 	if not _expect_float(float(hit.get("hitTime", -1.0)), 100.0, "latency input uses judgment time"):
+		return false
+	if not _expect_int(runtime.audio_play_event_count(), 2, "latency autosound avoids duplicate note keysound"):
 		return false
 
 	runtime.advance_to(1100.0)

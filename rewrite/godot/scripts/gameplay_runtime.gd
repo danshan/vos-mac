@@ -92,7 +92,7 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	_last_result.clear()
 	_manual_start = bool(chart.get("manualStart", false))
 	_game_started = not _manual_start
-	_autosound_enabled = bool(chart.get("autosound", true))
+	_autosound_enabled = bool(chart.get("autosound", false))
 	_audio_latency_ms = float(chart.get("audioLatencyMs", 0.0))
 	_display_latency_ms = float(chart.get("displayLatencyMs", 0.0))
 	_running = true

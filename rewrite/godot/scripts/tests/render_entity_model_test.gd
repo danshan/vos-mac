@@ -664,6 +664,23 @@ func _init() -> void:
 	if not _expect_int(hidden_overlay.z_index, 6, "hidden visibility Java layer"):
 		return
 	hidden_view.free()
+	var mirror_chart: Dictionary = chart.duplicate(true)
+	mirror_chart["channelModifier"] = "Mirror"
+	var mirror_path := _chart_path("mirror_modifier_render")
+	if not _write_chart(mirror_path, mirror_chart):
+		return
+	var mirrored_chart: Dictionary = gameplay_loader.load_from_file(mirror_path)
+	if not _expect_bool(mirrored_chart.is_empty(), false, "mirrored render chart load"):
+		return
+	var mirror_view = GameplayView.new()
+	if not _expect_bool(mirror_view.load_metadata(metadata), true, "mirror view metadata load"):
+		return
+	if not _expect_bool(mirror_view.load_chart(mirrored_chart), true, "mirror view chart load"):
+		return
+	var mirrored_note_node: Control = mirror_view.get_node("Note_000")
+	if not _expect_float(mirrored_note_node.position.x, 165.0, "mirrored dynamic note x"):
+		return
+	mirror_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):
@@ -786,6 +803,21 @@ func _count_children_with_prefix(node: Node, prefix: String) -> int:
 		if child.name.begins_with(prefix):
 			count += 1
 	return count
+
+
+func _chart_path(label: String) -> String:
+	return "%s/open2jam_%s_render_gameplay.json" % [OS.get_temp_dir(), label.replace(" ", "_")]
+
+
+func _write_chart(path: String, chart: Dictionary) -> bool:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to write chart fixture '%s'." % path)
+		quit(1)
+		return false
+
+	file.store_string(JSON.stringify(chart))
+	return true
 
 
 func _expect_float(actual: float, expected: float, label: String) -> bool:

@@ -10,6 +10,8 @@ const REQUIRED_NOTE_FIELDS: Array[String] = [
 ]
 
 const VALID_NOTE_KINDS := ["tap", "holdStart", "holdEnd"]
+const CHANNEL_MOD_NONE: String = "None"
+const CHANNEL_MOD_MIRROR: String = "Mirror"
 
 
 func load_from_file(path: String) -> Dictionary:
@@ -69,6 +71,10 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 
 	var normalized_chart: Dictionary = chart.duplicate(true)
 	normalized_chart["keys"] = int(keys)
+	var channel_modifier := _normalized_channel_modifier(normalized_chart.get("channelModifier", CHANNEL_MOD_NONE))
+	if channel_modifier.is_empty():
+		return {}
+	normalized_chart["channelModifier"] = channel_modifier
 	if normalized_chart.has("rank"):
 		var rank: Variant = normalized_chart.get("rank")
 		if not _is_integer_like(rank) or int(rank) < 0:
@@ -84,7 +90,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		if not speed_type is String or str(speed_type).is_empty():
 			return {}
 		normalized_chart["speedType"] = str(speed_type)
-	normalized_chart["notes"] = normalized_notes
+	normalized_chart["notes"] = _notes_with_channel_modifier(normalized_notes, int(keys), channel_modifier)
 	normalized_chart["autoPlayEvents"] = normalized_events
 	return normalized_chart
 
@@ -184,3 +190,24 @@ func _has_fields(entry: Dictionary, fields: Array[String]) -> bool:
 		if not entry.has(field):
 			return false
 	return true
+
+
+func _normalized_channel_modifier(value: Variant) -> String:
+	if not value is String:
+		return ""
+	var modifier := str(value)
+	if modifier == CHANNEL_MOD_NONE:
+		return CHANNEL_MOD_NONE
+	if modifier == CHANNEL_MOD_MIRROR:
+		return CHANNEL_MOD_MIRROR
+	return ""
+
+
+func _notes_with_channel_modifier(notes: Array[Dictionary], keys: int, modifier: String) -> Array[Dictionary]:
+	var remapped: Array[Dictionary] = []
+	for note: Dictionary in notes:
+		var mapped_note: Dictionary = note.duplicate(true)
+		if modifier == CHANNEL_MOD_MIRROR:
+			mapped_note["lane"] = keys - 1 - int(mapped_note.get("lane", -1))
+		remapped.append(mapped_note)
+	return remapped

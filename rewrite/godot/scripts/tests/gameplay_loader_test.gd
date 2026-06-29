@@ -42,6 +42,27 @@ func _init() -> void:
 	if not _expect_bool(normalized_events[0].has("timeMs"), false, "normalized event timeMs removed"):
 		return
 
+	var mirror_chart: Dictionary = _valid_chart()
+	mirror_chart["channelModifier"] = "Mirror"
+	mirror_chart["notes"] = [
+		{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 2, "lane": 3, "startMs": 1100.0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 3, "lane": 6, "startMs": 1200.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
+	var mirror_path := _chart_path("mirror_modifier")
+	if not _write_chart(mirror_path, mirror_chart):
+		return
+	var mirrored_chart: Dictionary = loader.load_from_file(mirror_path)
+	if not _expect_bool(mirrored_chart.is_empty(), false, "mirror chart load"):
+		return
+	var mirrored_notes: Array = mirrored_chart.get("notes", [])
+	if not _expect_int(int(mirrored_notes[0].get("lane", -1)), 6, "mirror lane one to seven"):
+		return
+	if not _expect_int(int(mirrored_notes[1].get("lane", -1)), 3, "mirror middle lane unchanged"):
+		return
+	if not _expect_int(int(mirrored_notes[2].get("lane", -1)), 0, "mirror lane seven to one"):
+		return
+
 	if not _expect_rejected(loader, _chart_with("schemaVersion", 2), "bad schema"):
 		return
 	if not _expect_rejected(loader, _chart_with("keys", "7"), "string keys"):

@@ -185,5 +185,81 @@ func judgment_type() -> String:
 	return _judgment_type
 
 
+func save_to_file(path: String) -> bool:
+	var config := ConfigFile.new()
+	config.set_value("songs", "directories", _song_directories)
+	config.set_value("display", "fullscreen", _fullscreen_enabled)
+	config.set_value("gameplay", "autoplay", _autoplay_enabled)
+	config.set_value("gameplay", "autosound", _autosound_enabled)
+	config.set_value("gameplay", "audio_latency_ms", _audio_latency_ms)
+	config.set_value("gameplay", "display_latency_ms", _display_latency_ms)
+	config.set_value("gameplay", "master_volume", _master_volume)
+	config.set_value("gameplay", "key_volume", _key_volume)
+	config.set_value("gameplay", "bgm_volume", _bgm_volume)
+	config.set_value("gameplay", "haste_mode", _haste_mode_enabled)
+	config.set_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed)
+	config.set_value("gameplay", "start_paused", _start_paused_enabled)
+	config.set_value("gameplay", "channel_modifier", _channel_modifier)
+	config.set_value("gameplay", "speed_type", _speed_type)
+	config.set_value("gameplay", "speed_multiplier", _speed_multiplier)
+	config.set_value("gameplay", "visibility_modifier", _visibility_modifier)
+	config.set_value("gameplay", "judgment_type", _judgment_type)
+	config.set_value("input", "key_bindings", _key_bindings)
+	return config.save(path) == OK
+
+
+func load_from_file(path: String) -> bool:
+	var config := ConfigFile.new()
+	if config.load(path) != OK:
+		return false
+
+	set_song_directories(_string_array_value(config.get_value("songs", "directories", song_directories()), song_directories()))
+	set_fullscreen_enabled(_bool_value(config.get_value("display", "fullscreen", _fullscreen_enabled), _fullscreen_enabled))
+	set_autoplay_enabled(_bool_value(config.get_value("gameplay", "autoplay", _autoplay_enabled), _autoplay_enabled))
+	set_autosound_enabled(_bool_value(config.get_value("gameplay", "autosound", _autosound_enabled), _autosound_enabled))
+	set_audio_latency_ms(_float_value(config.get_value("gameplay", "audio_latency_ms", _audio_latency_ms), _audio_latency_ms))
+	set_display_latency_ms(_float_value(config.get_value("gameplay", "display_latency_ms", _display_latency_ms), _display_latency_ms))
+	set_master_volume(_float_value(config.get_value("gameplay", "master_volume", _master_volume), _master_volume))
+	set_key_volume(_float_value(config.get_value("gameplay", "key_volume", _key_volume), _key_volume))
+	set_bgm_volume(_float_value(config.get_value("gameplay", "bgm_volume", _bgm_volume), _bgm_volume))
+	set_haste_mode_enabled(_bool_value(config.get_value("gameplay", "haste_mode", _haste_mode_enabled), _haste_mode_enabled))
+	set_haste_mode_normalize_speed(_bool_value(config.get_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed), _haste_mode_normalize_speed))
+	set_start_paused_enabled(_bool_value(config.get_value("gameplay", "start_paused", _start_paused_enabled), _start_paused_enabled))
+	set_channel_modifier(_string_value(config.get_value("gameplay", "channel_modifier", _channel_modifier), _channel_modifier))
+	set_speed_type(_string_value(config.get_value("gameplay", "speed_type", _speed_type), _speed_type))
+	set_speed_multiplier(_float_value(config.get_value("gameplay", "speed_multiplier", _speed_multiplier), _speed_multiplier))
+	set_visibility_modifier(_string_value(config.get_value("gameplay", "visibility_modifier", _visibility_modifier), _visibility_modifier))
+	set_judgment_type(_string_value(config.get_value("gameplay", "judgment_type", _judgment_type), _judgment_type))
+	set_key_bindings(_string_array_value(config.get_value("input", "key_bindings", key_bindings()), key_bindings()))
+	return true
+
+
 func _clamped_volume(volume: float) -> float:
 	return clampf(volume, 0.0, 1.0)
+
+
+func _string_array_value(value: Variant, fallback: Array[String]) -> Array[String]:
+	if not value is Array:
+		return fallback.duplicate()
+	var result: Array[String] = []
+	for item: Variant in value:
+		result.append(str(item))
+	return result
+
+
+func _bool_value(value: Variant, fallback: bool) -> bool:
+	if value is bool:
+		return value
+	return fallback
+
+
+func _float_value(value: Variant, fallback: float) -> float:
+	if value is int or value is float:
+		return float(value)
+	return fallback
+
+
+func _string_value(value: Variant, fallback: String) -> String:
+	if value is String:
+		return str(value)
+	return fallback

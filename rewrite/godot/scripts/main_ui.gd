@@ -15,6 +15,7 @@ const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
 const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
+const DEFAULT_SETTINGS_PATH: String = "user://settings.cfg"
 
 var _built: bool = false
 var _app_state = AppState.new()
@@ -35,6 +36,7 @@ var _gameplay_view: Control = null
 var _exporter_client = ExporterClient.new()
 var _settings_store = SettingsStore.new()
 var _last_requested_window_mode: int = -1
+var _settings_path: String = DEFAULT_SETTINGS_PATH
 
 
 func _ready() -> void:
@@ -60,6 +62,7 @@ func build() -> void:
 		return
 	_built = true
 	_configure_exporter_from_environment()
+	_load_settings_from_file()
 	resized.connect(_on_resized)
 
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -106,6 +109,11 @@ func is_exporter_configured() -> bool:
 	if _exporter_client == null or not _exporter_client.has_method("is_configured"):
 		return false
 	return _exporter_client.is_configured()
+
+
+func set_settings_path(path: String) -> void:
+	if not path.strip_edges().is_empty():
+		_settings_path = path
 
 
 func last_requested_window_mode() -> int:
@@ -458,6 +466,7 @@ func _show_result() -> void:
 
 func _on_settings_back_pressed() -> void:
 	_save_settings_from_controls()
+	_save_settings_to_file()
 	if _app_state.transition_to(AppState.MAIN_MENU):
 		_show_main_menu()
 
@@ -757,6 +766,15 @@ func _apply_window_mode_from_settings() -> void:
 	_last_requested_window_mode = target_mode
 	if DisplayServer.window_get_mode() != target_mode:
 		DisplayServer.window_set_mode(target_mode)
+
+
+func _load_settings_from_file() -> void:
+	if _settings_store.load_from_file(_settings_path):
+		_apply_window_mode_from_settings()
+
+
+func _save_settings_to_file() -> void:
+	_settings_store.save_to_file(_settings_path)
 
 
 func _gameplay_option_overrides() -> Dictionary:

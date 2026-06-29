@@ -91,6 +91,53 @@ func _init() -> void:
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key binding defensive copy"):
 		return
 
+	if not _expect_bool(store.has_method("save_to_file"), true, "settings save method"):
+		return
+	if not _expect_bool(store.has_method("load_from_file"), true, "settings load method"):
+		return
+	var save_path := "user://settings-store-roundtrip.cfg"
+	if not _expect_bool(store.save_to_file(save_path), true, "settings save result"):
+		return
+	var loaded_store = SettingsStore.new()
+	if not _expect_bool(loaded_store.load_from_file(save_path), true, "settings load result"):
+		return
+	if not _expect_array(loaded_store.song_directories(), ["/tmp/vos"], "loaded song directories"):
+		return
+	if not _expect_bool(loaded_store.fullscreen_enabled(), true, "loaded fullscreen enabled"):
+		return
+	if not _expect_array(loaded_store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "loaded key bindings"):
+		return
+	if not _expect_bool(loaded_store.autoplay_enabled(), true, "loaded autoplay enabled"):
+		return
+	if not _expect_bool(loaded_store.autosound_enabled(), true, "loaded autosound enabled"):
+		return
+	if not _expect_float(loaded_store.audio_latency_ms(), 120.0, "loaded audio latency"):
+		return
+	if not _expect_float(loaded_store.display_latency_ms(), 45.0, "loaded display latency"):
+		return
+	if not _expect_float(loaded_store.master_volume(), 1.0, "loaded master volume"):
+		return
+	if not _expect_float(loaded_store.key_volume(), 0.0, "loaded key volume"):
+		return
+	if not _expect_float(loaded_store.bgm_volume(), 0.75, "loaded bgm volume"):
+		return
+	if not _expect_bool(loaded_store.haste_mode_enabled(), true, "loaded haste mode enabled"):
+		return
+	if not _expect_bool(loaded_store.haste_mode_normalize_speed(), false, "loaded haste normalize speed"):
+		return
+	if not _expect_bool(loaded_store.start_paused_enabled(), true, "loaded start paused enabled"):
+		return
+	if not _expect_string(loaded_store.channel_modifier(), "Mirror", "loaded channel modifier"):
+		return
+	if not _expect_string(loaded_store.speed_type(), "RegulSpeed", "loaded speed type"):
+		return
+	if not _expect_float(loaded_store.speed_multiplier(), 2.0, "loaded speed multiplier"):
+		return
+	if not _expect_string(loaded_store.visibility_modifier(), "Hidden", "loaded visibility modifier"):
+		return
+	if not _expect_string(loaded_store.judgment_type(), "time", "loaded judgment type"):
+		return
+
 	quit(0)
 
 

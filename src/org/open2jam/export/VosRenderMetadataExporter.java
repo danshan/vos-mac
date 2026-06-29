@@ -72,10 +72,11 @@ public final class VosRenderMetadataExporter {
             if (id == null || id.trim().isEmpty()) {
                 continue;
             }
-            Element frame = firstChild(sprite, "frame");
-            if (frame == null) {
+            List<Element> frameElements = childElements(sprite, "frame");
+            if (frameElements.isEmpty()) {
                 continue;
             }
+            Element frame = frameElements.get(0);
 
             double scaleX = doubleAttribute(frame, "scale_x", doubleAttribute(frame, "scale", 1.0));
             double scaleY = doubleAttribute(frame, "scale_y", doubleAttribute(frame, "scale", 1.0));
@@ -86,12 +87,26 @@ public final class VosRenderMetadataExporter {
             double width = textureWidth * scaleX;
             double height = textureHeight * scaleY;
             double frameSpeed = doubleAttribute(sprite, "framespeed", 0.0) / 1000.0;
-            int frameCount = childElements(sprite, "frame").size();
+            int frameCount = frameElements.size();
             String texturePath = texturePathFor(frame.getAttribute("file"));
+            List<SpriteFrameMetadata> frames = readFrameMetadata(id, frameElements);
             sprites.put(id, new SpriteMetadata(id, width, height, frameCount, frameSpeed, texturePath,
-                    textureX, textureY, textureWidth, textureHeight));
+                    textureX, textureY, textureWidth, textureHeight, frames));
         }
         return sprites;
+    }
+
+    private static List<SpriteFrameMetadata> readFrameMetadata(String id, List<Element> frameElements) {
+        List<SpriteFrameMetadata> frames = new ArrayList<SpriteFrameMetadata>();
+        for (Element frame : frameElements) {
+            frames.add(new SpriteFrameMetadata(id,
+                    texturePathFor(frame.getAttribute("file")),
+                    doubleAttribute(frame, "x", 0.0),
+                    doubleAttribute(frame, "y", 0.0),
+                    doubleAttribute(frame, "w", 0.0),
+                    doubleAttribute(frame, "h", 0.0)));
+        }
+        return frames;
     }
 
     private static Element findSkin(Document document, String skinName) {
@@ -157,6 +172,9 @@ public final class VosRenderMetadataExporter {
         addSpriteFields(fields, "body", bodySprite);
         addSpriteFields(fields, "tail", tailSprite);
         if (!spriteFrames.isEmpty()) {
+            if (sprite.frameSpeed > 0.0) {
+                fields.add(JsonWriter.field("frameSpeed", sprite.frameSpeed));
+            }
             fields.add(JsonWriter.rawField("spriteFrames", spriteFrames));
         }
         String fillDirection = source.getAttribute("fill_direction");
@@ -174,13 +192,15 @@ public final class VosRenderMetadataExporter {
             if (sprite == null || sprite.texturePath.isEmpty()) {
                 continue;
             }
-            frames.add(JsonWriter.object(
-                    JsonWriter.field("id", sprite.id),
-                    JsonWriter.field("texturePath", sprite.texturePath),
-                    JsonWriter.field("textureX", sprite.textureX),
-                    JsonWriter.field("textureY", sprite.textureY),
-                    JsonWriter.field("textureWidth", sprite.textureWidth),
-                    JsonWriter.field("textureHeight", sprite.textureHeight)));
+            for (SpriteFrameMetadata frame : sprite.frames) {
+                frames.add(JsonWriter.object(
+                        JsonWriter.field("id", frame.id),
+                        JsonWriter.field("texturePath", frame.texturePath),
+                        JsonWriter.field("textureX", frame.textureX),
+                        JsonWriter.field("textureY", frame.textureY),
+                        JsonWriter.field("textureWidth", frame.textureWidth),
+                        JsonWriter.field("textureHeight", frame.textureHeight)));
+            }
         }
         if (frames.isEmpty()) {
             return "";
@@ -287,13 +307,6 @@ public final class VosRenderMetadataExporter {
         return result;
     }
 
-    private static Element firstChild(Element parent, String localName) {
-        for (Element child : childElements(parent, localName)) {
-            return child;
-        }
-        return null;
-    }
-
     private static double doubleAttribute(Element element, String name, double fallback) {
         String value = element.getAttribute(name);
         if (value == null || value.trim().isEmpty()) {
@@ -376,9 +389,11 @@ public final class VosRenderMetadataExporter {
         final double textureY;
         final double textureWidth;
         final double textureHeight;
+        final List<SpriteFrameMetadata> frames;
 
         SpriteMetadata(String id, double width, double height, int frameCount, double frameSpeed,
-                String texturePath, double textureX, double textureY, double textureWidth, double textureHeight) {
+                String texturePath, double textureX, double textureY, double textureWidth, double textureHeight,
+                List<SpriteFrameMetadata> frames) {
             this.id = id;
             this.width = width;
             this.height = height;
@@ -389,10 +404,31 @@ public final class VosRenderMetadataExporter {
             this.textureY = textureY;
             this.textureWidth = textureWidth;
             this.textureHeight = textureHeight;
+            this.frames = frames;
         }
 
         static SpriteMetadata empty() {
-            return new SpriteMetadata("", 0.0, 0.0, 0, 0.0, "", 0.0, 0.0, 0.0, 0.0);
+            return new SpriteMetadata("", 0.0, 0.0, 0, 0.0, "", 0.0, 0.0, 0.0, 0.0,
+                    new ArrayList<SpriteFrameMetadata>());
+        }
+    }
+
+    private static final class SpriteFrameMetadata {
+        final String id;
+        final String texturePath;
+        final double textureX;
+        final double textureY;
+        final double textureWidth;
+        final double textureHeight;
+
+        SpriteFrameMetadata(String id, String texturePath, double textureX, double textureY,
+                double textureWidth, double textureHeight) {
+            this.id = id;
+            this.texturePath = texturePath;
+            this.textureX = textureX;
+            this.textureY = textureY;
+            this.textureWidth = textureWidth;
+            this.textureHeight = textureHeight;
         }
     }
 }

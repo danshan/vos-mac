@@ -42,5 +42,8 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"tailTextureHeight\":7.0"));
         assertTrue(json.contains("\"spriteFrames\":[{\"id\":\"score_number_0\""));
         assertTrue(json.contains("\"id\":\"score_number_9\""));
+        assertTrue(json.contains("\"id\":\"MEASURE_MARK\""));
+        assertTrue(json.contains("\"frameSpeed\":0.005"));
+        assertTrue(json.contains("\"textureY\":138.0"));
     }
 }

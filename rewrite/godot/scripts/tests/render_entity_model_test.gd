@@ -96,6 +96,26 @@ func _init() -> void:
 					"textureHeight": 18.0,
 				})
 			entity["spriteFrames"] = digit_frames
+		if str(entity.get("id", "")) == "MEASURE_MARK":
+			entity["frameSpeed"] = 0.005
+			entity["spriteFrames"] = [
+				{
+					"id": "measure_mark_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 134.0,
+					"textureWidth": 188.0,
+					"textureHeight": 3.0,
+				},
+				{
+					"id": "measure_mark_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 138.0,
+					"textureWidth": 188.0,
+					"textureHeight": 3.0,
+				},
+			]
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
@@ -381,7 +401,10 @@ func _init() -> void:
 		return
 	if not _expect_float(long_note_tail.position.y, 115.5, "long note tail y"):
 		return
-	var measure_node: ColorRect = view.get_node("Measure_000")
+	var measure_node: Control = view.get_node("Measure_000")
+	if not _expect_bool(measure_node is TextureRect, true, "dynamic measure texture node"):
+		return
+	var measure_texture_node: TextureRect = measure_node
 	if not _expect_float(measure_node.position.x, 5.0, "dynamic measure node x"):
 		return
 	if not _expect_float(measure_node.position.y, 479.0, "dynamic measure node y at zero"):
@@ -389,6 +412,13 @@ func _init() -> void:
 	if not _expect_float(measure_node.size.x, 188.0, "dynamic measure node width"):
 		return
 	if not _expect_float(measure_node.size.y, 3.0, "dynamic measure node height"):
+		return
+	var measure_texture: AtlasTexture = measure_texture_node.texture
+	if not _expect_float(measure_texture.region.position.y, 134.0, "measure texture first frame y"):
+		return
+	view.update_time(200.0)
+	measure_texture = measure_texture_node.texture
+	if not _expect_float(measure_texture.region.position.y, 138.0, "measure texture second frame y"):
 		return
 
 	view.update_time(1000.0)

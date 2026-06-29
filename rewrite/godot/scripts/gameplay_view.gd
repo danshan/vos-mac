@@ -70,6 +70,7 @@ func update_time(now_ms: float) -> void:
 	if _metadata.is_empty() or _distance == null:
 		return
 
+	_update_animation_frames(now_ms)
 	var judgment_line := float(_metadata.get("judgmentLine", 0.0))
 	for i in range(_note_entries.size()):
 		var entry := _note_entries[i]
@@ -280,6 +281,8 @@ func _is_java_initial_entity(entity: Dictionary) -> bool:
 
 
 func _entity_rect(entity: Dictionary, node_name: String) -> Control:
+	if _has_sprite_frames(entity):
+		return _animated_entity_rect(entity, node_name)
 	var texture := _texture_for_entity(entity)
 	if texture != null:
 		var texture_node := TextureRect.new()
@@ -298,6 +301,20 @@ func _entity_rect(entity: Dictionary, node_name: String) -> Control:
 	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
 	node.color = _color_for_type(str(entity.get("type", "")))
 	return node
+
+
+func _animated_entity_rect(entity: Dictionary, node_name: String) -> Control:
+	var texture_node := TextureRect.new()
+	texture_node.name = node_name
+	texture_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	texture_node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
+	texture_node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
+	texture_node.stretch_mode = TextureRect.STRETCH_SCALE
+	texture_node.set_meta("spriteFrames", _sprite_frames(entity))
+	texture_node.set_meta("frameSpeed", float(entity.get("frameSpeed", 0.0)))
+	texture_node.set_meta("animationStartMs", float(entity.get("animationStartMs", 0.0)))
+	_apply_animation_frame(texture_node, 0.0)
+	return texture_node
 
 
 func _long_note_node(entity: Dictionary, node_name: String) -> Control:
@@ -399,6 +416,47 @@ func _texture_with_region(entity: Dictionary, texture: Texture2D, prefix: String
 func _texture_height_for_part(entity: Dictionary, prefix: String) -> float:
 	var height_key := "textureHeight" if prefix.is_empty() else "%sTextureHeight" % prefix
 	return max(float(entity.get(height_key, entity.get("height", 1.0))), 1.0)
+
+
+func _sprite_frames(entity: Dictionary) -> Array[Dictionary]:
+	var frames: Array[Dictionary] = []
+	var raw_frames: Variant = entity.get("spriteFrames", [])
+	if raw_frames is Array:
+		for raw_frame: Variant in raw_frames:
+			if raw_frame is Dictionary:
+				frames.append(raw_frame.duplicate(true))
+	return frames
+
+
+func _update_animation_frames(now_ms: float) -> void:
+	_update_animation_frames_for_node(self, now_ms)
+
+
+func _update_animation_frames_for_node(node: Node, now_ms: float) -> void:
+	if node is TextureRect:
+		_apply_animation_frame(node, now_ms)
+	for child: Node in node.get_children():
+		_update_animation_frames_for_node(child, now_ms)
+
+
+func _apply_animation_frame(node: TextureRect, now_ms: float) -> void:
+	if not node.has_meta("spriteFrames"):
+		return
+	var frames: Array = node.get_meta("spriteFrames")
+	if frames.is_empty():
+		return
+	var frame_speed := float(node.get_meta("frameSpeed", 0.0))
+	var animation_ms: float = max(now_ms - float(node.get_meta("animationStartMs", 0.0)), 0.0)
+	var frame_index := 0
+	if frame_speed > 0.0 and frames.size() > 1:
+		frame_index = int(floor(animation_ms * frame_speed)) % frames.size()
+	var frame: Variant = frames[frame_index]
+	if not frame is Dictionary:
+		return
+	var texture := _texture_for_entity_part(frame, "")
+	if texture == null:
+		return
+	node.texture = texture
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:

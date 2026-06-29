@@ -41,10 +41,14 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"bodyTextureY\":143.0"));
         assertTrue(json.contains("\"bodyTextureWidth\":28.0"));
         assertTrue(json.contains("\"bodyTextureHeight\":5.0"));
+        assertTrue(json.contains("\"bodyFrameSpeed\":0.012"));
+        assertTrue(json.contains("\"bodySpriteFrames\":[{\"id\":\"body_note_white\""));
         assertTrue(json.contains("\"tailTextureX\":225.0"));
         assertTrue(json.contains("\"tailTextureY\":142.0"));
         assertTrue(json.contains("\"tailTextureWidth\":28.0"));
         assertTrue(json.contains("\"tailTextureHeight\":7.0"));
+        assertTrue(json.contains("\"tailFrameSpeed\":0.012"));
+        assertTrue(json.contains("\"tailSpriteFrames\":[{\"id\":\"head_note_white\""));
         assertTrue(json.contains("\"spriteFrames\":[{\"id\":\"score_number_0\""));
         assertTrue(json.contains("\"id\":\"score_number_9\""));
         assertTrue(json.contains("\"id\":\"MEASURE_MARK\""));

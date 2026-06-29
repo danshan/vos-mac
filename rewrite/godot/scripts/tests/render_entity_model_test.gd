@@ -77,16 +77,97 @@ func _init() -> void:
 			entity["textureY"] = 142.0
 			entity["textureWidth"] = 28.0
 			entity["textureHeight"] = 7.0
+			entity["frameSpeed"] = 0.012
+			entity["spriteFrames"] = [
+				{
+					"id": "head_note_white_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 142.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+				{
+					"id": "head_note_white_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 150.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+				{
+					"id": "head_note_white_2",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 158.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+			]
 			entity["bodyTexturePath"] = "%s/main.png" % resource_root
 			entity["bodyTextureX"] = 225.0
 			entity["bodyTextureY"] = 143.0
 			entity["bodyTextureWidth"] = 28.0
 			entity["bodyTextureHeight"] = 5.0
+			entity["bodyFrameSpeed"] = 0.012
+			entity["bodySpriteFrames"] = [
+				{
+					"id": "body_note_white_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 143.0,
+					"textureWidth": 28.0,
+					"textureHeight": 5.0,
+				},
+				{
+					"id": "body_note_white_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 151.0,
+					"textureWidth": 28.0,
+					"textureHeight": 5.0,
+				},
+				{
+					"id": "body_note_white_2",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 159.0,
+					"textureWidth": 28.0,
+					"textureHeight": 5.0,
+				},
+			]
 			entity["tailTexturePath"] = "%s/main.png" % resource_root
 			entity["tailTextureX"] = 225.0
 			entity["tailTextureY"] = 142.0
 			entity["tailTextureWidth"] = 28.0
 			entity["tailTextureHeight"] = 7.0
+			entity["tailFrameSpeed"] = 0.012
+			entity["tailSpriteFrames"] = [
+				{
+					"id": "head_note_white_0",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 142.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+				{
+					"id": "head_note_white_1",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 150.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+				{
+					"id": "head_note_white_2",
+					"texturePath": "%s/main.png" % resource_root,
+					"textureX": 225.0,
+					"textureY": 158.0,
+					"textureWidth": 28.0,
+					"textureHeight": 7.0,
+				},
+			]
 		if str(entity.get("id", "")) == "SCORE_COUNTER":
 			var digit_frames: Array[Dictionary] = []
 			for digit in range(10):
@@ -936,6 +1017,15 @@ func _init() -> void:
 	view.update_time(200.0)
 	measure_texture = measure_texture_node.texture
 	if not _expect_float(measure_texture.region.position.y, 138.0, "measure texture second frame y"):
+		return
+	var long_note_head_texture: AtlasTexture = long_note_head.texture
+	if not _expect_float(long_note_head_texture.region.position.y, 158.0, "long note head advances from Java frame speed"):
+		return
+	long_note_body_texture = long_note_body.texture
+	if not _expect_float(long_note_body_texture.region.position.y, 159.0, "long note body advances from Java frame speed"):
+		return
+	long_note_tail_texture = long_note_tail.texture
+	if not _expect_float(long_note_tail_texture.region.position.y, 158.0, "long note tail advances from Java frame speed"):
 		return
 
 	if not _expect_bool(measure_node.visible, true, "dynamic measure starts visible"):

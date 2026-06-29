@@ -514,6 +514,12 @@ func _entity_part_rect(entity: Dictionary, node_name: String, prefix: String) ->
 		texture_node.texture = texture
 		texture_node.stretch_mode = TextureRect.STRETCH_SCALE
 		texture_node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), _texture_height_for_part(entity, prefix))
+		var frames := _sprite_frames_for_part(entity, prefix)
+		if not frames.is_empty():
+			texture_node.set_meta("spriteFrames", frames)
+			texture_node.set_meta("frameSpeed", _frame_speed_for_part(entity, prefix))
+			texture_node.set_meta("animationStartMs", float(entity.get("animationStartMs", 0.0)))
+			_apply_animation_frame(texture_node, 0.0)
 		return texture_node
 
 	var node := ColorRect.new()
@@ -594,13 +600,24 @@ func _texture_height_for_part(entity: Dictionary, prefix: String) -> float:
 
 
 func _sprite_frames(entity: Dictionary) -> Array[Dictionary]:
+	return _sprite_frames_for_part(entity, "")
+
+
+func _sprite_frames_for_part(entity: Dictionary, prefix: String) -> Array[Dictionary]:
 	var frames: Array[Dictionary] = []
-	var raw_frames: Variant = entity.get("spriteFrames", [])
+	var key := "spriteFrames" if prefix.is_empty() else "%sSpriteFrames" % prefix
+	var raw_frames: Variant = entity.get(key, [])
 	if raw_frames is Array:
 		for raw_frame: Variant in raw_frames:
 			if raw_frame is Dictionary:
 				frames.append(raw_frame.duplicate(true))
 	return frames
+
+
+func _frame_speed_for_part(entity: Dictionary, prefix: String) -> float:
+	if prefix.is_empty():
+		return float(entity.get("frameSpeed", 0.0))
+	return float(entity.get("%sFrameSpeed" % prefix, 0.0))
 
 
 func _update_animation_frames(now_ms: float) -> void:

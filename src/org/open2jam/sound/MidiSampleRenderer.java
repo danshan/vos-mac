@@ -25,7 +25,7 @@ import javax.sound.midi.Synthesizer;
 import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 
-final class MidiSampleRenderer {
+public final class MidiSampleRenderer {
     private static final int SAMPLE_RATE = 44100;
     private static final int BITS_PER_SAMPLE = 16;
     private static final int CHANNELS = 2;
@@ -34,7 +34,7 @@ final class MidiSampleRenderer {
     private static final File MACOS_DLS = new File(
             "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls");
 
-    RenderedAudio render(byte[] midiData) throws SoundSystemException {
+    public RenderedAudio render(byte[] midiData) throws SoundSystemException {
         AudioSynthesizer synth = findAudioSynthesizer();
         if (synth == null) {
             throw new SoundSystemException("No audio synthesizer available for MIDI rendering");
@@ -201,7 +201,7 @@ final class MidiSampleRenderer {
         return ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
     }
 
-    static final class RenderedAudio {
+    public static final class RenderedAudio {
         private final byte[] pcm;
         private final int sampleRate;
         private final int channels;
@@ -214,19 +214,19 @@ final class MidiSampleRenderer {
             this.bitsPerSample = bitsPerSample;
         }
 
-        byte[] pcm() {
+        public byte[] pcm() {
             return pcm;
         }
 
-        int sampleRate() {
+        public int sampleRate() {
             return sampleRate;
         }
 
-        int channels() {
+        public int channels() {
             return channels;
         }
 
-        int bitsPerSample() {
+        public int bitsPerSample() {
             return bitsPerSample;
         }
     }

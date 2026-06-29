@@ -193,7 +193,8 @@ func _stop_sample_for_command(command: Dictionary) -> Dictionary:
 
 
 func _should_register_instance(command: Dictionary) -> bool:
-	return str(command.get("source", "")) == "note" and str(command.get("trigger", "")) == "keysound"
+	var trigger := str(command.get("trigger", ""))
+	return str(command.get("source", "")) == "note" and (trigger == "keysound" or trigger == "autosound")
 
 
 func _load_stream_for_asset(asset: Dictionary) -> AudioStream:

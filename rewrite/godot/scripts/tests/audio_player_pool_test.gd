@@ -117,6 +117,28 @@ func _init() -> void:
 	if not _expect_bool(repeated_stop.get("stopped", true), false, "note miss stop only once"):
 		return
 
+	var note_autosound: Dictionary = pool.apply_audio_command({
+		"action": "playSample",
+		"source": "note",
+		"trigger": "autosound",
+		"sampleId": 1,
+		"noteId": 102,
+	})
+	if not _expect_bool(note_autosound.get("played", false), true, "note autosound command played"):
+		return
+	if not _expect_bool(note_autosound.get("registeredInstance", false), true, "note autosound registers instance"):
+		return
+
+	var autosound_stop: Dictionary = pool.apply_audio_command({
+		"action": "stopSample",
+		"source": "note",
+		"trigger": "missed",
+		"sampleId": 1,
+		"noteId": 102,
+	})
+	if not _expect_bool(autosound_stop.get("stopped", false), true, "note autosound miss stops registered instance"):
+		return
+
 	var extra_play: Dictionary = pool.apply_audio_command({
 		"action": "playSample",
 		"source": "note",

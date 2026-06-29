@@ -23,11 +23,17 @@ func _init() -> void:
 		return
 
 	var entities: Array = metadata.get("entities", [])
-	if not _expect_int(entities.size(), 4, "entity count"):
+	if not _expect_int(entities.size(), 66, "full Java skin entity count"):
 		return
 	if not _expect_string(entities[0].get("id", ""), "BGA", "first entity id"):
 		return
-	if not _expect_string(entities[1].get("id", ""), "LONG_NOTE_1", "long note entity id"):
+	if not _expect_bool(_entity_by_id(entities, "JUDGMENT_LINE").is_empty(), false, "judgment line entity exists"):
+		return
+	if not _expect_bool(_entity_by_id(entities, "LONG_NOTE_1").is_empty(), false, "long note entity exists"):
+		return
+	if not _expect_bool(_entity_by_id(entities, "SCORE_COUNTER").is_empty(), false, "score counter entity exists"):
+		return
+	if not _expect_bool(_entity_by_id(entities, "EFFECT_JUDGMENT_COOL").is_empty(), false, "cool judgment entity exists"):
 		return
 
 	var lane: Dictionary = model.lane_for_channel(metadata, "NOTE_1")
@@ -41,13 +47,30 @@ func _init() -> void:
 		return
 	if not _expect_float(lane.get("width", 0.0), 28.0, "lane width"):
 		return
+	var last_lane: Dictionary = model.lane_for_channel(metadata, "NOTE_7")
+	if last_lane.is_empty():
+		push_error("Expected NOTE_7 lane.")
+		quit(1)
+		return
+	if not _expect_int(last_lane.get("lane", -1), 6, "last lane index"):
+		return
+	if not _expect_float(last_lane.get("x", 0.0), 165.0, "last lane x"):
+		return
 
 	var view = GameplayView.new()
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
-	if not _expect_int(view.get_child_count(), 2, "static entity node count"):
+	if not _expect_int(view.get_child_count(), 52, "static entity node count"):
 		return
 	if not _expect_bool(view.has_node("Entity_BGA"), true, "bga node"):
+		return
+	if not _expect_bool(view.has_node("Entity_SCORE_COUNTER"), true, "score counter node"):
+		return
+	if not _expect_bool(view.has_node("Entity_COMBO_COUNTER"), true, "combo counter node"):
+		return
+	if not _expect_bool(view.has_node("Entity_LIFE_BAR"), true, "life bar node"):
+		return
+	if not _expect_bool(view.has_node("Entity_EFFECT_JUDGMENT_COOL"), true, "judgment cool node"):
 		return
 	if not _expect_bool(view.has_node("Entity_NOTE_1"), false, "note template is not static"):
 		return
@@ -87,6 +110,13 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 		quit(1)
 		return false
 	return true
+
+
+func _entity_by_id(entities: Array, id: String) -> Dictionary:
+	for entity: Variant in entities:
+		if entity is Dictionary and str(entity.get("id", "")) == id:
+			return entity
+	return {}
 
 
 func _expect_float(actual: float, expected: float, label: String) -> bool:

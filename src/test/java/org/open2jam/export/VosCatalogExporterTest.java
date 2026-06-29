@@ -1,11 +1,11 @@
 package org.open2jam.export;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.MessageDigest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.open2jam.parsers.VosFixtureFactory;
@@ -20,45 +20,60 @@ class VosCatalogExporterTest {
 
         String json = new VosCatalogExporter().exportCatalog(chartFile);
 
-        assertContains(json, JsonWriter.field("schemaVersion", 1));
-        assertContains(json, JsonWriter.field("format", "VOS"));
-        assertContains(json, JsonWriter.field("sourcePath", chartFile.getCanonicalPath()));
-        assertContains(json, JsonWriter.field("title", "Canon in D"));
-        assertContains(json, JsonWriter.field("artist", "Pachelbel"));
-        assertContains(json, JsonWriter.field("level", 7));
-        assertContains(json, JsonWriter.field("levelKnown", true));
-        assertContains(json, JsonWriter.field("exportStatus", "ready"));
+        assertEquals(catalogJson(expectedEntry(chartFile, "Canon in D", 7)), json);
     }
 
     @Test
-    void recursesDirectoryAndSkipsNonParsableFiles() throws Exception {
+    void recursesDirectoryWithStableOrderAndDeterministicIds() throws Exception {
         File nested = new File(tempDir, "nested");
         Files.createDirectories(nested.toPath());
-        VosFixtureFactory.writeFixture(tempDir, "first.vos", 3, true, true, false, "First Song");
-        VosFixtureFactory.writeFixture(nested, "second.vos", 8, true, true, false, "Second Song");
+        File first = VosFixtureFactory.writeFixture(tempDir, "first.vos", 3, true, true, false, "First Song");
+        File second = VosFixtureFactory.writeFixture(nested, "second.VOS", 8, true, true, false, "Second Song");
+        VosFixtureFactory.writeFixture(tempDir, "ignored.dat", 5, true, true, false, "Ignored Song");
+        Files.write(new File(nested, "broken.vos").toPath(), new byte[] {3, 0, 0, 0});
         Files.write(new File(tempDir, "notes.txt").toPath(), "not a chart".getBytes(StandardCharsets.UTF_8));
+        Files.write(new File(tempDir, "broken.ojn").toPath(), new byte[] {1, 2, 3});
 
         String json = new VosCatalogExporter().exportCatalog(tempDir);
 
-        assertEquals(2, countOccurrences(json, JsonWriter.field("format", "VOS")));
-        assertContains(json, JsonWriter.field("title", "First Song"));
-        assertContains(json, JsonWriter.field("title", "Second Song"));
+        assertEquals(catalogJson(
+                expectedEntry(first, "First Song", 3),
+                expectedEntry(second, "Second Song", 8)), json);
     }
 
-    private static void assertContains(String json, String expectedField) {
-        assertTrue(json.contains(expectedField), "Expected field " + expectedField + " in " + json);
+    private static String catalogJson(String... entries) {
+        return JsonWriter.object(
+                JsonWriter.field("schemaVersion", 1),
+                JsonWriter.rawField("entries", JsonWriter.array(entries)));
     }
 
-    private static int countOccurrences(String value, String needle) {
-        int count = 0;
-        int offset = 0;
-        while (true) {
-            int found = value.indexOf(needle, offset);
-            if (found < 0) {
-                return count;
-            }
-            count++;
-            offset = found + needle.length();
+    private static String expectedEntry(File source, String title, int level) throws Exception {
+        String sourcePath = source.getCanonicalPath();
+        return JsonWriter.object(
+                JsonWriter.field("id", idFor(sourcePath)),
+                JsonWriter.field("format", "VOS"),
+                JsonWriter.field("sourcePath", sourcePath),
+                JsonWriter.field("title", title),
+                JsonWriter.field("artist", "Pachelbel"),
+                JsonWriter.field("noter", "ReVanTis"),
+                JsonWriter.field("genre", "Classical"),
+                JsonWriter.field("keys", 7),
+                JsonWriter.field("level", level),
+                JsonWriter.field("levelKnown", true),
+                JsonWriter.field("bpm", 120.0),
+                JsonWriter.field("durationMs", 123000),
+                JsonWriter.field("noteCount", 1),
+                JsonWriter.field("coverAsset", ""),
+                JsonWriter.field("exportStatus", "ready"));
+    }
+
+    private static String idFor(String sourcePath) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(sourcePath.getBytes(StandardCharsets.UTF_8));
+        StringBuilder id = new StringBuilder("vos:sha256:");
+        for (int i = 0; i < 8; i++) {
+            id.append(String.format("%02x", hash[i] & 0xFF));
         }
+        return id.toString();
     }
 }

@@ -54,7 +54,9 @@ public final class VosCatalogExporter {
             return;
         }
         if (!input.isDirectory()) {
-            files.add(input);
+            if (isVosFile(input)) {
+                files.add(input);
+            }
             return;
         }
 
@@ -65,6 +67,10 @@ public final class VosCatalogExporter {
         for (File child : children) {
             collectFiles(child, files);
         }
+    }
+
+    private static boolean isVosFile(File file) {
+        return file.getName().toLowerCase().endsWith(".vos");
     }
 
     private static String entry(VOSChart chart) throws Exception {

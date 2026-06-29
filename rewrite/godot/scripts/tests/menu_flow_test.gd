@@ -65,6 +65,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
 		return
+	if not _expect_bool(ui.has_node("Content/MiscKeyBindings/MiscKey_speed_up"), true, "speed up misc key binding"):
+		return
+	if not _expect_bool(ui.has_node("Content/MiscKeyBindings/MiscKey_main_volume_down"), true, "main volume down misc key binding"):
+		return
 
 	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
 	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
@@ -84,6 +88,8 @@ func _init() -> void:
 	ui.get_node("Content/VisibilityModifierOption").select(1)
 	ui.get_node("Content/JudgmentTypeOption").select(1)
 	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
+	ui.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text = "PageUp"
+	ui.get_node("Content/MiscKeyBindings/MiscKey_main_volume_down").text = "Minus"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
 		return
@@ -127,6 +133,10 @@ func _init() -> void:
 			ui.get_node("Content/JudgmentTypeOption").selected), "time", "persisted judgment type"):
 		return
 	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
+		return
+	if not _expect_string(ui.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text, "PageUp", "persisted speed up misc key binding"):
+		return
+	if not _expect_string(ui.get_node("Content/MiscKeyBindings/MiscKey_main_volume_down").text, "Minus", "persisted main volume down misc key binding"):
 		return
 	var option_overrides: Dictionary = ui._gameplay_option_overrides()
 	if not _expect_bool(option_overrides.get("autoplay", false), true, "autoplay gameplay override"):

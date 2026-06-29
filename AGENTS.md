@@ -147,7 +147,40 @@ Before adding a package:
 
 When you do add a dependency, say why. "I'm adding zod because this project needs runtime schema validation and there's nothing in the existing dependencies that does this" is fine. Silently adding packages to package.json is not.
 
-## 9. Communication
+## 9. Runtime Environment
+
+This project uses `mise.toml` as the source of truth for local runtime tools. Do not judge the Java or Maven environment from bare `java` or `mvn` commands in a random shell. On this machine, bare `java` may resolve to `/usr/bin/java` and fail even when the project runtime is correctly installed through mise.
+
+Rules:
+
+- Use `mise current` to inspect the active tool versions for this checkout.
+- Use `mise exec -- ...` when running Java, Maven, or project verification commands.
+- Maven commands must use the project settings file: `.mvn/settings.xml`.
+- Prefer the project tasks in `mise.toml` when they match the task.
+- Do not edit shell startup files as part of normal project work. If shell initialization is broken, report it separately and keep project commands running through mise.
+
+Canonical commands:
+
+```bash
+mise current
+mise exec -- java -version
+mise exec -- mvn -s .mvn/settings.xml -version
+mise exec -- mvn -s .mvn/settings.xml validate
+mise exec -- mvn -s .mvn/settings.xml verify
+mise exec -- bash rewrite/tools/verify_vos_godot_initial.sh
+mise run build
+mise run package
+mise run run
+```
+
+Godot is currently provided by Homebrew and is not declared in `mise.toml`. Use it directly unless it is added to `mise.toml` later:
+
+```bash
+godot --version
+godot --path rewrite/godot
+```
+
+## 10. Communication
 
 How you communicate about code matters as much as the code itself.
 
@@ -161,7 +194,7 @@ How you communicate about code matters as much as the code itself.
 
 **Commit messages matter.** If you're writing a commit message, make it specific. "Fix bug" is useless. "Fix null pointer in user lookup when email contains uppercase chars" tells the next person exactly what happened.
 
-## 10. Common Failure Modes
+## 11. Common Failure Modes
 
 These are the patterns I see most often. If you catch yourself doing any of these, stop and reconsider.
 

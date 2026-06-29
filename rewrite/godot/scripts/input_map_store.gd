@@ -22,6 +22,7 @@ const DEFAULT_MISC_KEY_BINDINGS: Dictionary = {
 }
 
 var _key_bindings: Array[String] = DEFAULT_KEY_BINDINGS.duplicate()
+var _misc_key_bindings: Dictionary = DEFAULT_MISC_KEY_BINDINGS.duplicate(true)
 
 
 func set_key_bindings(bindings: Array) -> bool:
@@ -43,6 +44,30 @@ func set_key_bindings(bindings: Array) -> bool:
 
 func key_bindings() -> Array[String]:
 	return _key_bindings.duplicate()
+
+
+func set_misc_key_bindings(bindings: Dictionary) -> bool:
+	var next_bindings := _misc_key_bindings.duplicate(true)
+	for action: Variant in bindings.keys():
+		if not action is String:
+			return false
+		var action_name := str(action)
+		if not DEFAULT_MISC_KEY_BINDINGS.has(action_name):
+			return false
+		var binding: Variant = bindings[action]
+		if not binding is String:
+			return false
+		var key := str(binding).strip_edges()
+		if key.is_empty():
+			return false
+		next_bindings[action_name] = key
+
+	_misc_key_bindings = next_bindings
+	return true
+
+
+func misc_key_bindings() -> Dictionary:
+	return _misc_key_bindings.duplicate(true)
 
 
 func action_for_lane(lane: int) -> String:
@@ -85,7 +110,7 @@ func apply_to_godot_input_map() -> bool:
 			return false
 
 	for action: String in misc_actions():
-		if not _apply_key_action(action, str(DEFAULT_MISC_KEY_BINDINGS.get(action, ""))):
+		if not _apply_key_action(action, str(_misc_key_bindings.get(action, DEFAULT_MISC_KEY_BINDINGS.get(action, "")))):
 			return false
 	return true
 

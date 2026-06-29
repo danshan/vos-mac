@@ -12,6 +12,17 @@ func _init() -> void:
 	var input_bindings: Array[String] = ["A", "S", "D", "Space", "J", "K", "L"]
 	store.set_key_bindings(input_bindings)
 	input_bindings[0] = "Mutated"
+	if not _expect_bool(store.has_method("set_misc_key_bindings"), true, "misc key binding setter"):
+		return
+	if not _expect_bool(store.has_method("misc_key_bindings"), true, "misc key binding getter"):
+		return
+	var input_misc_bindings := {
+		"speed_up": "PageUp",
+		"main_volume_down": "Minus",
+	}
+	if not _expect_bool(store.set_misc_key_bindings(input_misc_bindings), true, "set misc key bindings"):
+		return
+	input_misc_bindings["speed_up"] = "Mutated"
 	store.set_autoplay_enabled(true)
 	store.set_autosound_enabled(true)
 	store.set_channel_modifier("Mirror")
@@ -49,6 +60,17 @@ func _init() -> void:
 	if not _expect_bool(store.fullscreen_enabled(), true, "fullscreen enabled"):
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key bindings"):
+		return
+	if not _expect_dictionary(store.misc_key_bindings(), {
+			"speed_up": "PageUp",
+			"speed_down": "Down",
+			"main_volume_up": "2",
+			"main_volume_down": "Minus",
+			"key_volume_up": "4",
+			"key_volume_down": "3",
+			"bgm_volume_up": "6",
+			"bgm_volume_down": "5",
+	}, "misc key bindings"):
 		return
 	if not _expect_bool(store.autoplay_enabled(), true, "autoplay enabled"):
 		return
@@ -90,6 +112,10 @@ func _init() -> void:
 	bindings[1] = "Other"
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key binding defensive copy"):
 		return
+	var misc_bindings: Dictionary = store.misc_key_bindings()
+	misc_bindings["speed_up"] = "Other"
+	if not _expect_string(str(store.misc_key_bindings().get("speed_up", "")), "PageUp", "misc key binding defensive copy"):
+		return
 
 	if not _expect_bool(store.has_method("save_to_file"), true, "settings save method"):
 		return
@@ -106,6 +132,17 @@ func _init() -> void:
 	if not _expect_bool(loaded_store.fullscreen_enabled(), true, "loaded fullscreen enabled"):
 		return
 	if not _expect_array(loaded_store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "loaded key bindings"):
+		return
+	if not _expect_dictionary(loaded_store.misc_key_bindings(), {
+			"speed_up": "PageUp",
+			"speed_down": "Down",
+			"main_volume_up": "2",
+			"main_volume_down": "Minus",
+			"key_volume_up": "4",
+			"key_volume_down": "3",
+			"bgm_volume_up": "6",
+			"bgm_volume_down": "5",
+	}, "loaded misc key bindings"):
 		return
 	if not _expect_bool(loaded_store.autoplay_enabled(), true, "loaded autoplay enabled"):
 		return
@@ -158,6 +195,14 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_dictionary(actual: Dictionary, expected: Dictionary, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)

@@ -1,5 +1,7 @@
 extends RefCounted
 
+const InputMapStore = preload("res://scripts/input_map_store.gd")
+
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 const SPEED_TYPE_DEFAULT: String = "HiSpeed"
@@ -22,6 +24,7 @@ var _haste_mode_enabled: bool = false
 var _haste_mode_normalize_speed: bool = true
 var _start_paused_enabled: bool = false
 var _key_bindings: Array[String] = []
+var _misc_key_bindings: Dictionary = InputMapStore.DEFAULT_MISC_KEY_BINDINGS.duplicate(true)
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
 var _speed_multiplier: float = 1.0
@@ -133,6 +136,30 @@ func key_bindings() -> Array[String]:
 	return _key_bindings.duplicate()
 
 
+func set_misc_key_bindings(bindings: Dictionary) -> bool:
+	var next_bindings := _misc_key_bindings.duplicate(true)
+	for action: Variant in bindings.keys():
+		if not action is String:
+			return false
+		var action_name := str(action)
+		if not InputMapStore.DEFAULT_MISC_KEY_BINDINGS.has(action_name):
+			return false
+		var binding: Variant = bindings[action]
+		if not binding is String:
+			return false
+		var key := str(binding).strip_edges()
+		if key.is_empty():
+			return false
+		next_bindings[action_name] = key
+
+	_misc_key_bindings = next_bindings
+	return true
+
+
+func misc_key_bindings() -> Dictionary:
+	return _misc_key_bindings.duplicate(true)
+
+
 func set_channel_modifier(modifier: String) -> void:
 	if CHANNEL_MODIFIERS.has(modifier):
 		_channel_modifier = modifier
@@ -205,6 +232,7 @@ func save_to_file(path: String) -> bool:
 	config.set_value("gameplay", "visibility_modifier", _visibility_modifier)
 	config.set_value("gameplay", "judgment_type", _judgment_type)
 	config.set_value("input", "key_bindings", _key_bindings)
+	config.set_value("input", "misc_key_bindings", _misc_key_bindings)
 	return config.save(path) == OK
 
 
@@ -231,6 +259,7 @@ func load_from_file(path: String) -> bool:
 	set_visibility_modifier(_string_value(config.get_value("gameplay", "visibility_modifier", _visibility_modifier), _visibility_modifier))
 	set_judgment_type(_string_value(config.get_value("gameplay", "judgment_type", _judgment_type), _judgment_type))
 	set_key_bindings(_string_array_value(config.get_value("input", "key_bindings", key_bindings()), key_bindings()))
+	set_misc_key_bindings(_string_dictionary_value(config.get_value("input", "misc_key_bindings", misc_key_bindings()), misc_key_bindings()))
 	return true
 
 
@@ -244,6 +273,15 @@ func _string_array_value(value: Variant, fallback: Array[String]) -> Array[Strin
 	var result: Array[String] = []
 	for item: Variant in value:
 		result.append(str(item))
+	return result
+
+
+func _string_dictionary_value(value: Variant, fallback: Dictionary) -> Dictionary:
+	if not value is Dictionary:
+		return fallback.duplicate(true)
+	var result := {}
+	for key: Variant in value.keys():
+		result[str(key)] = str(value[key])
 	return result
 
 

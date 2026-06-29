@@ -28,6 +28,8 @@ func _init() -> void:
 		return
 	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_custom_misc_key_bindings(chart, audio_manifest):
+		return
 	if not _test_java_initial_volume_options(chart, audio_manifest):
 		return
 	if not _test_java_haste_mode_pitch_sync(audio_manifest):
@@ -266,6 +268,27 @@ func _test_java_volume_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionar
 	_send_input_action(runtime, "bgm_volume_down", true)
 	var bgm_down_state: Dictionary = runtime.hud_state()
 	if not _expect_float(float(bgm_down_state.get("bgmVolume", -1.0)), 0.95, "bgm volume down"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_custom_misc_key_bindings(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.has_method("set_misc_key_bindings"), true, "runtime misc key binding setter"):
+		return false
+	if not _expect_bool(runtime.set_misc_key_bindings({
+			"speed_up": "PageUp",
+			"main_volume_down": "Minus",
+	}), true, "runtime set misc key bindings"):
+		return false
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "custom misc runtime start"):
+		return false
+	if not _expect_int(_keycode_for_action("speed_up"), OS.find_keycode_from_string("PageUp"), "runtime speed up keycode"):
+		return false
+	if not _expect_int(_keycode_for_action("main_volume_down"), OS.find_keycode_from_string("Minus"), "runtime main volume down keycode"):
 		return false
 
 	runtime.free()
@@ -639,6 +662,13 @@ func _send_input_action(runtime: GameplayRuntime, action: String, pressed: bool)
 	input_event.action = action
 	input_event.pressed = pressed
 	runtime._unhandled_input(input_event)
+
+
+func _keycode_for_action(action: String) -> int:
+	var events := InputMap.action_get_events(action)
+	if events.is_empty() or not events[0] is InputEventKey:
+		return 0
+	return events[0].keycode
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

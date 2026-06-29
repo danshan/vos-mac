@@ -7,10 +7,21 @@ const ExporterClient = preload("res://scripts/exporter_client.gd")
 const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
+const InputMapStore = preload("res://scripts/input_map_store.gd")
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 const SettingsStore = preload("res://scripts/settings_store.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
+const MISC_KEY_ACTIONS: Array[String] = [
+	InputMapStore.ACTION_SPEED_UP,
+	InputMapStore.ACTION_SPEED_DOWN,
+	InputMapStore.ACTION_MAIN_VOLUME_UP,
+	InputMapStore.ACTION_MAIN_VOLUME_DOWN,
+	InputMapStore.ACTION_KEY_VOLUME_UP,
+	InputMapStore.ACTION_KEY_VOLUME_DOWN,
+	InputMapStore.ACTION_BGM_VOLUME_UP,
+	InputMapStore.ACTION_BGM_VOLUME_DOWN,
+]
 const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
@@ -361,6 +372,19 @@ func _show_settings() -> void:
 		key_input.custom_minimum_size = Vector2(96.0, 44.0)
 		key_bindings.add_child(key_input)
 
+	var misc_key_bindings := GridContainer.new()
+	misc_key_bindings.name = "MiscKeyBindings"
+	misc_key_bindings.columns = 4
+	_content.add_child(misc_key_bindings)
+
+	for action: String in MISC_KEY_ACTIONS:
+		var key_input := LineEdit.new()
+		key_input.name = "MiscKey_%s" % action
+		key_input.placeholder_text = action
+		key_input.text = _misc_key_binding_for_settings(action)
+		key_input.custom_minimum_size = Vector2(128.0, 44.0)
+		misc_key_bindings.add_child(key_input)
+
 	var back_button := _button("BackButton", "Back")
 	back_button.pressed.connect(_on_settings_back_pressed)
 	_content.add_child(back_button)
@@ -434,6 +458,9 @@ func _show_gameplay() -> void:
 	var key_bindings := _settings_store.key_bindings()
 	if not key_bindings.is_empty() and not _runtime.set_key_bindings(key_bindings):
 		_show_gameplay_load_error("Unable to apply key bindings")
+		return
+	if not _runtime.set_misc_key_bindings(_settings_store.misc_key_bindings()):
+		_show_gameplay_load_error("Unable to apply misc key bindings")
 		return
 	if not _runtime.start(bundle.get("chart", {}), bundle.get("audioManifest", {})):
 		_show_gameplay_load_error("Unable to start gameplay")
@@ -766,6 +793,17 @@ func _save_settings_from_controls() -> void:
 	if bindings.size() == DEFAULT_KEY_BINDINGS.size():
 		_settings_store.set_key_bindings(bindings)
 
+	var misc_bindings := {}
+	for action: String in MISC_KEY_ACTIONS:
+		var key_input: Node = _content.get_node_or_null("MiscKeyBindings/MiscKey_%s" % action)
+		if key_input is LineEdit:
+			var key: String = key_input.text.strip_edges()
+			if key.is_empty():
+				return
+			misc_bindings[action] = key
+	if misc_bindings.size() == MISC_KEY_ACTIONS.size():
+		_settings_store.set_misc_key_bindings(misc_bindings)
+
 
 func _parse_song_directories(text: String) -> Array[String]:
 	var directories: Array[String] = []
@@ -826,6 +864,11 @@ func _key_binding_for_settings(index: int) -> String:
 	if index >= 0 and index < bindings.size():
 		return bindings[index]
 	return DEFAULT_KEY_BINDINGS[index]
+
+
+func _misc_key_binding_for_settings(action: String) -> String:
+	var bindings := _settings_store.misc_key_bindings()
+	return str(bindings.get(action, InputMapStore.DEFAULT_MISC_KEY_BINDINGS.get(action, "")))
 
 
 func _safe_name(value: String) -> String:

@@ -22,6 +22,9 @@ func _init() -> void:
 	first.get_node("Content/DisplayLatencySpinBox").value = 44.0
 	first.get_node("Content/MasterVolumeSpinBox").value = 0.55
 	first.get_node("Content/KeyBindings/KeyBinding1").text = "A"
+	if not _expect_bool(first.has_node("Content/MiscKeyBindings/MiscKey_speed_up"), true, "first misc speed up key binding"):
+		return
+	first.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text = "PageUp"
 	first.get_node("Content/BackButton").emit_signal("pressed")
 	first.free()
 
@@ -40,6 +43,10 @@ func _init() -> void:
 	if not _expect_float(second.get_node("Content/MasterVolumeSpinBox").value, 0.55, "loaded master volume"):
 		return
 	if not _expect_string(second.get_node("Content/KeyBindings/KeyBinding1").text, "A", "loaded key binding"):
+		return
+	if not _expect_bool(second.has_node("Content/MiscKeyBindings/MiscKey_speed_up"), true, "loaded misc speed up key binding"):
+		return
+	if not _expect_string(second.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text, "PageUp", "loaded misc key binding"):
 		return
 
 	second.free()

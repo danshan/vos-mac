@@ -134,6 +134,12 @@ func set_key_bindings(bindings: Array) -> bool:
 	return _input_map.apply_to_godot_input_map()
 
 
+func set_misc_key_bindings(bindings: Dictionary) -> bool:
+	if not _input_map.set_misc_key_bindings(bindings):
+		return false
+	return _input_map.apply_to_godot_input_map()
+
+
 func advance_to(now_ms: float) -> void:
 	if not _running:
 		return

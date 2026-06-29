@@ -27,6 +27,37 @@ func _init() -> void:
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "F", "J", "K", "L"], "unchanged bindings"):
 		return
+	if not _expect_bool(store.has_method("set_misc_key_bindings"), true, "misc key binding setter"):
+		return
+	if not _expect_bool(store.has_method("misc_key_bindings"), true, "misc key binding getter"):
+		return
+	if not _expect_dictionary(store.misc_key_bindings(), {
+			"speed_up": "Up",
+			"speed_down": "Down",
+			"main_volume_up": "2",
+			"main_volume_down": "1",
+			"key_volume_up": "4",
+			"key_volume_down": "3",
+			"bgm_volume_up": "6",
+			"bgm_volume_down": "5",
+	}, "default misc bindings"):
+		return
+	if not _expect_bool(store.set_misc_key_bindings({
+			"speed_up": "PageUp",
+			"main_volume_down": "Minus",
+	}), true, "set custom misc bindings"):
+		return
+	if not _expect_bool(store.set_misc_key_bindings({
+			"missing_action": "A",
+	}), false, "reject unknown misc binding"):
+		return
+	var misc_bindings: Dictionary = store.misc_key_bindings()
+	if not _expect_string(str(misc_bindings.get("speed_up", "")), "PageUp", "custom speed up binding"):
+		return
+	if not _expect_string(str(misc_bindings.get("main_volume_down", "")), "Minus", "custom main volume down binding"):
+		return
+	if not _expect_string(str(misc_bindings.get("speed_down", "")), "Down", "default speed down binding remains"):
+		return
 	if not _expect_bool(store.apply_to_godot_input_map(), true, "apply custom bindings"):
 		return
 	if not _expect_bool(InputMap.has_action("vos_lane_1"), true, "first input action exists"):
@@ -53,11 +84,15 @@ func _init() -> void:
 		return
 	if not _expect_int(InputMap.action_get_events("speed_up").size(), 1, "speed up input action event count"):
 		return
+	if not _expect_int(_keycode_for_action("speed_up"), OS.find_keycode_from_string("PageUp"), "custom speed up keycode"):
+		return
 	if not _expect_int(InputMap.action_get_events("speed_down").size(), 1, "speed down input action event count"):
 		return
 	if not _expect_int(InputMap.action_get_events("main_volume_up").size(), 1, "main volume up input action event count"):
 		return
 	if not _expect_int(InputMap.action_get_events("main_volume_down").size(), 1, "main volume down input action event count"):
+		return
+	if not _expect_int(_keycode_for_action("main_volume_down"), OS.find_keycode_from_string("Minus"), "custom main volume down keycode"):
 		return
 	if not _expect_int(InputMap.action_get_events("key_volume_up").size(), 1, "key volume up input action event count"):
 		return
@@ -72,6 +107,14 @@ func _init() -> void:
 
 
 func _expect_array(actual: Array[String], expected: Array[String], label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_dictionary(actual: Dictionary, expected: Dictionary, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
@@ -101,3 +144,10 @@ func _expect_string(actual: String, expected: String, label: String) -> bool:
 		quit(1)
 		return false
 	return true
+
+
+func _keycode_for_action(action: String) -> int:
+	var events := InputMap.action_get_events(action)
+	if events.is_empty() or not events[0] is InputEventKey:
+		return 0
+	return events[0].keycode

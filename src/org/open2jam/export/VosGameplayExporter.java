@@ -75,23 +75,27 @@ public final class VosGameplayExporter {
             }
         }
 
-        return JsonWriter.object(
-                JsonWriter.field("schemaVersion", 1),
-                JsonWriter.field("format", "VOS"),
-                JsonWriter.field("sourcePath", input.getCanonicalPath()),
-                JsonWriter.field("title", chart.getTitle()),
-                JsonWriter.field("rank", 0),
-                JsonWriter.field("speedMultiplier", 1.0),
-                JsonWriter.field("speedType", "HiSpeed"),
-                JsonWriter.field("keys", chart.getKeys()),
-                JsonWriter.field("bpm", chart.getBPM()),
-                JsonWriter.field("durationMs", chart.getDuration() * 1000),
-                JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))),
-                JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))),
-                JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))),
-                JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))),
-                JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))),
-                JsonWriter.rawField("bgaSprites", JsonWriter.array(bgaSprites(chart, bgaAssetDir))));
+        List<String> fields = new ArrayList<String>();
+        fields.add(JsonWriter.field("schemaVersion", 1));
+        fields.add(JsonWriter.field("format", "VOS"));
+        fields.add(JsonWriter.field("sourcePath", input.getCanonicalPath()));
+        fields.add(JsonWriter.field("title", chart.getTitle()));
+        fields.add(JsonWriter.field("rank", 0));
+        fields.add(JsonWriter.field("speedMultiplier", 1.0));
+        fields.add(JsonWriter.field("speedType", "HiSpeed"));
+        fields.add(JsonWriter.field("keys", chart.getKeys()));
+        fields.add(JsonWriter.field("bpm", chart.getBPM()));
+        fields.add(JsonWriter.field("durationMs", chart.getDuration() * 1000));
+        fields.add(JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))));
+        fields.add(JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))));
+        fields.add(JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))));
+        fields.add(JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
+        fields.add(JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))));
+        if (chart.hasVideo()) {
+            fields.add(JsonWriter.field("bgaVideoPath", chart.getVideo().getCanonicalPath()));
+        }
+        fields.add(JsonWriter.rawField("bgaSprites", JsonWriter.array(bgaSprites(chart, bgaAssetDir))));
+        return JsonWriter.object(fields.toArray(new String[fields.size()]));
     }
 
     private static VOSChart firstVosChart(File input) {

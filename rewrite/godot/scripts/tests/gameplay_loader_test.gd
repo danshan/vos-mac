@@ -95,6 +95,18 @@ func _init() -> void:
 	if not _expect_float(normalized_bga_sprites[0].get("textureHeight", -1.0), 32.0, "normalized bga sprite texture height"):
 		return
 
+	var bga_video_chart: Dictionary = _valid_chart()
+	bga_video_chart["bgaVideoPath"] = "res://test/fixtures/intro.ogv"
+	var bga_video_path := _chart_path("bga_video")
+	if not _write_chart(bga_video_path, bga_video_chart):
+		return
+
+	var normalized_bga_video_chart: Dictionary = loader.load_from_file(bga_video_path)
+	if not _expect_bool(normalized_bga_video_chart.is_empty(), false, "bga video chart load"):
+		return
+	if not _expect_string(normalized_bga_video_chart.get("bgaVideoPath", ""), "res://test/fixtures/intro.ogv", "normalized bga video path"):
+		return
+
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
@@ -239,6 +251,10 @@ func _init() -> void:
 	if not _expect_rejected(loader, _chart_with_bga_sprite("textureWidth", 0), "zero bga sprite texture width"):
 		return
 	if not _expect_rejected(loader, _chart_with_bga_sprite("textureHeight", 0), "zero bga sprite texture height"):
+		return
+	if not _expect_rejected(loader, _chart_with("bgaVideoPath", ""), "empty bga video path"):
+		return
+	if not _expect_rejected(loader, _chart_with("bgaVideoPath", 7), "numeric bga video path"):
 		return
 
 	var missing_chart: Dictionary = loader.load_from_file("res://test/fixtures/missing_gameplay.json")

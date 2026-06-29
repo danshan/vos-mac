@@ -87,6 +87,7 @@ func load_chart(chart: Dictionary) -> bool:
 		return false
 	_chart = chart.duplicate(true)
 	_configure_bga_sprites()
+	_configure_bga_node()
 	_configure_distance()
 	_rebuild_note_nodes()
 	update_time(0.0)
@@ -299,6 +300,76 @@ func _configure_bga_sprites() -> void:
 		if sprite_id <= 0:
 			continue
 		_bga_sprites[sprite_id] = raw_sprite.duplicate(true)
+
+
+func _configure_bga_node() -> void:
+	if _metadata.is_empty():
+		return
+	var video_path := str(_chart.get("bgaVideoPath", "")).strip_edges()
+	if video_path.is_empty():
+		if has_node("Entity_BGA") and get_node("Entity_BGA") is VideoStreamPlayer:
+			var template := _first_entity_by_id("BGA")
+			if not template.is_empty():
+				_replace_bga_node(_entity_rect(template, "Entity_BGA"))
+		return
+
+	var current_node: Variant = get_node_or_null("Entity_BGA")
+	if not current_node is Control:
+		var template := _first_entity_by_id("BGA")
+		if template.is_empty():
+			return
+		current_node = _entity_rect(template, "Entity_BGA")
+		add_child(current_node)
+
+	var video_node := VideoStreamPlayer.new()
+	video_node.name = "Entity_BGA"
+	video_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	video_node.position = current_node.position
+	video_node.size = current_node.size
+	video_node.z_index = current_node.z_index
+	video_node.z_as_relative = current_node.z_as_relative
+	video_node.expand = true
+	video_node.autoplay = false
+	video_node.volume = 0.0
+	video_node.stream = _video_stream_for_path(video_path)
+	video_node.set_meta("bgaVideoPath", video_path)
+	video_node.set_meta("bgaVideoStarted", false)
+	_replace_bga_node(video_node)
+
+
+func _replace_bga_node(node: Control) -> void:
+	var current_node := get_node_or_null("Entity_BGA")
+	if current_node == node:
+		return
+	if current_node == null:
+		add_child(node)
+		return
+	var index := current_node.get_index()
+	remove_child(current_node)
+	current_node.free()
+	add_child(node)
+	move_child(node, index)
+
+
+func _video_stream_for_path(path: String) -> VideoStream:
+	if not FileAccess.file_exists(path):
+		return null
+	var extension := path.get_extension().to_lower()
+	var video_class_name := ""
+	match extension:
+		"ogv", "ogg", "ogm":
+			video_class_name = "VideoStreamTheora"
+		"mp4", "m4v":
+			video_class_name = "VideoStreamMP4"
+	if not video_class_name.is_empty() and ClassDB.class_exists(video_class_name) and ClassDB.can_instantiate(video_class_name):
+		var stream: Variant = ClassDB.instantiate(video_class_name)
+		if stream is VideoStream:
+			stream.set("file", path)
+			return stream
+	var resource := ResourceLoader.load(path)
+	if resource is VideoStream:
+		return resource
+	return null
 
 
 func _load_visual_timing(timing: TimingModel) -> bool:
@@ -724,6 +795,14 @@ func _sync_status_texts(raw_texts: Variant) -> void:
 
 func _sync_bga_event(raw_event: Variant) -> void:
 	if not raw_event is Dictionary:
+		return
+	var raw_bga_node: Variant = get_node_or_null("Entity_BGA")
+	if raw_bga_node is VideoStreamPlayer:
+		raw_bga_node.set_meta("currentBgaEventStartMs", float(raw_event.get("startMs", 0.0)))
+		if not bool(raw_bga_node.get_meta("bgaVideoStarted", false)):
+			raw_bga_node.set_meta("bgaVideoStarted", true)
+			if raw_bga_node.stream != null:
+				raw_bga_node.play()
 		return
 	var sprite_id := int(raw_event.get("spriteId", 0))
 	if sprite_id <= 0 or sprite_id == _current_bga_sprite_id:

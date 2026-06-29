@@ -98,6 +98,26 @@ class VosGameplayExporterTest {
     }
 
     @Test
+    void exportsBgaVideoPathFromChartVideo() throws Exception {
+        File chartFile = new File(tempDir, "video.vos");
+        Files.write(chartFile.toPath(), new byte[0]);
+        File videoFile = new File(tempDir, "intro.ogv");
+        Files.write(videoFile.toPath(), new byte[] { 0 });
+        VOSChart chart = new BgaVideoChart(videoFile);
+        chart.setTitle("Canon in D");
+        chart.setLevel(0);
+        chart.setBPM(120.0);
+        chart.setDuration(123);
+        chart.setEvents(new EventList());
+
+        String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
+
+        assertEquals(gameplayJsonWithBgaVideo(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
+                JsonWriter.array(), videoFile, JsonWriter.array()), json);
+    }
+
+    @Test
     void rejectsInputWithoutVosChart() throws Exception {
         File textFile = new File(tempDir, "notes.txt");
         Files.write(textFile.toPath(), "not a chart".getBytes(StandardCharsets.UTF_8));
@@ -123,6 +143,28 @@ class VosGameplayExporterTest {
                 JsonWriter.rawField("visualTiming", visualTiming),
                 JsonWriter.rawField("autoPlayEvents", autoPlayEvents),
                 JsonWriter.rawField("bgaEvents", bgaEvents),
+                JsonWriter.rawField("bgaSprites", bgaSprites));
+    }
+
+    private static String gameplayJsonWithBgaVideo(File source, String notes, String measures, String visualTiming,
+            String autoPlayEvents, String bgaEvents, File bgaVideo, String bgaSprites) throws Exception {
+        return JsonWriter.object(
+                JsonWriter.field("schemaVersion", 1),
+                JsonWriter.field("format", "VOS"),
+                JsonWriter.field("sourcePath", source.getCanonicalPath()),
+                JsonWriter.field("title", "Canon in D"),
+                JsonWriter.field("rank", 0),
+                JsonWriter.field("speedMultiplier", 1.0),
+                JsonWriter.field("speedType", "HiSpeed"),
+                JsonWriter.field("keys", 7),
+                JsonWriter.field("bpm", 120.0),
+                JsonWriter.field("durationMs", 123000),
+                JsonWriter.rawField("notes", notes),
+                JsonWriter.rawField("measures", measures),
+                JsonWriter.rawField("visualTiming", visualTiming),
+                JsonWriter.rawField("autoPlayEvents", autoPlayEvents),
+                JsonWriter.rawField("bgaEvents", bgaEvents),
+                JsonWriter.field("bgaVideoPath", bgaVideo.getCanonicalPath()),
                 JsonWriter.rawField("bgaSprites", bgaSprites));
     }
 
@@ -190,6 +232,12 @@ class VosGameplayExporterTest {
         @Override
         public Map<Integer, File> getImages() {
             return images;
+        }
+    }
+
+    private static final class BgaVideoChart extends VOSChart {
+        BgaVideoChart(File video) {
+            this.video = video;
         }
     }
 }

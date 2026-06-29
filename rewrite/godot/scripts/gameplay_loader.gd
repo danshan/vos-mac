@@ -102,6 +102,11 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		normalized_bga_sprites.append(normalized_bga_sprite)
 
 	var normalized_chart: Dictionary = chart.duplicate(true)
+	if normalized_chart.has("bgaVideoPath"):
+		var bga_video_path: Variant = normalized_chart.get("bgaVideoPath")
+		if not bga_video_path is String or str(bga_video_path).strip_edges().is_empty():
+			return {}
+		normalized_chart["bgaVideoPath"] = str(bga_video_path)
 	normalized_chart["keys"] = int(keys)
 	var channel_modifier := _normalized_channel_modifier(normalized_chart.get("channelModifier", CHANNEL_MOD_NONE))
 	if channel_modifier.is_empty():

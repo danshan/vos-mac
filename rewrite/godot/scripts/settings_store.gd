@@ -6,6 +6,8 @@ const SPEED_TYPE_DEFAULT: String = "HiSpeed"
 const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
 const VISIBILITY_MOD_NONE: String = "None"
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
+const JUDGMENT_TYPE_DEFAULT: String = "beat"
+const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
 
 var _song_directories: Array[String] = []
 var _fullscreen_enabled: bool = false
@@ -14,6 +16,7 @@ var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
 var _speed_multiplier: float = 1.0
 var _visibility_modifier: String = VISIBILITY_MOD_NONE
+var _judgment_type: String = JUDGMENT_TYPE_DEFAULT
 
 
 func set_song_directories(paths: Array[String]) -> void:
@@ -79,3 +82,14 @@ func set_visibility_modifier(modifier: String) -> void:
 
 func visibility_modifier() -> String:
 	return _visibility_modifier
+
+
+func set_judgment_type(judgment_type: String) -> void:
+	if JUDGMENT_TYPES.has(judgment_type):
+		_judgment_type = judgment_type
+	else:
+		_judgment_type = JUDGMENT_TYPE_DEFAULT
+
+
+func judgment_type() -> String:
+	return _judgment_type

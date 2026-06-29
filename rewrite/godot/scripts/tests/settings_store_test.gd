@@ -16,6 +16,7 @@ func _init() -> void:
 	store.set_speed_type("RegulSpeed")
 	store.set_speed_multiplier(2.0)
 	store.set_visibility_modifier("Hidden")
+	store.set_judgment_type("time")
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -30,6 +31,8 @@ func _init() -> void:
 	if not _expect_float(store.speed_multiplier(), 2.0, "speed multiplier"):
 		return
 	if not _expect_string(store.visibility_modifier(), "Hidden", "visibility modifier"):
+		return
+	if not _expect_string(store.judgment_type(), "time", "judgment type"):
 		return
 
 	var directories: Array[String] = store.song_directories()

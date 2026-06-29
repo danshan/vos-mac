@@ -14,6 +14,7 @@ const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "
 const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
+const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
 
 var _built: bool = false
 var _app_state = AppState.new()
@@ -251,6 +252,14 @@ func _show_settings() -> void:
 	var selected_visibility := VISIBILITY_MODIFIERS.find(_settings_store.visibility_modifier())
 	visibility_modifier.select(max(selected_visibility, 0))
 	_content.add_child(visibility_modifier)
+
+	var judgment_type := OptionButton.new()
+	judgment_type.name = "JudgmentTypeOption"
+	for option: String in JUDGMENT_TYPES:
+		judgment_type.add_item(option)
+	var selected_judgment := JUDGMENT_TYPES.find(_settings_store.judgment_type())
+	judgment_type.select(max(selected_judgment, 0))
+	_content.add_child(judgment_type)
 
 	var key_bindings := GridContainer.new()
 	key_bindings.name = "KeyBindings"
@@ -597,6 +606,10 @@ func _save_settings_from_controls() -> void:
 	if visibility_modifier is OptionButton:
 		_settings_store.set_visibility_modifier(visibility_modifier.get_item_text(visibility_modifier.selected))
 
+	var judgment_type: Node = _content.get_node_or_null("JudgmentTypeOption")
+	if judgment_type is OptionButton:
+		_settings_store.set_judgment_type(judgment_type.get_item_text(judgment_type.selected))
+
 	var bindings: Array[String] = []
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
 		var key_input: Node = _content.get_node_or_null("KeyBindings/KeyBinding%d" % (i + 1))
@@ -624,6 +637,7 @@ func _gameplay_option_overrides() -> Dictionary:
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),
 		"visibilityModifier": _settings_store.visibility_modifier(),
+		"judgmentType": _settings_store.judgment_type(),
 	}
 
 

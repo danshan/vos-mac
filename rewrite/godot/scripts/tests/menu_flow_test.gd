@@ -41,6 +41,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/VisibilityModifierOption"), true, "visibility modifier option"):
 		return
+	if not _expect_bool(ui.has_node("Content/JudgmentTypeOption"), true, "judgment type option"):
+		return
 	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
 		return
 
@@ -50,6 +52,7 @@ func _init() -> void:
 	ui.get_node("Content/SpeedTypeOption").select(3)
 	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
 	ui.get_node("Content/VisibilityModifierOption").select(1)
+	ui.get_node("Content/JudgmentTypeOption").select(1)
 	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
@@ -69,6 +72,9 @@ func _init() -> void:
 		return
 	if not _expect_string(ui.get_node("Content/VisibilityModifierOption").get_item_text(
 			ui.get_node("Content/VisibilityModifierOption").selected), "Hidden", "persisted visibility modifier"):
+		return
+	if not _expect_string(ui.get_node("Content/JudgmentTypeOption").get_item_text(
+			ui.get_node("Content/JudgmentTypeOption").selected), "time", "persisted judgment type"):
 		return
 	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
 		return
@@ -101,6 +107,13 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER"), true, "gameplay score hud"):
 		return
+
+	ui.get_node("GameplayRuntime").press_action("vos_lane_7", 780.0)
+	ui._process(0.0)
+	if not _expect_string(ui.get_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER").text, "0", "time judgment rejects wide early hit"):
+		return
+	ui.get_node("GameplayRuntime").release_action("vos_lane_7", 780.0)
+	ui._process(0.0)
 
 	ui.apply_layout_for_size(Vector2(1600.0, 900.0))
 	var content: VBoxContainer = ui.get_node("Content")

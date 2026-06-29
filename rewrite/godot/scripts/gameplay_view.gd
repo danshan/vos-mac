@@ -16,6 +16,11 @@ const VISIBILITY_NONE: String = "None"
 const VISIBILITY_HIDDEN: String = "Hidden"
 const VISIBILITY_SUDDEN: String = "Sudden"
 const VISIBILITY_DARK: String = "Dark"
+const JAVA_STATUS_RIGHT_X: float = 780.0
+const JAVA_STATUS_START_Y: float = 300.0
+const JAVA_STATUS_LINE_HEIGHT: float = 30.0
+const JAVA_STATUS_WIDTH: float = 260.0
+const JAVA_STATUS_FONT_SIZE: int = 16
 
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
@@ -57,6 +62,7 @@ var _click_nodes: Array[Node] = []
 var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
 var _visibility_nodes: Array[Node] = []
+var _status_nodes: Array[Node] = []
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -152,6 +158,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_pills(int(state.get("pills", 0)))
 	_sync_longflares(state.get("longFlares", []))
 	_sync_note_visibility(state.get("hiddenNotes", []))
+	_sync_status_texts(state.get("statusTexts", []))
 
 
 func _rebuild_entities() -> void:
@@ -171,6 +178,7 @@ func _rebuild_entities() -> void:
 	_clear_nodes(_pill_nodes)
 	_clear_nodes(_longflare_nodes)
 	_clear_nodes(_visibility_nodes)
+	_clear_nodes(_status_nodes)
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -651,6 +659,31 @@ func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
 		var node: Variant = _note_entries[i].get("node")
 		if node is CanvasItem:
 			node.visible = not bool(hidden.get(i, false))
+
+
+func _sync_status_texts(raw_texts: Variant) -> void:
+	_clear_nodes(_status_nodes)
+	if not raw_texts is Array:
+		return
+
+	for i in range(raw_texts.size()):
+		var text := str(raw_texts[i])
+		if text.is_empty():
+			continue
+		var label := Label.new()
+		label.name = "StatusText_%03d" % i
+		label.text = text
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		label.position = Vector2(JAVA_STATUS_RIGHT_X - JAVA_STATUS_WIDTH,
+				JAVA_STATUS_START_Y + JAVA_STATUS_LINE_HEIGHT * i)
+		label.size = Vector2(JAVA_STATUS_WIDTH, JAVA_STATUS_LINE_HEIGHT)
+		label.z_index = 1000
+		label.z_as_relative = false
+		label.add_theme_font_size_override("font_size", JAVA_STATUS_FONT_SIZE)
+		add_child(label)
+		_status_nodes.append(label)
 
 
 func _rebuild_visibility_nodes() -> void:

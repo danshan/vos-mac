@@ -34,6 +34,7 @@ const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
 const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
+const JAVA_GAME_SPEED_PITCH: int = 0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -133,6 +134,7 @@ func render_state(now_ms: float) -> Dictionary:
 		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
 		"longFlares": _active_longflares(),
 		"hiddenNotes": _hidden_note_indices(),
+		"statusTexts": _status_texts(now_ms),
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -521,6 +523,37 @@ func _normalized_speed_type(value: Variant) -> String:
 	if str(value) == SPEED_TYPE_W_SPEED:
 		return SPEED_TYPE_W_SPEED
 	return SPEED_TYPE_HI_SPEED
+
+
+func _status_texts(now_ms: float) -> Array[String]:
+	return [
+		"%s: x%.1f" % [_java_speed_type_name(), _render_speed],
+		"Current Measure: %d" % _current_measure(now_ms),
+		"Game Speed: %+d" % JAVA_GAME_SPEED_PITCH,
+	]
+
+
+func _java_speed_type_name() -> String:
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		return "xR-SPEED"
+	if _speed_type == SPEED_TYPE_REGUL_SPEED:
+		return "REGUL-SPEED"
+	if _speed_type == SPEED_TYPE_W_SPEED:
+		return "W-SPEED"
+	return "HI-SPEED"
+
+
+func _current_measure(now_ms: float) -> int:
+	var measures: Variant = _chart.get("measures", [])
+	if not measures is Array:
+		return 0
+	var count := 0
+	for raw_measure: Variant in measures:
+		if not raw_measure is Dictionary:
+			continue
+		if float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
+			count += 1
+	return count
 
 
 func _normalized_bool(value: Variant) -> bool:

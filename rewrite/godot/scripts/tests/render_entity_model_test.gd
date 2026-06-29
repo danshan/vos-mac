@@ -278,6 +278,11 @@ func _init() -> void:
 			"bad": 1,
 			"miss": 2,
 		},
+		"statusTexts": [
+			"HI-SPEED: x1.0",
+			"Current Measure: 2",
+			"Game Speed: +0",
+		],
 	})
 	if not _expect_string(view.get_node("Hud_SCORE_COUNTER").text, "12345", "score hud text"):
 		return
@@ -314,6 +319,23 @@ func _init() -> void:
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_BAD").text, "1", "bad counter hud text"):
 		return
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_MISS").text, "2", "miss counter hud text"):
+		return
+	if not _expect_bool(view.has_node("StatusText_000"), true, "status text first label"):
+		return
+	if not _expect_string(view.get_node("StatusText_000").text, "HI-SPEED: x1.0", "status speed text"):
+		return
+	if not _expect_string(view.get_node("StatusText_001").text, "Current Measure: 2", "status measure text"):
+		return
+	if not _expect_string(view.get_node("StatusText_002").text, "Game Speed: +0", "status game speed text"):
+		return
+	var status_label: Label = view.get_node("StatusText_000")
+	if not _expect_int(status_label.horizontal_alignment, HORIZONTAL_ALIGNMENT_RIGHT, "status Java right alignment"):
+		return
+	if not _expect_float(status_label.position.x, 520.0, "status Java x"):
+		return
+	if not _expect_float(status_label.position.y, 300.0, "status Java y"):
+		return
+	if not _expect_float(view.get_node("StatusText_001").position.y, 330.0, "status Java next y"):
 		return
 
 	var life_bar: Control = view.get_node("Entity_LIFE_BAR")

@@ -71,6 +71,15 @@ func _init() -> void:
 		return
 	if not _expect_int(click_events[0].get("lane", -1), 0, "hud state click event lane"):
 		return
+	var status_texts: Array = hud_state.get("statusTexts", [])
+	if not _expect_int(status_texts.size(), 3, "hud state status text count"):
+		return
+	if not _expect_string(str(status_texts[0]), "HI-SPEED: x1.0", "hud state speed status"):
+		return
+	if not _expect_string(str(status_texts[1]), "Current Measure: 1", "hud state measure status"):
+		return
+	if not _expect_string(str(status_texts[2]), "Game Speed: +0", "hud state game speed status"):
+		return
 	runtime.release_action("vos_lane_1", 1000.0)
 	var released_state: Dictionary = runtime.hud_state()
 	if not _expect_int(released_state.get("pressedLanes", []).size(), 0, "hud state released lane count"):

@@ -85,6 +85,7 @@ func _chart() -> Dictionary:
 		"schemaVersion": 1,
 		"chartId": "vos:audio",
 		"format": "VOS",
+		"judgmentType": "time",
 		"keys": 7,
 		"bpm": 120.0,
 		"durationMs": 5000,

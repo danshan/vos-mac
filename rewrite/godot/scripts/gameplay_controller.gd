@@ -27,6 +27,9 @@ const JAVA_JUDGMENT_LINE: float = 480.0
 const JAVA_MEASURE_SIZE: float = 385.0
 const JAVA_RENDER_SPEED: float = 1.0
 const JAVA_TAP_NOTE_HEIGHT: float = 7.0
+const JAVA_BEAT_JUDGMENT_FACTOR: float = 0.664
+const JUDGMENT_TYPE_BEAT: String = "beat"
+const JUDGMENT_TYPE_TIME: String = "time"
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -45,6 +48,8 @@ var _pressed_lanes: Dictionary = {}
 var _held_note_indices: Dictionary = {}
 var _longflare_lanes: Dictionary = {}
 var _distance = null
+var _timing = null
+var _judgment_type: String = JUDGMENT_TYPE_BEAT
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -58,6 +63,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []))
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
+	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
@@ -137,7 +143,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 	note["hitTime"] = hit_time
 	_notes[note_index] = note
 
-	if not _judgment.accept_time(hit_time):
+	if not _accept_note(note, hit_time, now_ms):
 		var rejected_keysound := absf(hit_time) <= VOS_LIVE_TRIGGER_THRESHOLD
 		if rejected_keysound:
 			_emit_note_play_command(note_index, AUDIO_TRIGGER_EXTRASOUND, false)
@@ -209,12 +215,12 @@ func advance_to(now_ms: float) -> int:
 		var note := _notes[i]
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
 			var hit_time := _hit_time_for_note(note, now_ms)
-			if _judgment.missed_time(hit_time):
+			if _missed_note(note, hit_time, now_ms):
 				_apply_note_judgment(i, hit_time, now_ms)
 				judged += 1
 		elif str(note.get("state", "")) == STATE_HOLDING:
 			var tail_hit_time := _tail_hit_time_for_note(note, now_ms)
-			if _judgment.missed_time(tail_hit_time):
+			if _missed_note(note, tail_hit_time, now_ms):
 				_apply_note_judgment(i, tail_hit_time, now_ms)
 				var lane := int(note.get("lane", -1))
 				_held_note_indices.erase(lane)
@@ -303,6 +309,7 @@ func _configure_distance() -> void:
 	if not loaded:
 		timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
 	timing.finish()
+	_timing = timing
 	_distance = NoteDistanceCalculator.new(timing, JAVA_MEASURE_SIZE)
 
 
@@ -339,7 +346,7 @@ func _tail_hit_time_for_note(note: Dictionary, now_ms: float) -> float:
 
 func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float) -> String:
 	var note := _notes[note_index]
-	var result := _score_state.apply_judgment(_judgment.judge_time(hit_time).to_lower())
+	var result := _score_state.apply_judgment(_judge_note(note, hit_time, now_ms).to_lower())
 	if result == "miss" and bool(note.get("samplePlayed", false)):
 		_emit_note_stop_command(note)
 	_emit_judgment_render_event(note, result, now_ms)
@@ -426,6 +433,47 @@ func _cleanup_y_for_note(note: Dictionary, now_ms: float) -> float:
 			target_ms = float(end_ms)
 		return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED)
 	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED) - JAVA_TAP_NOTE_HEIGHT
+
+
+func _accept_note(note: Dictionary, hit_time: float, now_ms: float) -> bool:
+	if _judgment_type == JUDGMENT_TYPE_TIME:
+		return _judgment.accept_time(hit_time)
+	return _judgment.accept_beat(_beat_hit_delta(note, hit_time, now_ms))
+
+
+func _missed_note(note: Dictionary, hit_time: float, now_ms: float) -> bool:
+	if _judgment_type == JUDGMENT_TYPE_TIME:
+		return _judgment.missed_time(hit_time)
+	return _judgment.missed_beat(_beat_hit_delta(note, hit_time, now_ms))
+
+
+func _judge_note(note: Dictionary, hit_time: float, now_ms: float) -> String:
+	if _judgment_type == JUDGMENT_TYPE_TIME:
+		return _judgment.judge_time(hit_time)
+	return _judgment.judge_beat(_beat_hit_delta(note, hit_time, now_ms))
+
+
+func _beat_hit_delta(note: Dictionary, hit_time: float, now_ms: float) -> float:
+	if _timing == null:
+		return hit_time
+	var target_ms := _target_time_for_note(note)
+	var hit_ms := target_ms - hit_time
+	return (_timing.get_beat(target_ms) - _timing.get_beat(hit_ms)) / JAVA_BEAT_JUDGMENT_FACTOR
+
+
+func _target_time_for_note(note: Dictionary) -> float:
+	if str(note.get("state", STATE_NOT_JUDGED)) == STATE_HOLDING:
+		var end_ms: Variant = note.get("endMs", null)
+		if end_ms is int or end_ms is float:
+			return float(end_ms)
+	return float(note.get("startMs", 0.0))
+
+
+func _normalized_judgment_type(value: Variant) -> String:
+	var type := str(value).to_lower()
+	if type == JUDGMENT_TYPE_TIME:
+		return JUDGMENT_TYPE_TIME
+	return JUDGMENT_TYPE_BEAT
 
 
 func _advance_event_buffer(now_ms: float) -> void:

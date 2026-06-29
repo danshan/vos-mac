@@ -4,6 +4,11 @@ const GameplayController = preload("res://scripts/gameplay_controller.gd")
 
 
 func _init() -> void:
+	if not _test_default_beat_judgment():
+		return
+	if not _test_explicit_time_judgment():
+		return
+
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
 		return
@@ -95,11 +100,55 @@ func _init() -> void:
 	quit(0)
 
 
+func _test_default_beat_judgment() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_single_note_chart({})), true, "beat chart load"):
+		return false
+	var beat_hit: Dictionary = controller.press_action("vos_lane_1", 780.0)
+	if not _expect_bool(beat_hit.get("accepted", false), true, "beat accepts wide early hit"):
+		return false
+	if not _expect_string(beat_hit.get("result", ""), "bad", "beat wide early result"):
+		return false
+	return true
+
+
+func _test_explicit_time_judgment() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_single_note_chart({"judgmentType": "time"})), true, "time chart load"):
+		return false
+	var time_hit: Dictionary = controller.press_action("vos_lane_1", 780.0)
+	if not _expect_bool(time_hit.get("accepted", true), false, "time rejects wide early hit"):
+		return false
+	return true
+
+
+func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:single-note",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"visualTiming": [
+			{"timeMs": 0.0, "bpm": 120.0},
+		],
+		"autoPlayEvents": [],
+	}
+	for key: Variant in extra_fields.keys():
+		chart[key] = extra_fields[key]
+	return chart
+
+
 func _chart() -> Dictionary:
 	return {
 		"schemaVersion": 1,
 		"chartId": "vos:input",
 		"format": "VOS",
+		"judgmentType": "time",
 		"keys": 7,
 		"bpm": 120.0,
 		"durationMs": 5000,

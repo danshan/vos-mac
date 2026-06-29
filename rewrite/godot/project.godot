@@ -5,3 +5,10 @@ config_version=5
 config/name="Open2Jam VOS Rewrite"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"

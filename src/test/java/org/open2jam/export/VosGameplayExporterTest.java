@@ -76,6 +76,7 @@ class VosGameplayExporterTest {
                 JsonWriter.field("lane", lane),
                 JsonWriter.field("kind", kind),
                 JsonWriter.field("startMs", startMs),
+                JsonWriter.field("measure", 0),
                 JsonWriter.field("sampleId", sampleId),
                 JsonWriter.field("volume", 1.0),
                 JsonWriter.field("pan", 0.0));
@@ -86,7 +87,9 @@ class VosGameplayExporterTest {
                 JsonWriter.field("lane", lane),
                 JsonWriter.field("kind", "holdStart"),
                 JsonWriter.field("startMs", startMs),
+                JsonWriter.field("measure", 0),
                 JsonWriter.field("endMs", endMs),
+                JsonWriter.field("endMeasure", 0),
                 JsonWriter.field("sampleId", sampleId),
                 JsonWriter.field("volume", 1.0),
                 JsonWriter.field("pan", 0.0));

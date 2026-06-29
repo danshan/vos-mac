@@ -42,7 +42,7 @@ public final class VosGameplayExporter {
                     case RELEASE:
                         ExportNote pending = pendingLongNotes.remove(event.getChannel());
                         if (pending != null) {
-                            pending.setEndMs(event.getTime());
+                            pending.setEnd(event);
                         }
                         break;
                     default:
@@ -144,16 +144,19 @@ public final class VosGameplayExporter {
 
     private static final class ExportNote {
         private final int lane;
+        private final int measure;
         private final String kind;
         private final double startMs;
         private final int sampleId;
         private final float volume;
         private final float pan;
         private Double endMs;
+        private Integer endMeasure;
 
         ExportNote(Event event, int lane, String kind) {
             Event.SoundSample sample = event.getSample();
             this.lane = lane;
+            this.measure = event.getMeasure();
             this.kind = kind;
             this.startMs = event.getTime();
             this.sampleId = sample.sample_id;
@@ -161,8 +164,9 @@ public final class VosGameplayExporter {
             this.pan = sample.pan;
         }
 
-        void setEndMs(double endMs) {
-            this.endMs = endMs;
+        void setEnd(Event event) {
+            this.endMs = event.getTime();
+            this.endMeasure = event.getMeasure();
         }
 
         String toJson() {
@@ -171,7 +175,9 @@ public final class VosGameplayExporter {
                         JsonWriter.field("lane", lane),
                         JsonWriter.field("kind", kind),
                         JsonWriter.field("startMs", startMs),
+                        JsonWriter.field("measure", measure),
                         JsonWriter.field("endMs", endMs),
+                        JsonWriter.field("endMeasure", endMeasure.intValue()),
                         JsonWriter.field("sampleId", sampleId),
                         JsonWriter.field("volume", volume),
                         JsonWriter.field("pan", pan));
@@ -180,6 +186,7 @@ public final class VosGameplayExporter {
                     JsonWriter.field("lane", lane),
                     JsonWriter.field("kind", kind),
                     JsonWriter.field("startMs", startMs),
+                    JsonWriter.field("measure", measure),
                     JsonWriter.field("sampleId", sampleId),
                     JsonWriter.field("volume", volume),
                     JsonWriter.field("pan", pan));

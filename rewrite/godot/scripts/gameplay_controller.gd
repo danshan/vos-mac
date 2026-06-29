@@ -32,6 +32,7 @@ const JUDGMENT_TYPE_BEAT: String = "beat"
 const JUDGMENT_TYPE_TIME: String = "time"
 const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
+const SPEED_TYPE_W_SPEED: String = "WSpeed"
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -54,6 +55,8 @@ var _timing = null
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
 var _speed_type: String = SPEED_TYPE_HI_SPEED
+var _last_distance_update_ms: float = 0.0
+var _has_distance_update_ms: bool = false
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -78,6 +81,8 @@ func load_chart(chart: Dictionary) -> bool:
 	_pressed_lanes.clear()
 	_held_note_indices.clear()
 	_longflare_lanes.clear()
+	_last_distance_update_ms = 0.0
+	_has_distance_update_ms = false
 	return true
 
 
@@ -216,6 +221,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 func advance_to(now_ms: float) -> int:
 	var judged := 0
 	_advance_event_buffer(now_ms)
+	_update_distance_state(now_ms)
 	_advance_auto_play(now_ms)
 	for i in range(_notes.size()):
 		var note := _notes[i]
@@ -499,7 +505,20 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 func _normalized_speed_type(value: Variant) -> String:
 	if str(value) == SPEED_TYPE_REGUL_SPEED:
 		return SPEED_TYPE_REGUL_SPEED
+	if str(value) == SPEED_TYPE_W_SPEED:
+		return SPEED_TYPE_W_SPEED
 	return SPEED_TYPE_HI_SPEED
+
+
+func _update_distance_state(now_ms: float) -> void:
+	if _speed_type != SPEED_TYPE_W_SPEED or _distance == null:
+		return
+	var delta_ms: float = 0.0
+	if _has_distance_update_ms:
+		delta_ms = max(now_ms - _last_distance_update_ms, 0.0)
+	_distance.update_w_speed(delta_ms, _render_speed)
+	_last_distance_update_ms = now_ms
+	_has_distance_update_ms = true
 
 
 func _advance_event_buffer(now_ms: float) -> void:
@@ -519,6 +538,8 @@ func _can_buffer_next_event(now_ms: float) -> bool:
 func _distance_for(now_ms: float, target_ms: float) -> float:
 	if _speed_type == SPEED_TYPE_REGUL_SPEED:
 		return _distance.calculate_regul_speed(now_ms, target_ms, _render_speed)
+	if _speed_type == SPEED_TYPE_W_SPEED:
+		return _distance.calculate_w_speed(now_ms, target_ms)
 	return _distance.calculate_hi_speed(now_ms, target_ms, _render_speed)
 
 

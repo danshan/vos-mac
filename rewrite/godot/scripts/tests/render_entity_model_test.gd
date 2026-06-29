@@ -611,6 +611,21 @@ func _init() -> void:
 	if not _expect_float(regul_note_node.position.y, -8.25, "dynamic note node y with regul speed"):
 		return
 	regul_view.free()
+	var w_chart: Dictionary = chart.duplicate(true)
+	w_chart["speedMultiplier"] = 2.0
+	w_chart["speedType"] = "WSpeed"
+	var w_view = GameplayView.new()
+	if not _expect_bool(w_view.load_metadata(metadata), true, "w speed view metadata load"):
+		return
+	if not _expect_bool(w_view.load_chart(w_chart), true, "w speed view chart load"):
+		return
+	var w_note_node: Control = w_view.get_node("Note_000")
+	if not _expect_float(w_note_node.position.y, 328.625, "dynamic note node y with initial w speed"):
+		return
+	w_view.update_time(250.0)
+	if not _expect_float(w_note_node.position.y, 322.609375, "dynamic note node y with updated w speed"):
+		return
+	w_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):

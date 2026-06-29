@@ -10,6 +10,7 @@ const COMBO_SHOW_TIME_MS: float = 4000.0
 const JAVA_RENDER_SPEED: float = 1.0
 const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
+const SPEED_TYPE_W_SPEED: String = "WSpeed"
 
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
@@ -38,6 +39,8 @@ var _measure_entries: Array[Dictionary] = []
 var _distance = null
 var _speed: float = 1.0
 var _speed_type: String = SPEED_TYPE_HI_SPEED
+var _last_distance_update_ms: float = 0.0
+var _has_distance_update_ms: bool = false
 var _hud_labels: Dictionary = {}
 var _hud_digit_entities: Dictionary = {}
 var _combo_counter_states: Dictionary = {}
@@ -79,6 +82,7 @@ func update_time(now_ms: float) -> void:
 	if _metadata.is_empty() or _distance == null:
 		return
 
+	_update_distance_state(now_ms)
 	_update_animation_frames(now_ms)
 	var judgment_line := float(_metadata.get("judgmentLine", 0.0))
 	for i in range(_note_entries.size()):
@@ -248,6 +252,8 @@ func _configure_distance() -> void:
 	_distance = NoteDistanceCalculator.new(timing, float(_metadata.get("measureSize", 385.0)))
 	_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
+	_last_distance_update_ms = 0.0
+	_has_distance_update_ms = false
 
 
 func _load_visual_timing(timing: TimingModel) -> bool:
@@ -273,12 +279,27 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 func _normalized_speed_type(value: Variant) -> String:
 	if str(value) == SPEED_TYPE_REGUL_SPEED:
 		return SPEED_TYPE_REGUL_SPEED
+	if str(value) == SPEED_TYPE_W_SPEED:
+		return SPEED_TYPE_W_SPEED
 	return SPEED_TYPE_HI_SPEED
+
+
+func _update_distance_state(now_ms: float) -> void:
+	if _speed_type != SPEED_TYPE_W_SPEED:
+		return
+	var delta_ms: float = 0.0
+	if _has_distance_update_ms:
+		delta_ms = max(now_ms - _last_distance_update_ms, 0.0)
+	_distance.update_w_speed(delta_ms, _speed)
+	_last_distance_update_ms = now_ms
+	_has_distance_update_ms = true
 
 
 func _distance_for(now_ms: float, target_ms: float) -> float:
 	if _speed_type == SPEED_TYPE_REGUL_SPEED:
 		return _distance.calculate_regul_speed(now_ms, target_ms, _speed)
+	if _speed_type == SPEED_TYPE_W_SPEED:
+		return _distance.calculate_w_speed(now_ms, target_ms)
 	return _distance.calculate_hi_speed(now_ms, target_ms, _speed)
 
 

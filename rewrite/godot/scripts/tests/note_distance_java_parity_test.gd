@@ -33,12 +33,31 @@ func _init() -> void:
 	calculator.speed_factor = 1.25
 	if not _expect_float(calculator.calculate_hi_speed(0.0, 1000.0, 2.0), 481.25, "adjusted hi speed distance"):
 		return
+	calculator.speed_factor = 1.0
+
+	if not _expect_bool(calculator.has_method("calculate_w_speed"), true, "w speed distance method"):
+		return
+	if not _expect_bool(calculator.has_method("update_w_speed"), true, "w speed update method"):
+		return
+	if not _expect_float(calculator.calculate_w_speed(0.0, 1000.0), 96.25, "initial w speed distance"):
+		return
+	calculator.update_w_speed(1000.0, 2.0)
+	if not _expect_float(calculator.calculate_w_speed(0.0, 1000.0), 192.5, "updated w speed distance"):
+		return
 
 	quit(0)
 
 
 func _expect_float(actual: float, expected: float, label: String) -> bool:
 	if absf(actual - expected) > 0.0001:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
+	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

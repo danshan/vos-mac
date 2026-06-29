@@ -79,6 +79,8 @@ func _init() -> void:
 
 	if not _test_note_autosound():
 		return
+	if not _test_java_autosound_suppressed_after_miss():
+		return
 
 	quit(0)
 
@@ -105,6 +107,29 @@ func _test_note_autosound() -> bool:
 	if not _expect_result_command_count(hit, 0, "note autosound avoids duplicate keysound"):
 		return false
 	if not _expect_int(controller.drain_audio_commands().size(), 0, "note autosound no drained duplicate"):
+		return false
+	return true
+
+
+func _test_java_autosound_suppressed_after_miss() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_autosound_suppression_chart()), true, "autosound suppression chart load"):
+		return false
+
+	if not _expect_int(controller.advance_to(1174.0, -1.0, 999.0), 1, "first note miss before autosound"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "missed note before autosound has no audio"):
+		return false
+
+	if not _expect_int(controller.advance_to(1174.0, -1.0, 1300.0), 0, "second note waits for input"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "second autosound suppressed after miss"):
+		return false
+
+	var hit: Dictionary = controller.press_action("vos_lane_2", 1300.0)
+	if not _expect_bool(hit.get("accepted", false), true, "suppressed autosound manual hit accepted"):
+		return false
+	if not _expect_result_command(hit, "playSample", 2, "note", "keysound", "suppressed autosound manual keysound"):
 		return false
 	return true
 
@@ -142,6 +167,24 @@ func _note_autosound_chart() -> Dictionary:
 		"durationMs": 3000,
 		"notes": [
 			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _autosound_suppression_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:autosound-suppression",
+		"format": "VOS",
+		"autosound": true,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 1300.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

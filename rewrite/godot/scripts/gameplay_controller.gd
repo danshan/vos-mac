@@ -73,6 +73,7 @@ var _longflare_lanes: Dictionary = {}
 var _distance = null
 var _timing = null
 var _autosound_enabled: bool = false
+var _disable_autosound: bool = false
 var _autoplay_enabled: bool = false
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
@@ -110,6 +111,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
 	_autosound_enabled = _normalized_bool(_chart.get("autosound", false))
+	_disable_autosound = false
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
@@ -293,6 +295,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 
 	var result := _apply_note_judgment(note_index, hit_time, now_ms)
 	if result != "miss":
+		_disable_autosound = false
 		_emit_note_play_command(note_index, AUDIO_TRIGGER_KEYSOUND, true)
 	if str(note.get("kind", "")) == "holdStart" and result != "miss":
 		note = _notes[note_index]
@@ -363,7 +366,7 @@ func advance_to(now_ms: float, display_now_ms: float = -1.0,
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
 			var hit_time := _hit_time_for_note(note, now_ms)
 			if _missed_note(note, hit_time, now_ms):
-				_apply_note_judgment(i, hit_time, now_ms)
+				_apply_note_judgment(i, hit_time, now_ms, true)
 				judged += 1
 		elif str(note.get("state", "")) == STATE_HOLDING:
 			var tail_hit_time := _tail_hit_time_for_note(note, now_ms)
@@ -405,6 +408,7 @@ func _normalized_notes(raw_notes: Variant) -> Array[Dictionary]:
 				note["state"] = STATE_NOT_JUDGED
 				note["hitTime"] = 0.0
 				note["samplePlayed"] = false
+				note["autosoundConsumed"] = false
 				normalized.append(note)
 
 	normalized.sort_custom(_compare_notes)
@@ -514,9 +518,12 @@ func _effective_judgment_factor() -> float:
 	return max(_audio_pitch_scale, 0.0001)
 
 
-func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float) -> String:
+func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float,
+		disable_autosound_on_miss: bool = false) -> String:
 	var note := _notes[note_index]
 	var result := _score_state.apply_judgment(_judge_note(note, hit_time, now_ms).to_lower())
+	if result == "miss" and disable_autosound_on_miss:
+		_disable_autosound = true
 	if result == "miss" and bool(note.get("samplePlayed", false)):
 		_emit_note_stop_command(note)
 	_emit_judgment_render_event(note, result, now_ms)
@@ -839,6 +846,7 @@ func _advance_note_autoplay(now_ms: float) -> int:
 				continue
 			var result := _apply_note_judgment(i, hit_time, now_ms)
 			if result != "miss":
+				_disable_autosound = false
 				_emit_note_play_command(i, AUDIO_TRIGGER_KEYSOUND, true)
 			if str(note.get("kind", "")) == "holdStart" and result != "miss":
 				_begin_autoplay_hold(i, now_ms)
@@ -859,12 +867,16 @@ func _advance_note_autosound(now_ms: float) -> void:
 
 	for i in range(_notes.size()):
 		var note := _notes[i]
-		if bool(note.get("samplePlayed", false)):
+		if bool(note.get("samplePlayed", false)) or bool(note.get("autosoundConsumed", false)):
 			continue
 		var state := str(note.get("state", STATE_NOT_JUDGED))
 		if state != STATE_NOT_JUDGED and state != STATE_HOLDING:
 			continue
 		if float(note.get("startMs", 0.0)) > now_ms:
+			continue
+		if _disable_autosound:
+			note["autosoundConsumed"] = true
+			_notes[i] = note
 			continue
 		_emit_note_play_command(i, AUDIO_TRIGGER_AUTOSOUND, true)
 

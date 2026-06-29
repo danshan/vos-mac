@@ -626,6 +626,19 @@ func _init() -> void:
 	if not _expect_float(w_note_node.position.y, 322.609375, "dynamic note node y with updated w speed"):
 		return
 	w_view.free()
+	var xr_chart: Dictionary = chart.duplicate(true)
+	xr_chart["speedMultiplier"] = 2.0
+	xr_chart["speedType"] = "xRSpeed"
+	xr_chart["xRSpeedFactors"] = [0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+	var xr_view = GameplayView.new()
+	if not _expect_bool(xr_view.load_metadata(metadata), true, "xr speed view metadata load"):
+		return
+	if not _expect_bool(xr_view.load_chart(xr_chart), true, "xr speed view chart load"):
+		return
+	var xr_note_node: Control = xr_view.get_node("Note_000")
+	if not _expect_float(xr_note_node.position.y, -248.875, "dynamic note node y with xr speed"):
+		return
+	xr_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):

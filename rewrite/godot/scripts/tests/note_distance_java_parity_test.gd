@@ -45,6 +45,18 @@ func _init() -> void:
 	if not _expect_float(calculator.calculate_w_speed(0.0, 1000.0), 192.5, "updated w speed distance"):
 		return
 
+	if not _expect_bool(calculator.has_method("set_xr_speed_factors"), true, "xr speed factors method"):
+		return
+	if not _expect_bool(calculator.has_method("calculate_xr_speed"), true, "xr speed distance method"):
+		return
+	calculator.set_xr_speed_factors([0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75])
+	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, 0), 481.25, "xr speed lane one distance"):
+		return
+	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, 6), 673.75, "xr speed lane seven distance"):
+		return
+	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, -1), 385.0, "xr speed unknown lane distance"):
+		return
+
 	quit(0)
 
 

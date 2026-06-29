@@ -9,6 +9,7 @@ const COMBO_WOBBLE_SPEED: float = 0.5
 const COMBO_SHOW_TIME_MS: float = 4000.0
 const JAVA_RENDER_SPEED: float = 1.0
 const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
+const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
 
@@ -93,12 +94,14 @@ func update_time(now_ms: float) -> void:
 			continue
 
 		var note_height: float = float(entry.get("height", 1.0))
+		var lane_index: int = int(note.get("lane", -1))
 		var start_y: float = judgment_line - _distance_for(
 				now_ms,
-				float(note.get("startMs", 0.0)))
+				float(note.get("startMs", 0.0)),
+				lane_index)
 		var end_ms: Variant = note.get("endMs", null)
 		if end_ms is int or end_ms is float:
-			var end_y: float = judgment_line - _distance_for(now_ms, float(end_ms))
+			var end_y: float = judgment_line - _distance_for(now_ms, float(end_ms), lane_index)
 			node.position.y = min(start_y, end_y) - note_height
 			node.size.y = max(absf(start_y - end_y) + note_height, note_height)
 			if bool(entry.get("longNote", false)):
@@ -252,6 +255,8 @@ func _configure_distance() -> void:
 	_distance = NoteDistanceCalculator.new(timing, float(_metadata.get("measureSize", 385.0)))
 	_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		_distance.set_xr_speed_factors(_chart.get("xRSpeedFactors", []))
 	_last_distance_update_ms = 0.0
 	_has_distance_update_ms = false
 
@@ -277,6 +282,8 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 
 
 func _normalized_speed_type(value: Variant) -> String:
+	if str(value) == SPEED_TYPE_XR_SPEED:
+		return SPEED_TYPE_XR_SPEED
 	if str(value) == SPEED_TYPE_REGUL_SPEED:
 		return SPEED_TYPE_REGUL_SPEED
 	if str(value) == SPEED_TYPE_W_SPEED:
@@ -295,7 +302,9 @@ func _update_distance_state(now_ms: float) -> void:
 	_has_distance_update_ms = true
 
 
-func _distance_for(now_ms: float, target_ms: float) -> float:
+func _distance_for(now_ms: float, target_ms: float, lane: int = -1) -> float:
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		return _distance.calculate_xr_speed(now_ms, target_ms, _speed, lane)
 	if _speed_type == SPEED_TYPE_REGUL_SPEED:
 		return _distance.calculate_regul_speed(now_ms, target_ms, _speed)
 	if _speed_type == SPEED_TYPE_W_SPEED:

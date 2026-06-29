@@ -31,6 +31,7 @@ const JAVA_BEAT_JUDGMENT_FACTOR: float = 0.664
 const JUDGMENT_TYPE_BEAT: String = "beat"
 const JUDGMENT_TYPE_TIME: String = "time"
 const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
+const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
 
@@ -323,6 +324,8 @@ func _configure_distance() -> void:
 	timing.finish()
 	_timing = timing
 	_distance = NoteDistanceCalculator.new(timing, JAVA_MEASURE_SIZE)
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		_distance.set_xr_speed_factors(_chart.get("xRSpeedFactors", []))
 
 
 func _compare_notes(a: Dictionary, b: Dictionary) -> bool:
@@ -439,12 +442,13 @@ func _cleanup_to_kill_notes(now_ms: float) -> void:
 
 func _cleanup_y_for_note(note: Dictionary, now_ms: float) -> float:
 	var target_ms := float(note.get("startMs", 0.0))
+	var lane := int(note.get("lane", -1))
 	if str(note.get("kind", "")) == "holdStart":
 		var end_ms: Variant = note.get("endMs", null)
 		if end_ms is int or end_ms is float:
 			target_ms = float(end_ms)
-		return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms)
-	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms) - JAVA_TAP_NOTE_HEIGHT
+		return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms, lane)
+	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms, lane) - JAVA_TAP_NOTE_HEIGHT
 
 
 func _accept_note(note: Dictionary, hit_time: float, now_ms: float) -> bool:
@@ -503,6 +507,8 @@ func _normalized_speed_multiplier(value: Variant) -> float:
 
 
 func _normalized_speed_type(value: Variant) -> String:
+	if str(value) == SPEED_TYPE_XR_SPEED:
+		return SPEED_TYPE_XR_SPEED
 	if str(value) == SPEED_TYPE_REGUL_SPEED:
 		return SPEED_TYPE_REGUL_SPEED
 	if str(value) == SPEED_TYPE_W_SPEED:
@@ -535,7 +541,9 @@ func _can_buffer_next_event(now_ms: float) -> bool:
 	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, _buffer_timer_ms) > -10.0
 
 
-func _distance_for(now_ms: float, target_ms: float) -> float:
+func _distance_for(now_ms: float, target_ms: float, lane: int = -1) -> float:
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		return _distance.calculate_xr_speed(now_ms, target_ms, _render_speed, lane)
 	if _speed_type == SPEED_TYPE_REGUL_SPEED:
 		return _distance.calculate_regul_speed(now_ms, target_ms, _render_speed)
 	if _speed_type == SPEED_TYPE_W_SPEED:

@@ -8,6 +8,7 @@ const ScoreState = preload("res://scripts/score_state.gd")
 const STATE_NOT_JUDGED: String = "not_judged"
 const STATE_DEAD: String = "dead"
 const STATE_HOLDING: String = "holding"
+const STATE_TO_KILL: String = "to_kill"
 const VOS_LIVE_TRIGGER_THRESHOLD: float = 280.0
 const AUDIO_ACTION_PLAY_SAMPLE: String = "playSample"
 const AUDIO_ACTION_STOP_SAMPLE: String = "stopSample"
@@ -272,10 +273,16 @@ func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float) -> St
 	if result == "miss" and bool(note.get("samplePlayed", false)):
 		_emit_note_stop_command(note)
 	_emit_judgment_render_event(note, result, now_ms)
-	note["state"] = STATE_DEAD
+	note["state"] = _state_after_judgment(note, result)
 	note["hitTime"] = hit_time
 	_notes[note_index] = note
 	return result
+
+
+func _state_after_judgment(note: Dictionary, result: String) -> String:
+	if result == "miss" or str(note.get("kind", "")) == "holdStart":
+		return STATE_TO_KILL
+	return STATE_DEAD
 
 
 func _emit_judgment_render_event(note: Dictionary, result: String, now_ms: float) -> void:

@@ -68,12 +68,12 @@ func _init() -> void:
 	if not _expect_int(controller.render_state(3300.0).get("longFlares", []).size(), 0, "long flare cleared after release"):
 		return
 	var hidden_after_hold_tail: Array = controller.render_state(3300.0).get("hiddenNotes", [])
-	if not _expect_int(hidden_after_hold_tail.size(), 3, "hold tail hides long note"):
+	if not _expect_int(hidden_after_hold_tail.size(), 2, "hold tail keeps long note visible"):
 		return
 
 	controller.advance_to(4174.0)
 	var hidden_after_miss: Array = controller.render_state(4174.0).get("hiddenNotes", [])
-	if not _expect_int(hidden_after_miss.size(), 4, "miss hides note"):
+	if not _expect_int(hidden_after_miss.size(), 2, "miss keeps note visible"):
 		return
 	var result: Dictionary = controller.result()
 	var judgments: Dictionary = result.get("judgments", {})

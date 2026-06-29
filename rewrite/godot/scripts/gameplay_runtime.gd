@@ -177,10 +177,12 @@ func _apply_audio_commands() -> void:
 	if _audio_pool == null:
 		return
 	var volume_state := _controller.volume_state()
+	var audio_state := _controller.audio_state()
 	_audio_pool.set_volume_state(
 			float(volume_state.get("masterVolume", 1.0)),
 			float(volume_state.get("keyVolume", 1.0)),
 			float(volume_state.get("bgmVolume", 1.0)))
+	_audio_pool.set_pitch_scale(float(audio_state.get("pitchScale", 1.0)))
 	_audio_pool.apply_audio_commands(_controller.drain_audio_commands())
 
 

@@ -50,6 +50,8 @@ const VOLUME_ACTION_BGM_DOWN: String = "bgm_volume_down"
 const VOLUME_STEP: float = 0.05
 const VOLUME_MIN: float = 0.0
 const VOLUME_MAX: float = 1.0
+const HASTE_SPEED_STEP: float = 1.0594630943592953
+const HASTE_CHANGE_INTERVAL_MS: float = 5333.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -82,6 +84,14 @@ var _pressed_misc_actions: Dictionary = {}
 var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
+var _haste_enabled: bool = false
+var _normalize_haste_speed: bool = true
+var _game_speed: float = 1.0
+var _audio_pitch_scale: float = 1.0
+var _game_speed_pitch: int = 0
+var _last_game_speed_change_measure: int = 0
+var _last_game_speed_update_measure: int = 0
+var _last_game_speed_change_time_ms: float = 0.0
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -116,6 +126,14 @@ func load_chart(chart: Dictionary) -> bool:
 	_master_volume = 1.0
 	_key_volume = 1.0
 	_bgm_volume = 1.0
+	_haste_enabled = _normalized_bool(_chart.get("hasteMode", false))
+	_normalize_haste_speed = _normalized_bool(_chart.get("hasteModeNormalizeSpeed", true))
+	_game_speed = 1.0
+	_audio_pitch_scale = 1.0
+	_game_speed_pitch = 0
+	_last_game_speed_change_measure = 0
+	_last_game_speed_update_measure = 0
+	_last_game_speed_change_time_ms = 0.0
 	return true
 
 
@@ -196,6 +214,13 @@ func volume_state() -> Dictionary:
 	}
 
 
+func audio_state() -> Dictionary:
+	return {
+		"pitchScale": _audio_pitch_scale,
+		"gameSpeedPitch": _game_speed_pitch,
+	}
+
+
 func pressed_lanes() -> Array[int]:
 	var lanes: Array[int] = []
 	for raw_lane: Variant in _pressed_lanes.keys():
@@ -218,6 +243,8 @@ func render_state(now_ms: float) -> Dictionary:
 		"masterVolume": _master_volume,
 		"keyVolume": _key_volume,
 		"bgmVolume": _bgm_volume,
+		"audioPitchScale": _audio_pitch_scale,
+		"gameSpeedPitch": _game_speed_pitch,
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -312,6 +339,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 
 func advance_to(now_ms: float) -> int:
 	var judged := 0
+	_update_game_speed_state(now_ms)
 	_update_render_speed_state(now_ms)
 	_advance_event_buffer(now_ms)
 	_update_distance_state(now_ms)
@@ -613,7 +641,7 @@ func _status_texts(now_ms: float) -> Array[String]:
 	return [
 		"%s: x%.1f" % [_java_speed_type_name(), _target_render_speed],
 		"Current Measure: %d" % _current_measure(now_ms),
-		"Game Speed: %+d" % JAVA_GAME_SPEED_PITCH,
+		"Game Speed: %+d" % _game_speed_pitch,
 	]
 
 
@@ -644,6 +672,42 @@ func _normalized_bool(value: Variant) -> bool:
 	if value is bool:
 		return value
 	return false
+
+
+func _update_game_speed_state(now_ms: float) -> void:
+	_game_speed_pitch = int(round(12.0 * log(_game_speed) / log(2.0)))
+	_audio_pitch_scale = pow(2.0, float(_game_speed_pitch) / 12.0)
+	if not _haste_enabled:
+		return
+
+	var current_measure := _current_measure(now_ms)
+	if current_measure > _last_game_speed_update_measure:
+		var measure_delta := current_measure - _last_game_speed_change_measure
+		var increase := false
+		if now_ms - _last_game_speed_change_time_ms >= HASTE_CHANGE_INTERVAL_MS * pow(min(_game_speed, 1.0), 4.0) and current_measure >= 6:
+			if _is_power_of_two(measure_delta):
+				increase = true
+			if measure_delta >= 8:
+				increase = true
+			if _last_game_speed_change_measure == 0:
+				increase = true
+		if increase:
+			_game_speed *= HASTE_SPEED_STEP
+			_last_game_speed_change_measure = current_measure
+			_last_game_speed_change_time_ms = now_ms
+		_last_game_speed_update_measure = current_measure
+
+	var life_limit: float = max(float(_score_state.life_limit), 1.0)
+	var max_speed: float = min(2.0, max(0.5, 3.0 * float(_score_state.life) / life_limit))
+	if _game_speed > max_speed:
+		_game_speed = max_speed
+	if _normalize_haste_speed and _distance != null:
+		var target: float = 1.0 / _game_speed
+		_distance.speed_factor += (target - _distance.speed_factor) * 0.1
+
+
+func _is_power_of_two(value: int) -> bool:
+	return value > 0 and (value & (value - 1)) == 0
 
 
 func _update_render_speed_state(now_ms: float) -> void:

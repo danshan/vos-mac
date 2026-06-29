@@ -28,6 +28,8 @@ func _init() -> void:
 		return
 	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_java_haste_mode_pitch_sync(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -256,6 +258,66 @@ func _test_java_volume_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionar
 	_send_input_action(runtime, "bgm_volume_down", true)
 	var bgm_down_state: Dictionary = runtime.hud_state()
 	if not _expect_float(float(bgm_down_state.get("bgmVolume", -1.0)), 0.95, "bgm volume down"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:haste-mode",
+		"format": "VOS",
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 8000,
+		"hasteMode": true,
+		"hasteModeNormalizeSpeed": true,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 6100.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"measures": [
+			{"startMs": 0.0},
+			{"startMs": 1000.0},
+			{"startMs": 2000.0},
+			{"startMs": 3000.0},
+			{"startMs": 4000.0},
+			{"startMs": 5000.0},
+			{"startMs": 6000.0},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "haste runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	var initial_status: Array = initial_state.get("statusTexts", [])
+	if not _expect_string(str(initial_status[2]), "Game Speed: +0", "initial haste status"):
+		return false
+	if not _expect_float(float(initial_state.get("audioPitchScale", -1.0)), 1.0, "initial haste pitch scale"):
+		return false
+
+	runtime.advance_to(6000.0)
+	runtime.advance_to(6001.0)
+	var haste_state: Dictionary = runtime.hud_state()
+	var haste_status: Array = haste_state.get("statusTexts", [])
+	if not _expect_string(str(haste_status[2]), "Game Speed: +1", "haste pitch status"):
+		return false
+	var expected_pitch := pow(2.0, 1.0 / 12.0)
+	if not _expect_float(float(haste_state.get("audioPitchScale", -1.0)), expected_pitch, "haste audio pitch scale"):
+		return false
+
+	var hit: Dictionary = runtime.press_action("vos_lane_1", 6100.0)
+	if not _expect_bool(hit.get("accepted", false), true, "haste note hit"):
+		return false
+	var events: Array[Dictionary] = runtime._audio_pool.play_events()
+	if not _expect_int(events.size(), 1, "haste audio event count"):
+		return false
+	if not _expect_float(float(events[0].get("pitchScale", -1.0)), expected_pitch, "haste event pitch scale"):
 		return false
 
 	runtime.free()

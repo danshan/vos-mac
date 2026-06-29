@@ -221,8 +221,17 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_7_000"), false, "gameplay released lane"):
 		return
 
-	ui.complete_game({"score": 200, "maxCombo": 0})
+	ui.complete_game({
+		"score": 200,
+		"maxCombo": 12,
+		"judgments": {"perfect": 0, "cool": 2, "good": 1, "bad": 0, "miss": 1},
+	})
 	if not _expect_string(ui.current_state(), AppState.RESULT, "result state"):
+		return
+	if not _expect_bool(ui.has_node("Content/ResultSummary"), true, "result summary"):
+		return
+	if not _expect_string(ui.get_node("Content/ResultSummary").text,
+			"Max Combo 12\nPerfect 0\nCool 2\nGood 1\nBad 0\nMiss 1", "result summary text"):
 		return
 	if not _expect_bool(ui.has_node("Content/RetryButton"), true, "retry button"):
 		return

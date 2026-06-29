@@ -453,6 +453,9 @@ func _show_result() -> void:
 	_status_label = _label("Status", "Score %d" % int(_last_result.get("score", 0)), HORIZONTAL_ALIGNMENT_CENTER)
 	_content.add_child(_status_label)
 
+	var result_summary := _label("ResultSummary", _result_summary_text(_last_result), HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(result_summary)
+
 	var retry_button := _button("RetryButton", "Retry")
 	retry_button.pressed.connect(_on_retry_pressed)
 	_content.add_child(retry_button)
@@ -504,6 +507,18 @@ func _label(name: String, text: String, alignment: HorizontalAlignment) -> Label
 	label.horizontal_alignment = alignment
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	return label
+
+
+func _result_summary_text(result: Dictionary) -> String:
+	var judgments: Dictionary = result.get("judgments", {})
+	return "Max Combo %d\nPerfect %d\nCool %d\nGood %d\nBad %d\nMiss %d" % [
+		int(result.get("maxCombo", 0)),
+		int(judgments.get("perfect", 0)),
+		int(judgments.get("cool", 0)),
+		int(judgments.get("good", 0)),
+		int(judgments.get("bad", 0)),
+		int(judgments.get("miss", 0)),
+	]
 
 
 func _button(name: String, text: String) -> Button:

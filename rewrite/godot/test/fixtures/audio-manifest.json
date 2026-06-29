@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "format": "VOS",
+  "chartId": "vos:fixture",
+  "sourcePath": "fixture.vos",
+  "assetDir": "audio",
+  "assets": [
+    {
+      "sampleId": 1,
+      "fileName": "sample.wav",
+      "path": "res://test/fixtures/sample.wav",
+      "type": "wav",
+      "role": "keysound",
+      "preload": true
+    },
+    {
+      "sampleId": 2,
+      "fileName": "sample-copy.wav",
+      "path": "res://test/fixtures/sample.wav",
+      "type": "wav",
+      "role": "background"
+    }
+  ]
+}

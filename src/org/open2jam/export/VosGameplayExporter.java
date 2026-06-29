@@ -14,11 +14,13 @@ import org.open2jam.parsers.VOSChart;
 import org.open2jam.render.RenderTimingCompiler;
 
 public final class VosGameplayExporter {
+    private static final double JAVA_RENDER_DELAY_MS = 1500.0;
+
     public String exportGameplay(File input) throws Exception {
         VOSChart chart = firstVosChart(input);
         TimingData visualTiming = new TimingData();
-        EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(), 0,
-                new TimingData(), visualTiming);
+        EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
+                JAVA_RENDER_DELAY_MS, new TimingData(), visualTiming);
 
         List<ExportNote> notes = new ArrayList<ExportNote>();
         EnumMap<Event.Channel, ExportNote> pendingLongNotes = new EnumMap<Event.Channel, ExportNote>(

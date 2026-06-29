@@ -14,6 +14,7 @@ class VosGameplayExporterTest {
     private static final int VOS_DROID_CHANNEL_COUNT = 17;
     private static final int VOS_DROID_PLAYABLE_CHANNEL_INDEX = 16;
     private static final boolean INCLUDE_DISTRACTOR_NOTE = true;
+    private static final double JAVA_RENDER_DELAY_MS = 1500.0;
 
     @TempDir
     File tempDir;
@@ -25,9 +26,9 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
-                note(0, "tap", 0.0, 1),
-                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array(measure(0.0)),
-                JsonWriter.array(visualTiming(0.0, 120.0)), JsonWriter.array()), json);
+                note(0, "tap", JAVA_RENDER_DELAY_MS, 1),
+                holdNote(0, 2000.0, 2250.0, 2)), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array()), json);
     }
 
     @Test
@@ -37,9 +38,10 @@ class VosGameplayExporterTest {
 
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
-        assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", 0.0, 2)),
-                JsonWriter.array(measure(0.0)), JsonWriter.array(visualTiming(0.0, 120.0)),
-                JsonWriter.array(autoPlayEvent(0.0, 1))), json);
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", JAVA_RENDER_DELAY_MS, 2)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(autoPlayEvent(JAVA_RENDER_DELAY_MS, 1))), json);
     }
 
     @Test

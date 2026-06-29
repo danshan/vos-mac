@@ -2,6 +2,7 @@ package org.open2jam.export;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import org.open2jam.game.TimingData;
 import org.open2jam.parsers.Chart;
@@ -18,14 +19,30 @@ public final class VosGameplayExporter {
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(), 0,
                 new TimingData(), new TimingData());
 
-        List<String> notes = new ArrayList<String>();
+        List<ExportNote> notes = new ArrayList<ExportNote>();
+        EnumMap<Event.Channel, ExportNote> pendingLongNotes = new EnumMap<Event.Channel, ExportNote>(
+                Event.Channel.class);
         List<String> autoPlayEvents = new ArrayList<String>();
         for (Event event : timedEvents) {
             int lane = laneFor(event.getChannel());
             if (lane >= 0) {
-                String kind = kindFor(event.getFlag());
-                if (kind != null) {
-                    notes.add(note(event, lane, kind));
+                switch (event.getFlag()) {
+                    case NONE:
+                        notes.add(new ExportNote(event, lane, "tap"));
+                        break;
+                    case HOLD:
+                        ExportNote note = new ExportNote(event, lane, "holdStart");
+                        notes.add(note);
+                        pendingLongNotes.put(event.getChannel(), note);
+                        break;
+                    case RELEASE:
+                        ExportNote pending = pendingLongNotes.remove(event.getChannel());
+                        if (pending != null) {
+                            pending.setEndMs(event.getTime());
+                        }
+                        break;
+                    default:
+                        break;
                 }
             } else if (event.getChannel() == Event.Channel.AUTO_PLAY) {
                 autoPlayEvents.add(autoPlayEvent(event));
@@ -40,7 +57,7 @@ public final class VosGameplayExporter {
                 JsonWriter.field("keys", chart.getKeys()),
                 JsonWriter.field("bpm", chart.getBPM()),
                 JsonWriter.field("durationMs", chart.getDuration() * 1000),
-                JsonWriter.rawField("notes", JsonWriter.array(notes.toArray(new String[0]))),
+                JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))),
                 JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
     }
 
@@ -56,15 +73,12 @@ public final class VosGameplayExporter {
         throw new IllegalArgumentException("No VOS chart found: " + input);
     }
 
-    private static String note(Event event, int lane, String kind) {
-        Event.SoundSample sample = event.getSample();
-        return JsonWriter.object(
-                JsonWriter.field("lane", lane),
-                JsonWriter.field("kind", kind),
-                JsonWriter.field("startMs", event.getTime()),
-                JsonWriter.field("sampleId", sample.sample_id),
-                JsonWriter.field("volume", sample.volume),
-                JsonWriter.field("pan", sample.pan));
+    private static String[] noteJson(List<ExportNote> notes) {
+        String[] json = new String[notes.size()];
+        for (int i = 0; i < notes.size(); i++) {
+            json[i] = notes.get(i).toJson();
+        }
+        return json;
     }
 
     private static String autoPlayEvent(Event event) {
@@ -97,16 +111,47 @@ public final class VosGameplayExporter {
         }
     }
 
-    private static String kindFor(Event.Flag flag) {
-        switch (flag) {
-            case NONE:
-                return "tap";
-            case HOLD:
-                return "holdStart";
-            case RELEASE:
-                return "holdEnd";
-            default:
-                return null;
+    private static final class ExportNote {
+        private final int lane;
+        private final String kind;
+        private final double startMs;
+        private final int sampleId;
+        private final float volume;
+        private final float pan;
+        private Double endMs;
+
+        ExportNote(Event event, int lane, String kind) {
+            Event.SoundSample sample = event.getSample();
+            this.lane = lane;
+            this.kind = kind;
+            this.startMs = event.getTime();
+            this.sampleId = sample.sample_id;
+            this.volume = sample.volume;
+            this.pan = sample.pan;
+        }
+
+        void setEndMs(double endMs) {
+            this.endMs = endMs;
+        }
+
+        String toJson() {
+            if (endMs != null) {
+                return JsonWriter.object(
+                        JsonWriter.field("lane", lane),
+                        JsonWriter.field("kind", kind),
+                        JsonWriter.field("startMs", startMs),
+                        JsonWriter.field("endMs", endMs),
+                        JsonWriter.field("sampleId", sampleId),
+                        JsonWriter.field("volume", volume),
+                        JsonWriter.field("pan", pan));
+            }
+            return JsonWriter.object(
+                    JsonWriter.field("lane", lane),
+                    JsonWriter.field("kind", kind),
+                    JsonWriter.field("startMs", startMs),
+                    JsonWriter.field("sampleId", sampleId),
+                    JsonWriter.field("volume", volume),
+                    JsonWriter.field("pan", pan));
         }
     }
 }

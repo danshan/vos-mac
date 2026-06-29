@@ -26,8 +26,7 @@ class VosGameplayExporterTest {
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
                 note(0, "tap", 0.0, 1),
-                note(0, "holdStart", 500.0, 2),
-                note(0, "holdEnd", 750.0, 2)), JsonWriter.array()), json);
+                holdNote(0, 500.0, 750.0, 2)), JsonWriter.array()), json);
     }
 
     @Test
@@ -67,6 +66,17 @@ class VosGameplayExporterTest {
                 JsonWriter.field("lane", lane),
                 JsonWriter.field("kind", kind),
                 JsonWriter.field("startMs", startMs),
+                JsonWriter.field("sampleId", sampleId),
+                JsonWriter.field("volume", 1.0),
+                JsonWriter.field("pan", 0.0));
+    }
+
+    private static String holdNote(int lane, double startMs, double endMs, int sampleId) {
+        return JsonWriter.object(
+                JsonWriter.field("lane", lane),
+                JsonWriter.field("kind", "holdStart"),
+                JsonWriter.field("startMs", startMs),
+                JsonWriter.field("endMs", endMs),
                 JsonWriter.field("sampleId", sampleId),
                 JsonWriter.field("volume", 1.0),
                 JsonWriter.field("pan", 0.0));

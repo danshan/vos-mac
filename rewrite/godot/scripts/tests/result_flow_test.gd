@@ -30,6 +30,7 @@ func _init() -> void:
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(chart), true, "controller load chart"):
 		return
+	chart["chartId"] = "vos:mutated"
 	if not _expect_string(controller.current_chart_id(), "vos:fixture", "controller chart id"):
 		return
 

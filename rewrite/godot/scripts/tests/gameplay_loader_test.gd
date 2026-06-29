@@ -27,11 +27,124 @@ func _init() -> void:
 	if not _expect_int(auto_play_events.size(), 1, "auto play event count"):
 		return
 
+	var time_ms_chart: Dictionary = _valid_chart()
+	time_ms_chart["autoPlayEvents"] = [{"timeMs": 25.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}]
+	if not _write_chart("user://time_ms_gameplay.json", time_ms_chart):
+		return
+
+	var normalized_chart: Dictionary = loader.load_from_file("user://time_ms_gameplay.json")
+	if not _expect_bool(normalized_chart.is_empty(), false, "timeMs chart load"):
+		return
+	var normalized_events: Array = normalized_chart.get("autoPlayEvents", [])
+	if not _expect_float(normalized_events[0].get("startMs", -1.0), 25.0, "normalized event start"):
+		return
+	if not _expect_bool(normalized_events[0].has("timeMs"), false, "normalized event timeMs removed"):
+		return
+
+	if not _expect_rejected(loader, _chart_with("schemaVersion", 2), "bad schema"):
+		return
+	if not _expect_rejected(loader, _chart_with("keys", "7"), "string keys"):
+		return
+	if not _expect_rejected(loader, _chart_with("keys", 0), "zero keys"):
+		return
+	if not _expect_rejected(loader, _chart_without_note_field("kind"), "missing note kind"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("lane", "0"), "string note lane"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("startMs", -1.0), "negative note start"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("kind", "scratch"), "invalid note kind"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("sampleId", "2"), "string note sample id"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("sampleId", 0), "zero note sample id"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("lane", 7), "note lane outside keys"):
+		return
+	if not _expect_rejected(loader, _chart_without_event_timestamp(), "missing event timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("startMs", "0"), "string event timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("startMs", -1.0), "negative event timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("sampleId", "1"), "string event sample id"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("sampleId", 0), "zero event sample id"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("volume", "1.0"), "string event volume"):
+		return
+	if not _expect_rejected(loader, _chart_with_event("pan", "0.0"), "string event pan"):
+		return
+
 	var missing_chart: Dictionary = loader.load_from_file("res://test/fixtures/missing_gameplay.json")
 	if not _expect_bool(missing_chart.is_empty(), true, "missing file result"):
 		return
 
 	quit(0)
+
+
+func _valid_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:fixture",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
+		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],
+	}
+
+
+func _chart_with(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart[field] = value
+	return chart
+
+
+func _chart_with_note(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["notes"][0][field] = value
+	return chart
+
+
+func _chart_without_note_field(field: String) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["notes"][0].erase(field)
+	return chart
+
+
+func _chart_with_event(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["autoPlayEvents"][0][field] = value
+	return chart
+
+
+func _chart_without_event_timestamp() -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["autoPlayEvents"][0].erase("startMs")
+	chart["autoPlayEvents"][0].erase("timeMs")
+	return chart
+
+
+func _expect_rejected(loader: RefCounted, chart: Dictionary, label: String) -> bool:
+	var path: String = "user://%s_gameplay.json" % label.replace(" ", "_")
+	if not _write_chart(path, chart):
+		return false
+
+	var loaded: Dictionary = loader.load_from_file(path)
+	return _expect_bool(loaded.is_empty(), true, label)
+
+
+func _write_chart(path: String, chart: Dictionary) -> bool:
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		push_error("Failed to write chart fixture '%s'." % path)
+		quit(1)
+		return false
+
+	file.store_string(JSON.stringify(chart))
+	return true
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

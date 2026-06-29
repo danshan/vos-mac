@@ -11,7 +11,7 @@ func load_chart(chart: Dictionary) -> bool:
 	if chart.is_empty():
 		return false
 
-	_chart = chart
+	_chart = chart.duplicate(true)
 	_score_state = ScoreState.new()
 	return true
 

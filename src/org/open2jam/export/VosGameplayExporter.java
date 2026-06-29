@@ -61,6 +61,8 @@ public final class VosGameplayExporter {
                 JsonWriter.field("sourcePath", input.getCanonicalPath()),
                 JsonWriter.field("title", chart.getTitle()),
                 JsonWriter.field("rank", 0),
+                JsonWriter.field("speedMultiplier", 1.0),
+                JsonWriter.field("speedType", "HiSpeed"),
                 JsonWriter.field("keys", chart.getKeys()),
                 JsonWriter.field("bpm", chart.getBPM()),
                 JsonWriter.field("durationMs", chart.getDuration() * 1000),

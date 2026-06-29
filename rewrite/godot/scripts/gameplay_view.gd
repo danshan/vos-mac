@@ -7,6 +7,7 @@ const TimingModel = preload("res://scripts/timing_model.gd")
 const COMBO_WOBBLE_PIXELS: float = 10.0
 const COMBO_WOBBLE_SPEED: float = 0.5
 const COMBO_SHOW_TIME_MS: float = 4000.0
+const JAVA_RENDER_SPEED: float = 1.0
 
 const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
 	"BGA": true,
@@ -244,6 +245,7 @@ func _configure_distance() -> void:
 		timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
 	timing.finish()
 	_distance = NoteDistanceCalculator.new(timing, float(_metadata.get("measureSize", 385.0)))
+	_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 
 
 func _load_visual_timing(timing: TimingModel) -> bool:
@@ -258,6 +260,12 @@ func _load_visual_timing(timing: TimingModel) -> bool:
 		timing.add_change(float(raw_change.get("timeMs", 0.0)), float(raw_change.get("bpm", 0.0)))
 		loaded = true
 	return loaded
+
+
+func _normalized_speed_multiplier(value: Variant) -> float:
+	if value is int or value is float:
+		return max(float(value), 0.001)
+	return JAVA_RENDER_SPEED
 
 
 func _lane_for_index(lane_index: int) -> Dictionary:

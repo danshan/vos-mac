@@ -588,6 +588,17 @@ func _init() -> void:
 		return
 	if not _expect_float(note_node.position.y, 184.25, "dynamic note node y with visual timing at zero"):
 		return
+	var fast_chart: Dictionary = chart.duplicate(true)
+	fast_chart["speedMultiplier"] = 2.0
+	var fast_view = GameplayView.new()
+	if not _expect_bool(fast_view.load_metadata(metadata), true, "speed view metadata load"):
+		return
+	if not _expect_bool(fast_view.load_chart(fast_chart), true, "speed view chart load"):
+		return
+	var fast_note_node: Control = fast_view.get_node("Note_000")
+	if not _expect_float(fast_note_node.position.y, -104.5, "dynamic note node y with speed multiplier"):
+		return
+	fast_view.free()
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):

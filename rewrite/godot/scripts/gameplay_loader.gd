@@ -74,6 +74,16 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		if not _is_integer_like(rank) or int(rank) < 0:
 			return {}
 		normalized_chart["rank"] = int(rank)
+	if normalized_chart.has("speedMultiplier"):
+		var speed_multiplier: Variant = normalized_chart.get("speedMultiplier")
+		if not _is_positive_number(speed_multiplier):
+			return {}
+		normalized_chart["speedMultiplier"] = float(speed_multiplier)
+	if normalized_chart.has("speedType"):
+		var speed_type: Variant = normalized_chart.get("speedType")
+		if not speed_type is String or str(speed_type).is_empty():
+			return {}
+		normalized_chart["speedType"] = str(speed_type)
 	normalized_chart["notes"] = normalized_notes
 	normalized_chart["autoPlayEvents"] = normalized_events
 	return normalized_chart
@@ -153,6 +163,12 @@ func _is_positive_integer_like(value: Variant) -> bool:
 	if not _is_integer_like(value):
 		return false
 	return int(value) > 0
+
+
+func _is_positive_number(value: Variant) -> bool:
+	if not (value is int or value is float):
+		return false
+	return float(value) > 0.0
 
 
 func _is_integer_like(value: Variant) -> bool:

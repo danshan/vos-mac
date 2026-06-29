@@ -50,6 +50,7 @@ var _longflare_lanes: Dictionary = {}
 var _distance = null
 var _timing = null
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
+var _render_speed: float = JAVA_RENDER_SPEED
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -64,6 +65,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
+	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
@@ -431,8 +433,8 @@ func _cleanup_y_for_note(note: Dictionary, now_ms: float) -> float:
 		var end_ms: Variant = note.get("endMs", null)
 		if end_ms is int or end_ms is float:
 			target_ms = float(end_ms)
-		return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED)
-	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED) - JAVA_TAP_NOTE_HEIGHT
+		return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms)
+	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, target_ms) - JAVA_TAP_NOTE_HEIGHT
 
 
 func _accept_note(note: Dictionary, hit_time: float, now_ms: float) -> bool:
@@ -484,6 +486,12 @@ func _normalized_rank(value: Variant) -> int:
 	return 0
 
 
+func _normalized_speed_multiplier(value: Variant) -> float:
+	if value is int or value is float:
+		return max(float(value), 0.001)
+	return JAVA_RENDER_SPEED
+
+
 func _advance_event_buffer(now_ms: float) -> void:
 	if _distance == null:
 		_buffer_event_index = _buffer_events.size()
@@ -495,10 +503,11 @@ func _advance_event_buffer(now_ms: float) -> void:
 
 
 func _can_buffer_next_event(now_ms: float) -> bool:
-	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(
-			now_ms,
-			_buffer_timer_ms,
-			JAVA_RENDER_SPEED) > -10.0
+	return JAVA_JUDGMENT_LINE - _distance_for(now_ms, _buffer_timer_ms) > -10.0
+
+
+func _distance_for(now_ms: float, target_ms: float) -> float:
+	return _distance.calculate_hi_speed(now_ms, target_ms, _render_speed)
 
 
 func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:

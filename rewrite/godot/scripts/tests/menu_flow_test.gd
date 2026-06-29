@@ -51,6 +51,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView"), true, "gameplay view"):
 		return
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Note_000"), true, "gameplay note node"):
+		return
 	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return
 

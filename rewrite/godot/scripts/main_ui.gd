@@ -30,6 +30,13 @@ func _ready() -> void:
 	build()
 
 
+func _process(_delta: float) -> void:
+	if _runtime == null or _gameplay_view == null:
+		return
+	if _runtime.has_method("elapsed_ms") and _gameplay_view.has_method("update_time"):
+		_gameplay_view.update_time(_runtime.elapsed_ms())
+
+
 func build() -> void:
 	if _built:
 		return
@@ -250,6 +257,9 @@ func _show_gameplay() -> void:
 	_gameplay_view.set_anchors_preset(Control.PRESET_FULL_RECT)
 	if not _gameplay_view.load_metadata(bundle.get("renderMetadata", {})):
 		_show_gameplay_load_error("Unable to load render metadata")
+		return
+	if not _gameplay_view.load_chart(bundle.get("chart", {})):
+		_show_gameplay_load_error("Unable to load gameplay chart")
 		return
 	gameplay_area.add_child(_gameplay_view)
 

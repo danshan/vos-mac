@@ -101,7 +101,8 @@ public final class VosAudioExporter {
                 JsonWriter.field("fileName", fileName),
                 JsonWriter.field("path", output.getCanonicalPath()),
                 JsonWriter.field("type", "wav"),
-                JsonWriter.field("role", "sample"));
+                JsonWriter.field("role", "sample"),
+                JsonWriter.field("preload", true));
     }
 
     private static void writeAscii(OutputStream out, String value) throws IOException {

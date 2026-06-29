@@ -23,6 +23,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(pool.has_sample(99), false, "missing sample"):
 		return
+	if not _expect_bool(pool.has_method("preloaded_sample_count"), true, "preload counter method"):
+		return
+	if not _expect_int(pool.preloaded_sample_count(), 1, "preloaded sample count"):
+		return
 
 	var first_play: Dictionary = pool.play_sample(1)
 	if not _expect_bool(first_play.get("played", false), true, "first play"):

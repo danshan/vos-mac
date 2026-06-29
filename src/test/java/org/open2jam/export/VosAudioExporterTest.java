@@ -54,7 +54,8 @@ class VosAudioExporterTest {
                 JsonWriter.field("fileName", fileName),
                 JsonWriter.field("path", new File(assetDir, fileName).getCanonicalPath()),
                 JsonWriter.field("type", "wav"),
-                JsonWriter.field("role", "sample"));
+                JsonWriter.field("role", "sample"),
+                JsonWriter.field("preload", true));
     }
 
     private static void assertWavFile(File file) throws Exception {

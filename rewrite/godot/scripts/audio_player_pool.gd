@@ -1,6 +1,7 @@
 extends Node
 
 var _assets_by_sample_id: Dictionary = {}
+var _preloaded_streams: Dictionary = {}
 var _play_events: Array[Dictionary] = []
 var _registered_players: Dictionary = {}
 
@@ -11,6 +12,7 @@ func load_manifest(manifest: Dictionary) -> bool:
 		return false
 
 	_assets_by_sample_id.clear()
+	_preloaded_streams.clear()
 	_play_events.clear()
 	_registered_players.clear()
 	for asset: Variant in assets:
@@ -19,7 +21,13 @@ func load_manifest(manifest: Dictionary) -> bool:
 		var sample_id := int(asset.get("sampleId", 0))
 		if sample_id <= 0:
 			return false
-		_assets_by_sample_id[sample_id] = asset.duplicate(true)
+		var normalized_asset: Dictionary = asset.duplicate(true)
+		_assets_by_sample_id[sample_id] = normalized_asset
+		if bool(normalized_asset.get("preload", false)):
+			var stream := _load_stream_for_asset(normalized_asset)
+			if stream == null:
+				return false
+			_preloaded_streams[sample_id] = stream
 
 	return true
 
@@ -30,6 +38,10 @@ func asset_count() -> int:
 
 func has_sample(sample_id: int) -> bool:
 	return _assets_by_sample_id.has(sample_id)
+
+
+func preloaded_sample_count() -> int:
+	return _preloaded_streams.size()
 
 
 func apply_audio_commands(commands: Array) -> Array[Dictionary]:
@@ -73,7 +85,9 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 
 	var asset: Dictionary = _assets_by_sample_id[sample_id]
 	var path := str(asset.get("path", ""))
-	var stream: AudioStream = AudioStreamWAV.load_from_file(path)
+	var stream: AudioStream = _preloaded_streams.get(sample_id, null)
+	if stream == null:
+		stream = _load_stream_for_asset(asset)
 	if stream == null:
 		return {"played": false, "sampleId": sample_id, "reason": "missing_stream", "path": path}
 
@@ -148,6 +162,13 @@ func _stop_sample_for_command(command: Dictionary) -> Dictionary:
 
 func _should_register_instance(command: Dictionary) -> bool:
 	return str(command.get("source", "")) == "note" and str(command.get("trigger", "")) == "keysound"
+
+
+func _load_stream_for_asset(asset: Dictionary) -> AudioStream:
+	var path := str(asset.get("path", ""))
+	if path.is_empty():
+		return null
+	return AudioStreamWAV.load_from_file(path)
 
 
 func _instance_key(command: Dictionary) -> String:

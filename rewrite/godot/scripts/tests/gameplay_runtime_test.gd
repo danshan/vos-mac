@@ -20,6 +20,8 @@ func _init() -> void:
 		return
 	if not _test_java_finish_waits_for_note_layer(audio_manifest):
 		return
+	if not _test_java_finish_ignores_chart_duration(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -104,6 +106,9 @@ func _init() -> void:
 func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	var long_chart := chart.duplicate(true)
 	long_chart["durationMs"] = 65000
+	long_chart["notes"] = [
+		{"id": 1, "lane": 0, "startMs": 70000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
 	if not _expect_bool(runtime.start(long_chart, audio_manifest), true, "fps timer runtime start"):
@@ -126,6 +131,38 @@ func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool
 	if not _expect_int(one_minute_state.get("minute", -1), 1, "java minute rollover"):
 		return false
 	if not _expect_int(one_minute_state.get("second", -1), 0, "java second rollover"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_finish_ignores_chart_duration(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:long-duration-short-notes",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 65000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "long duration runtime start"):
+		return false
+
+	var hit: Dictionary = runtime.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(hit.get("accepted", false), true, "long duration note hit"):
+		return false
+	runtime.advance_to(1000.0)
+	if not _expect_bool(runtime.is_running(), true, "long duration finish delay starts"):
+		return false
+	runtime.advance_to(11001.0)
+	if not _expect_bool(runtime.is_running(), false, "long duration runtime ignores chart duration"):
 		return false
 
 	runtime.free()

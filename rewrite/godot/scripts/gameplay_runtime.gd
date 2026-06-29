@@ -110,7 +110,7 @@ func advance_to(now_ms: float) -> void:
 	_controller.advance_to(_elapsed_ms)
 	_apply_audio_commands()
 
-	if _duration_ms > 0.0 and _elapsed_ms >= _duration_ms and _controller.note_layer_empty():
+	if _controller.note_layer_empty():
 		if _finish_after_ms < 0.0:
 			_finish_after_ms = _elapsed_ms + JAVA_FINISH_DELAY_MS
 		elif _elapsed_ms > _finish_after_ms:

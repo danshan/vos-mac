@@ -22,7 +22,7 @@ func _init() -> void:
 		return
 	if not _test_java_finish_ignores_chart_duration(audio_manifest):
 		return
-	if not _test_java_finish_waits_for_autoplay_buffer(audio_manifest):
+	if not _test_java_finish_uses_buffered_autoplay(audio_manifest):
 		return
 
 	var runtime = GameplayRuntime.new()
@@ -139,7 +139,7 @@ func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool
 	return true
 
 
-func _test_java_finish_waits_for_autoplay_buffer(audio_manifest: Dictionary) -> bool:
+func _test_java_finish_uses_buffered_autoplay(audio_manifest: Dictionary) -> bool:
 	var chart := {
 		"schemaVersion": 1,
 		"chartId": "vos:future-autoplay",
@@ -159,16 +159,9 @@ func _test_java_finish_waits_for_autoplay_buffer(audio_manifest: Dictionary) -> 
 
 	runtime.advance_to(0.0)
 	runtime.advance_to(10001.0)
-	if not _expect_bool(runtime.is_running(), true, "future autoplay keeps runtime running"):
+	if not _expect_bool(runtime.is_running(), false, "future autoplay is already buffered"):
 		return false
 	if not _expect_int(runtime.audio_play_event_count(), 0, "future autoplay not played early"):
-		return false
-
-	runtime.advance_to(12000.0)
-	if not _expect_int(runtime.audio_play_event_count(), 1, "future autoplay plays before finish"):
-		return false
-	runtime.advance_to(22001.0)
-	if not _expect_bool(runtime.is_running(), false, "future autoplay finishes after buffer delay"):
 		return false
 
 	runtime.free()

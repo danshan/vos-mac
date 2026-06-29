@@ -30,8 +30,10 @@ const JAVA_TAP_NOTE_HEIGHT: float = 7.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
-var _measure_events: Array[Dictionary] = []
 var _auto_play_events: Array[Dictionary] = []
+var _buffer_events: Array[Dictionary] = []
+var _buffer_event_index: int = 0
+var _buffer_timer_ms: float = 0.0
 var _audio_commands: Array[Dictionary] = []
 var _render_sequence: int = 0
 var _last_judgment_event: Dictionary = {}
@@ -52,8 +54,10 @@ func load_chart(chart: Dictionary) -> bool:
 	_chart = chart.duplicate(true)
 	_score_state = ScoreState.new()
 	_notes = _normalized_notes(_chart.get("notes", []))
-	_measure_events = _normalized_timed_events(_chart.get("measures", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
+	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []))
+	_buffer_event_index = 0
+	_buffer_timer_ms = 0.0
 	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
@@ -199,6 +203,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 
 func advance_to(now_ms: float) -> int:
 	var judged := 0
+	_advance_event_buffer(now_ms)
 	_advance_auto_play(now_ms)
 	for i in range(_notes.size()):
 		var note := _notes[i]
@@ -230,14 +235,8 @@ func note_layer_empty() -> bool:
 	return true
 
 
-func event_buffer_empty(now_ms: float) -> bool:
-	for event: Dictionary in _auto_play_events:
-		if not bool(event.get("played", false)):
-			return false
-	for event: Dictionary in _measure_events:
-		if float(event.get("startMs", 0.0)) > now_ms:
-			return false
-	return true
+func event_buffer_empty() -> bool:
+	return _buffer_event_index >= _buffer_events.size()
 
 
 func result() -> Dictionary:
@@ -280,6 +279,14 @@ func _normalized_timed_events(raw_events: Variant) -> Array[Dictionary]:
 				var event: Dictionary = raw_event.duplicate(true)
 				event["startMs"] = float(event.get("startMs", event.get("timeMs", 0.0)))
 				normalized.append(event)
+	normalized.sort_custom(_compare_timed_events)
+	return normalized
+
+
+func _normalized_buffer_events(raw_measures: Variant, raw_auto_play_events: Variant) -> Array[Dictionary]:
+	var normalized := _normalized_timed_events(raw_measures)
+	for event: Dictionary in _normalized_timed_events(raw_auto_play_events):
+		normalized.append(event)
 	normalized.sort_custom(_compare_timed_events)
 	return normalized
 
@@ -419,6 +426,23 @@ func _cleanup_y_for_note(note: Dictionary, now_ms: float) -> float:
 			target_ms = float(end_ms)
 		return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED)
 	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(now_ms, target_ms, JAVA_RENDER_SPEED) - JAVA_TAP_NOTE_HEIGHT
+
+
+func _advance_event_buffer(now_ms: float) -> void:
+	if _distance == null:
+		_buffer_event_index = _buffer_events.size()
+		return
+	while _buffer_event_index < _buffer_events.size() and _can_buffer_next_event(now_ms):
+		var event := _buffer_events[_buffer_event_index]
+		_buffer_timer_ms = float(event.get("startMs", 0.0))
+		_buffer_event_index += 1
+
+
+func _can_buffer_next_event(now_ms: float) -> bool:
+	return JAVA_JUDGMENT_LINE - _distance.calculate_hi_speed(
+			now_ms,
+			_buffer_timer_ms,
+			JAVA_RENDER_SPEED) > -10.0
 
 
 func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:

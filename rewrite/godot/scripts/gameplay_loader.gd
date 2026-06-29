@@ -77,6 +77,18 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 			return {}
 		normalized_events.append(normalized_event)
 
+	var bga_events: Variant = chart.get("bgaEvents", [])
+	if not bga_events is Array:
+		return {}
+	var normalized_bga_events: Array[Dictionary] = []
+	for event: Variant in bga_events:
+		if not event is Dictionary:
+			return {}
+		var normalized_bga_event: Dictionary = _normalized_bga_event(event)
+		if normalized_bga_event.is_empty():
+			return {}
+		normalized_bga_events.append(normalized_bga_event)
+
 	var normalized_chart: Dictionary = chart.duplicate(true)
 	normalized_chart["keys"] = int(keys)
 	var channel_modifier := _normalized_channel_modifier(normalized_chart.get("channelModifier", CHANNEL_MOD_NONE))
@@ -113,6 +125,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		return {}
 	normalized_chart["notes"] = channel_notes
 	normalized_chart["autoPlayEvents"] = normalized_events
+	normalized_chart["bgaEvents"] = normalized_bga_events
 	return normalized_chart
 
 
@@ -177,6 +190,29 @@ func _normalized_auto_play_event(event: Dictionary) -> Dictionary:
 	normalized_event.erase("timeMs")
 	normalized_event["startMs"] = float(start_ms)
 	normalized_event["sampleId"] = int(sample_id)
+	return normalized_event
+
+
+func _normalized_bga_event(event: Dictionary) -> Dictionary:
+	var start_ms: Variant = null
+	if event.has("startMs"):
+		start_ms = event.get("startMs")
+	elif event.has("timeMs"):
+		start_ms = event.get("timeMs")
+	else:
+		return {}
+
+	if not _is_non_negative_number(start_ms):
+		return {}
+
+	var sprite_id: Variant = event.get("spriteId")
+	if not _is_positive_integer_like(sprite_id):
+		return {}
+
+	var normalized_event: Dictionary = event.duplicate(true)
+	normalized_event.erase("timeMs")
+	normalized_event["startMs"] = float(start_ms)
+	normalized_event["spriteId"] = int(sprite_id)
 	return normalized_event
 
 

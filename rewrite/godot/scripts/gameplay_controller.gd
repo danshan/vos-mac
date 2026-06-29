@@ -56,6 +56,7 @@ const HASTE_CHANGE_INTERVAL_MS: float = 5333.0
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
 var _auto_play_events: Array[Dictionary] = []
+var _bga_events: Array[Dictionary] = []
 var _buffer_events: Array[Dictionary] = []
 var _buffer_event_index: int = 0
 var _buffer_timer_ms: float = 0.0
@@ -102,7 +103,9 @@ func load_chart(chart: Dictionary) -> bool:
 	_score_state = ScoreState.new(_normalized_rank(_chart.get("rank", 0)))
 	_notes = _normalized_notes(_chart.get("notes", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
-	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []))
+	_bga_events = _normalized_bga_events(_chart.get("bgaEvents", []))
+	_buffer_events = _normalized_buffer_events(_chart.get("measures", []), _chart.get("autoPlayEvents", []),
+			_chart.get("bgaEvents", []))
 	_buffer_event_index = 0
 	_buffer_timer_ms = 0.0
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
@@ -246,6 +249,9 @@ func render_state(now_ms: float) -> Dictionary:
 		"audioPitchScale": _audio_pitch_scale,
 		"gameSpeedPitch": _game_speed_pitch,
 	}
+	var current_bga_event := _current_bga_event(now_ms)
+	if not current_bga_event.is_empty():
+		state["currentBgaEvent"] = current_bga_event
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
 	return state
@@ -411,6 +417,20 @@ func _normalized_auto_play_events(raw_events: Variant) -> Array[Dictionary]:
 	return normalized
 
 
+func _normalized_bga_events(raw_events: Variant) -> Array[Dictionary]:
+	var normalized: Array[Dictionary] = []
+	if raw_events is Array:
+		for raw_event: Variant in raw_events:
+			if raw_event is Dictionary:
+				var event: Dictionary = raw_event.duplicate(true)
+				event["startMs"] = float(event.get("startMs", event.get("timeMs", 0.0)))
+				event["spriteId"] = int(event.get("spriteId", 0))
+				normalized.append(event)
+
+	normalized.sort_custom(_compare_timed_events)
+	return normalized
+
+
 func _normalized_timed_events(raw_events: Variant) -> Array[Dictionary]:
 	var normalized: Array[Dictionary] = []
 	if raw_events is Array:
@@ -423,9 +443,12 @@ func _normalized_timed_events(raw_events: Variant) -> Array[Dictionary]:
 	return normalized
 
 
-func _normalized_buffer_events(raw_measures: Variant, raw_auto_play_events: Variant) -> Array[Dictionary]:
+func _normalized_buffer_events(raw_measures: Variant, raw_auto_play_events: Variant,
+		raw_bga_events: Variant) -> Array[Dictionary]:
 	var normalized := _normalized_timed_events(raw_measures)
 	for event: Dictionary in _normalized_timed_events(raw_auto_play_events):
+		normalized.append(event)
+	for event: Dictionary in _normalized_timed_events(raw_bga_events):
 		normalized.append(event)
 	normalized.sort_custom(_compare_timed_events)
 	return normalized
@@ -666,6 +689,15 @@ func _current_measure(now_ms: float) -> int:
 		if float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
 			count += 1
 	return count
+
+
+func _current_bga_event(now_ms: float) -> Dictionary:
+	var current: Dictionary = {}
+	for event: Dictionary in _bga_events:
+		if float(event.get("startMs", 0.0)) > now_ms:
+			break
+		current = event
+	return current.duplicate(true)
 
 
 func _normalized_bool(value: Variant) -> bool:

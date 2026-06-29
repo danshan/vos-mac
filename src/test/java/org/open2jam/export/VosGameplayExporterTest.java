@@ -8,7 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.open2jam.parsers.Event;
+import org.open2jam.parsers.EventList;
 import org.open2jam.parsers.VosFixtureFactory;
+import org.open2jam.parsers.VOSChart;
 
 class VosGameplayExporterTest {
     private static final int VOS_DROID_CHANNEL_COUNT = 17;
@@ -28,7 +31,8 @@ class VosGameplayExporterTest {
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
                 note(0, "tap", JAVA_RENDER_DELAY_MS, 1),
                 holdNote(0, 2000.0, 2250.0, 2)), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array()), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
+                JsonWriter.array()), json);
     }
 
     @Test
@@ -41,7 +45,27 @@ class VosGameplayExporterTest {
         assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", JAVA_RENDER_DELAY_MS, 2)),
                 JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
-                JsonWriter.array(autoPlayEvent(JAVA_RENDER_DELAY_MS, 1))), json);
+                JsonWriter.array(autoPlayEvent(JAVA_RENDER_DELAY_MS, 1)), JsonWriter.array()), json);
+    }
+
+    @Test
+    void exportsBgaEventsFromChartTimeline() throws Exception {
+        File chartFile = new File(tempDir, "bga.vos");
+        Files.write(chartFile.toPath(), new byte[0]);
+        VOSChart chart = new VOSChart();
+        chart.setTitle("Canon in D");
+        chart.setLevel(0);
+        chart.setBPM(120.0);
+        chart.setDuration(123);
+        EventList events = new EventList();
+        events.add(new Event(Event.Channel.BGA, 0, 0.25, 7, Event.Flag.NONE));
+        chart.setEvents(events);
+
+        String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
+
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
+                JsonWriter.array(bgaEvent(2000.0, 7))), json);
     }
 
     @Test
@@ -53,7 +77,7 @@ class VosGameplayExporterTest {
     }
 
     private static String gameplayJson(File source, String notes, String measures, String visualTiming,
-            String autoPlayEvents) throws Exception {
+            String autoPlayEvents, String bgaEvents) throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
                 JsonWriter.field("format", "VOS"),
@@ -68,7 +92,8 @@ class VosGameplayExporterTest {
                 JsonWriter.rawField("notes", notes),
                 JsonWriter.rawField("measures", measures),
                 JsonWriter.rawField("visualTiming", visualTiming),
-                JsonWriter.rawField("autoPlayEvents", autoPlayEvents));
+                JsonWriter.rawField("autoPlayEvents", autoPlayEvents),
+                JsonWriter.rawField("bgaEvents", bgaEvents));
     }
 
     private static String note(int lane, String kind, double startMs, int sampleId) {
@@ -101,6 +126,12 @@ class VosGameplayExporterTest {
                 JsonWriter.field("sampleId", sampleId),
                 JsonWriter.field("volume", 1.0),
                 JsonWriter.field("pan", 0.0));
+    }
+
+    private static String bgaEvent(double startMs, int spriteId) {
+        return JsonWriter.object(
+                JsonWriter.field("startMs", startMs),
+                JsonWriter.field("spriteId", spriteId));
     }
 
     private static String measure(double startMs) {

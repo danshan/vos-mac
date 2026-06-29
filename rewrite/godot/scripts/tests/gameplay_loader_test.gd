@@ -42,6 +42,25 @@ func _init() -> void:
 	if not _expect_bool(normalized_events[0].has("timeMs"), false, "normalized event timeMs removed"):
 		return
 
+	var bga_time_ms_chart: Dictionary = _valid_chart()
+	bga_time_ms_chart["bgaEvents"] = [{"timeMs": 75.0, "spriteId": 3}]
+	var bga_time_ms_path := _chart_path("bga_time_ms")
+	if not _write_chart(bga_time_ms_path, bga_time_ms_chart):
+		return
+
+	var normalized_bga_chart: Dictionary = loader.load_from_file(bga_time_ms_path)
+	if not _expect_bool(normalized_bga_chart.is_empty(), false, "bga timeMs chart load"):
+		return
+	var normalized_bga_events: Array = normalized_bga_chart.get("bgaEvents", [])
+	if not _expect_int(normalized_bga_events.size(), 1, "normalized bga event count"):
+		return
+	if not _expect_float(normalized_bga_events[0].get("startMs", -1.0), 75.0, "normalized bga event start"):
+		return
+	if not _expect_int(normalized_bga_events[0].get("spriteId", -1), 3, "normalized bga sprite id"):
+		return
+	if not _expect_bool(normalized_bga_events[0].has("timeMs"), false, "normalized bga timeMs removed"):
+		return
+
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
@@ -163,6 +182,16 @@ func _init() -> void:
 		return
 	if not _expect_rejected(loader, _chart_with_event("pan", "0.0"), "string event pan"):
 		return
+	if not _expect_rejected(loader, _chart_without_bga_timestamp(), "missing bga timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_event("startMs", "0"), "string bga timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_event("startMs", -1.0), "negative bga timestamp"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_event("spriteId", "1"), "string bga sprite id"):
+		return
+	if not _expect_rejected(loader, _chart_with_bga_event("spriteId", 0), "zero bga sprite id"):
+		return
 
 	var missing_chart: Dictionary = loader.load_from_file("res://test/fixtures/missing_gameplay.json")
 	if not _expect_bool(missing_chart.is_empty(), true, "missing file result"):
@@ -181,6 +210,7 @@ func _valid_chart() -> Dictionary:
 		"durationMs": 3000,
 		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
 		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],
+		"bgaEvents": [{"startMs": 50.0, "spriteId": 7}],
 	}
 
 
@@ -212,6 +242,19 @@ func _chart_without_event_timestamp() -> Dictionary:
 	var chart: Dictionary = _valid_chart()
 	chart["autoPlayEvents"][0].erase("startMs")
 	chart["autoPlayEvents"][0].erase("timeMs")
+	return chart
+
+
+func _chart_with_bga_event(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["bgaEvents"][0][field] = value
+	return chart
+
+
+func _chart_without_bga_timestamp() -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["bgaEvents"][0].erase("startMs")
+	chart["bgaEvents"][0].erase("timeMs")
 	return chart
 
 

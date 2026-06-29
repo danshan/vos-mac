@@ -30,6 +30,8 @@ func _init() -> void:
 		return
 	if not _test_java_haste_mode_pitch_sync(audio_manifest):
 		return
+	if not _test_java_bga_events_follow_game_time(audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -330,6 +332,64 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 		return false
 	var expected_hit_time := 9200.0 - (6001.0 + (9000.0 - 6001.0) * expected_pitch)
 	if not _expect_float(float(accelerated_hit.get("hitTime", 0.0)), expected_hit_time, "haste game time hit window"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_bga_events_follow_game_time(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:bga-events",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [],
+		"autoPlayEvents": [],
+		"bgaEvents": [
+			{"startMs": 500.0, "spriteId": 7},
+			{"startMs": 1000.0, "spriteId": 8},
+			{"startMs": 12000.0, "spriteId": 9},
+		],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "bga runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	if not _expect_bool(initial_state.has("currentBgaEvent"), false, "initial bga event absent"):
+		return false
+
+	runtime.advance_to(500.0)
+	var first_bga_state: Dictionary = runtime.hud_state()
+	var first_bga_event: Dictionary = first_bga_state.get("currentBgaEvent", {})
+	if not _expect_int(first_bga_event.get("spriteId", -1), 7, "first bga sprite id"):
+		return false
+	if not _expect_float(first_bga_event.get("startMs", -1.0), 500.0, "first bga start"):
+		return false
+
+	runtime.advance_to(999.0)
+	var held_bga_state: Dictionary = runtime.hud_state()
+	var held_bga_event: Dictionary = held_bga_state.get("currentBgaEvent", {})
+	if not _expect_int(held_bga_event.get("spriteId", -1), 7, "held bga sprite id"):
+		return false
+
+	runtime.advance_to(1000.0)
+	var second_bga_state: Dictionary = runtime.hud_state()
+	var second_bga_event: Dictionary = second_bga_state.get("currentBgaEvent", {})
+	if not _expect_int(second_bga_event.get("spriteId", -1), 8, "second bga sprite id"):
+		return false
+
+	runtime.advance_to(10001.0)
+	if not _expect_bool(runtime.is_running(), true, "future bga keeps runtime running"):
+		return false
+	runtime.advance_to(12000.0)
+	var future_bga_state: Dictionary = runtime.hud_state()
+	var future_bga_event: Dictionary = future_bga_state.get("currentBgaEvent", {})
+	if not _expect_int(future_bga_event.get("spriteId", -1), 9, "future bga sprite id"):
 		return false
 
 	runtime.free()

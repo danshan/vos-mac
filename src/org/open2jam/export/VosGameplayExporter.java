@@ -18,6 +18,10 @@ public final class VosGameplayExporter {
 
     public String exportGameplay(File input) throws Exception {
         VOSChart chart = firstVosChart(input);
+        return exportGameplay(chart, input);
+    }
+
+    String exportGameplay(VOSChart chart, File input) throws Exception {
         TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
                 JAVA_RENDER_DELAY_MS, new TimingData(), visualTiming);
@@ -27,6 +31,7 @@ public final class VosGameplayExporter {
                 Event.Channel.class);
         List<String> measures = new ArrayList<String>();
         List<String> autoPlayEvents = new ArrayList<String>();
+        List<String> bgaEvents = new ArrayList<String>();
         for (Event event : timedEvents) {
             int lane = laneFor(event.getChannel());
             if (lane >= 0) {
@@ -52,6 +57,8 @@ public final class VosGameplayExporter {
                 measures.add(measureEvent(event));
             } else if (event.getChannel() == Event.Channel.AUTO_PLAY) {
                 autoPlayEvents.add(autoPlayEvent(event));
+            } else if (event.getChannel() == Event.Channel.BGA) {
+                bgaEvents.add(bgaEvent(event));
             }
         }
 
@@ -69,7 +76,8 @@ public final class VosGameplayExporter {
                 JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))),
                 JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))),
                 JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))),
-                JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
+                JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))),
+                JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))));
     }
 
     private static VOSChart firstVosChart(File input) {
@@ -103,6 +111,12 @@ public final class VosGameplayExporter {
 
     private static String measureEvent(Event event) {
         return JsonWriter.object(JsonWriter.field("startMs", event.getTime()));
+    }
+
+    private static String bgaEvent(Event event) {
+        return JsonWriter.object(
+                JsonWriter.field("startMs", event.getTime()),
+                JsonWriter.field("spriteId", (int) event.getValue()));
     }
 
     private static String[] visualTimingJson(TimingData timing) {

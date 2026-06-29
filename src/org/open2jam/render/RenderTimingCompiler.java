@@ -7,13 +7,13 @@ import org.open2jam.parsers.Event;
 import org.open2jam.parsers.EventList;
 import org.open2jam.util.Logger;
 
-final class RenderTimingCompiler {
+public final class RenderTimingCompiler {
     static final int BEATS_PER_MSEC = 4 * 60 * 1000;
 
     private RenderTimingCompiler() {
     }
 
-    static EventList compile(EventList list, Chart.TYPE chartType, double initialBpm, double startTime,
+    public static EventList compile(EventList list, Chart.TYPE chartType, double initialBpm, double startTime,
             TimingData judgmentTiming, TimingData visualTiming) {
         Collections.sort(list);
 

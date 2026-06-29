@@ -2,6 +2,7 @@ extends Control
 
 const AppState = preload("res://scripts/app_state.gd")
 const AudioManifestLoader = preload("res://scripts/audio_manifest_loader.gd")
+const ExporterClient = preload("res://scripts/exporter_client.gd")
 const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
@@ -24,6 +25,7 @@ var _settings_button: Button = null
 var _layout_buttons: Array[Button] = []
 var _runtime: Node = null
 var _gameplay_view: Control = null
+var _exporter_client = ExporterClient.new()
 
 
 func _ready() -> void:
@@ -73,6 +75,14 @@ func set_song_entries(entries: Array) -> void:
 			_song_entries.append(entry.duplicate(true))
 	if _app_state.current() == AppState.SONG_SELECT:
 		_show_song_select()
+
+
+func set_exporter_client(exporter: Variant) -> void:
+	_exporter_client = exporter
+
+
+func configure_exporter(java_path: String, jar_path: String) -> void:
+	_exporter_client.configure(java_path, jar_path)
 
 
 func complete_game(result: Dictionary) -> void:
@@ -374,6 +384,9 @@ func _clear_gameplay_runtime() -> void:
 
 
 func _load_selected_gameplay_bundle() -> Dictionary:
+	if not _ensure_selected_bundle_paths():
+		return {}
+
 	var gameplay_path := _selected_bundle_path("gameplayPath", "gameplay.json")
 	var audio_manifest_path := _selected_bundle_path("audioManifestPath", "audio-manifest.json")
 	var render_metadata_path := _selected_bundle_path("renderMetadataPath", "render-metadata.json")
@@ -400,6 +413,34 @@ func _load_selected_gameplay_bundle() -> Dictionary:
 		"audioManifest": audio_manifest,
 		"renderMetadata": render_metadata,
 	}
+
+
+func _ensure_selected_bundle_paths() -> bool:
+	if not _selected_bundle_path("gameplayPath", "gameplay.json").is_empty() \
+			and not _selected_bundle_path("audioManifestPath", "audio-manifest.json").is_empty() \
+			and not _selected_bundle_path("renderMetadataPath", "render-metadata.json").is_empty():
+		return true
+
+	var source_path := str(_selected_entry.get("sourcePath", "")).strip_edges()
+	if source_path.is_empty():
+		return false
+	if _exporter_client == null or not _exporter_client.has_method("export_selected"):
+		return false
+
+	var out_dir := _selected_export_dir()
+	var export_result: Dictionary = _exporter_client.export_selected(source_path, out_dir)
+	if not bool(export_result.get("ok", false)):
+		return false
+
+	_selected_entry["bundleDir"] = out_dir
+	return true
+
+
+func _selected_export_dir() -> String:
+	var id := _safe_name(str(_selected_entry.get("id", "selected")))
+	if id.is_empty():
+		id = "selected"
+	return ProjectSettings.globalize_path("user://exports/%s" % id)
 
 
 func _selected_bundle_path(field: String, bundle_file_name: String) -> String:

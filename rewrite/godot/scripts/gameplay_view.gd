@@ -4,6 +4,25 @@ const NoteDistanceCalculator = preload("res://scripts/note_distance_calculator.g
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 const TimingModel = preload("res://scripts/timing_model.gd")
 
+const JAVA_INITIAL_ENTITY_IDS: Dictionary = {
+	"BGA": true,
+	"FPS_COUNTER": true,
+	"SCORE_COUNTER": true,
+	"JAM_COUNTER": true,
+	"JAM_BAR": true,
+	"LIFE_BAR": true,
+	"COMBO_COUNTER": true,
+	"MAXCOMBO_COUNTER": true,
+	"MINUTE_COUNTER": true,
+	"SECOND_COUNTER": true,
+	"JUDGMENT_LINE": true,
+	"COUNTER_JUDGMENT_PERFECT": true,
+	"COUNTER_JUDGMENT_COOL": true,
+	"COUNTER_JUDGMENT_GOOD": true,
+	"COUNTER_JUDGMENT_BAD": true,
+	"COUNTER_JUDGMENT_MISS": true,
+}
+
 var _model = RenderEntityModel.new()
 var _metadata: Dictionary = {}
 var _chart: Dictionary = {}
@@ -99,7 +118,7 @@ func _rebuild_entities() -> void:
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
-		if _is_note_template(entity):
+		if not _is_java_initial_entity(entity):
 			continue
 		var node := ColorRect.new()
 		node.name = _node_name(entity, index)
@@ -182,6 +201,13 @@ func _note_template_for(lane: Dictionary, kind: String) -> Dictionary:
 func _is_note_template(entity: Dictionary) -> bool:
 	var type := str(entity.get("type", ""))
 	return type == "note" or type == "longNote"
+
+
+func _is_java_initial_entity(entity: Dictionary) -> bool:
+	var id := str(entity.get("id", ""))
+	if id.is_empty():
+		return true
+	return JAVA_INITIAL_ENTITY_IDS.has(id)
 
 
 func _register_bar_node(entity: Dictionary, node: ColorRect) -> void:

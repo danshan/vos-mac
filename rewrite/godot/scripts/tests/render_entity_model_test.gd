@@ -60,7 +60,7 @@ func _init() -> void:
 	var view = GameplayView.new()
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
-	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 52, "static entity node count"):
+	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
 		return
 	if not _expect_bool(view.has_node("Entity_BGA"), true, "bga node"):
 		return
@@ -70,9 +70,15 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Entity_LIFE_BAR"), true, "life bar node"):
 		return
-	if not _expect_bool(view.has_node("Entity_EFFECT_JUDGMENT_COOL"), true, "judgment cool node"):
+	if not _expect_bool(view.has_node("Entity_EFFECT_JUDGMENT_COOL"), false, "judgment effect template is not static"):
 		return
 	if not _expect_bool(view.has_node("Entity_NOTE_1"), false, "note template is not static"):
+		return
+	if not _expect_bool(view.has_node("Entity_PRESSED_NOTE_1"), false, "pressed note template is not static"):
+		return
+	if not _expect_bool(view.has_node("Entity_PILL_1"), false, "pill template is not static"):
+		return
+	if not _expect_bool(view.has_node("Entity_MEASURE_MARK"), false, "measure template is not static"):
 		return
 	if not _expect_bool(view.has_method("update_hud_state"), true, "view hud state method"):
 		return

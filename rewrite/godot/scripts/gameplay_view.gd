@@ -36,6 +36,7 @@ var _pressed_nodes: Array[Node] = []
 var _judgment_node: Node = null
 var _click_nodes: Array[Node] = []
 var _pill_nodes: Array[Node] = []
+var _longflare_nodes: Array[Node] = []
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -113,6 +114,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_judgment_event(state.get("judgmentEvent", {}))
 	_sync_click_events(state.get("clickEvents", []))
 	_sync_pills(int(state.get("pills", 0)))
+	_sync_longflares(state.get("longFlares", []))
 
 
 func _rebuild_entities() -> void:
@@ -127,6 +129,7 @@ func _rebuild_entities() -> void:
 	_clear_judgment_node()
 	_clear_nodes(_click_nodes)
 	_clear_nodes(_pill_nodes)
+	_clear_nodes(_longflare_nodes)
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -290,6 +293,26 @@ func _sync_pills(count: int) -> void:
 		_pill_nodes.append(node)
 
 
+func _sync_longflares(raw_flares: Variant) -> void:
+	_clear_nodes(_longflare_nodes)
+	if not raw_flares is Array:
+		return
+
+	var entity := _first_entity_by_id("EFFECT_LONGFLARE")
+	if entity.is_empty():
+		return
+	for raw_flare: Variant in raw_flares:
+		if not raw_flare is Dictionary:
+			continue
+		var lane_index := int(raw_flare.get("lane", -1))
+		if lane_index < 0:
+			continue
+		var node := _entity_rect(entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
+		_position_longflare_node(node, entity, lane_index)
+		add_child(node)
+		_longflare_nodes.append(node)
+
+
 func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:
 	var lane := _lane_for_index(lane_index)
 	if lane.is_empty():
@@ -298,6 +321,14 @@ func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) 
 	var height: float = max(float(entity.get("height", 0.0)), 1.0)
 	node.position.x = float(lane.get("x", 0.0)) + float(lane.get("width", 0.0)) * 0.5 - width * 0.5
 	node.position.y = float(_metadata.get("judgmentLine", 0.0)) - height * 0.5
+
+
+func _position_longflare_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:
+	var lane := _lane_for_index(lane_index)
+	if lane.is_empty():
+		return
+	var width: float = max(float(entity.get("width", 0.0)), 1.0)
+	node.position.x = float(lane.get("x", 0.0)) + float(lane.get("width", 0.0)) * 0.5 - width * 0.5
 
 
 func _clear_pressed_nodes() -> void:

@@ -208,6 +208,27 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Pill_PILL_1"), false, "pill node clears"):
 		return
+	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_002"), false, "longflare starts hidden"):
+		return
+
+	view.update_hud_state({
+		"longFlares": [
+			{
+				"lane": 2,
+			},
+		],
+	})
+	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_002"), true, "longflare lane three node"):
+		return
+	var longflare_node: ColorRect = view.get_node("Longflare_EFFECT_LONGFLARE_002")
+	if not _expect_float(longflare_node.position.x, 5.0, "longflare node x"):
+		return
+
+	view.update_hud_state({
+		"longFlares": [],
+	})
+	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_002"), false, "longflare clears"):
+		return
 
 	var gameplay_loader = GameplayLoader.new()
 	var chart: Dictionary = gameplay_loader.load_from_file("res://test/fixtures/gameplay.json")

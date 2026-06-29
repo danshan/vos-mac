@@ -41,6 +41,12 @@ func _init() -> void:
 		return
 	if not _expect_int(controller.held_note_count(), 1, "held note count"):
 		return
+	var hold_render_state: Dictionary = controller.render_state(3000.0)
+	var long_flares: Array = hold_render_state.get("longFlares", [])
+	if not _expect_int(long_flares.size(), 1, "long flare active after hold head"):
+		return
+	if not _expect_int(long_flares[0].get("lane", -1), 2, "long flare lane"):
+		return
 
 	var hold_tail: Dictionary = controller.release_action("vos_lane_3", 3300.0)
 	if not _expect_bool(hold_tail.get("accepted", false), true, "hold tail accepted"):
@@ -48,6 +54,8 @@ func _init() -> void:
 	if not _expect_string(hold_tail.get("result", ""), "cool", "hold tail result"):
 		return
 	if not _expect_int(controller.held_note_count(), 0, "held note released"):
+		return
+	if not _expect_int(controller.render_state(3300.0).get("longFlares", []).size(), 0, "long flare cleared after release"):
 		return
 
 	controller.advance_to(4174.0)

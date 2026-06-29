@@ -32,6 +32,7 @@ var _input_map = InputMapStore.new()
 var _judgment = JudgmentStrategy.new()
 var _pressed_lanes: Dictionary = {}
 var _held_note_indices: Dictionary = {}
+var _longflare_lanes: Dictionary = {}
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -48,6 +49,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_click_events.clear()
 	_pressed_lanes.clear()
 	_held_note_indices.clear()
+	_longflare_lanes.clear()
 	return true
 
 
@@ -93,6 +95,7 @@ func render_state(now_ms: float) -> Dictionary:
 	var state := {
 		"pills": _score_state.pills,
 		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
+		"longFlares": _active_longflares(),
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -137,6 +140,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 		note["state"] = STATE_HOLDING
 		_notes[note_index] = note
 		_held_note_indices[lane] = note_index
+		_longflare_lanes[lane] = true
 
 	return {
 		"pressed": true,
@@ -160,6 +164,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 
 	var note_index: int = int(_held_note_indices.get(lane))
 	_held_note_indices.erase(lane)
+	_longflare_lanes.erase(lane)
 
 	var note := _notes[note_index]
 	var hit_time := _tail_hit_time_for_note(note, now_ms)
@@ -190,7 +195,9 @@ func advance_to(now_ms: float) -> int:
 			var tail_hit_time := _tail_hit_time_for_note(note, now_ms)
 			if _judgment.missed_time(tail_hit_time):
 				_apply_note_judgment(i, tail_hit_time, now_ms)
-				_held_note_indices.erase(int(note.get("lane", -1)))
+				var lane := int(note.get("lane", -1))
+				_held_note_indices.erase(lane)
+				_longflare_lanes.erase(lane)
 				judged += 1
 	return judged
 
@@ -293,6 +300,17 @@ func _active_events(events: Array[Dictionary], now_ms: float, duration_ms: float
 		if _event_is_active(event, now_ms, duration_ms):
 			active.append(event.duplicate(true))
 	return active
+
+
+func _active_longflares() -> Array[Dictionary]:
+	var flares: Array[Dictionary] = []
+	for raw_lane: Variant in _longflare_lanes.keys():
+		var lane := int(raw_lane)
+		if bool(_longflare_lanes.get(lane, false)):
+			flares.append({"lane": lane})
+	flares.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return int(a.get("lane", -1)) < int(b.get("lane", -1)))
+	return flares
 
 
 func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:

@@ -58,11 +58,20 @@ func _init() -> void:
 		return
 
 	var view = GameplayView.new()
+	for entity: Dictionary in metadata.get("entities", []):
+		if str(entity.get("id", "")) == "BGA":
+			entity["texturePath"] = "res://test/fixtures/test-sprite.tres"
+			break
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
 		return
 	if not _expect_bool(view.has_node("Entity_BGA"), true, "bga node"):
+		return
+	if not _expect_bool(view.get_node("Entity_BGA") is TextureRect, true, "bga texture node"):
+		return
+	var bga_texture_node: TextureRect = view.get_node("Entity_BGA")
+	if not _expect_bool(bga_texture_node.texture != null, true, "bga texture loaded"):
 		return
 	if not _expect_bool(view.has_node("Entity_SCORE_COUNTER"), true, "score counter node"):
 		return

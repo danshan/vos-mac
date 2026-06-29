@@ -274,7 +274,18 @@ func _is_java_initial_entity(entity: Dictionary) -> bool:
 	return JAVA_INITIAL_ENTITY_IDS.has(id)
 
 
-func _entity_rect(entity: Dictionary, node_name: String) -> ColorRect:
+func _entity_rect(entity: Dictionary, node_name: String) -> Control:
+	var texture := _texture_for_entity(entity)
+	if texture != null:
+		var texture_node := TextureRect.new()
+		texture_node.name = node_name
+		texture_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
+		texture_node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
+		texture_node.texture = texture
+		texture_node.stretch_mode = TextureRect.STRETCH_SCALE
+		return texture_node
+
 	var node := ColorRect.new()
 	node.name = node_name
 	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -282,6 +293,16 @@ func _entity_rect(entity: Dictionary, node_name: String) -> ColorRect:
 	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
 	node.color = _color_for_type(str(entity.get("type", "")))
 	return node
+
+
+func _texture_for_entity(entity: Dictionary) -> Texture2D:
+	var texture_path := str(entity.get("texturePath", "")).strip_edges()
+	if texture_path.is_empty():
+		return null
+	var resource := ResourceLoader.load(texture_path)
+	if resource is Texture2D:
+		return resource
+	return null
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:
@@ -381,7 +402,7 @@ func _sync_note_visibility(raw_hidden_notes: Variant) -> void:
 			node.visible = not bool(hidden.get(i, false))
 
 
-func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:
+func _position_click_node(node: Control, entity: Dictionary, lane_index: int) -> void:
 	var lane := _lane_for_index(lane_index)
 	if lane.is_empty():
 		return
@@ -391,7 +412,7 @@ func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) 
 	node.position.y = float(_metadata.get("judgmentLine", 0.0)) - height * 0.5
 
 
-func _position_longflare_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:
+func _position_longflare_node(node: Control, entity: Dictionary, lane_index: int) -> void:
 	var lane := _lane_for_index(lane_index)
 	if lane.is_empty():
 		return
@@ -438,7 +459,7 @@ func _first_entity_by_id(id: String) -> Dictionary:
 	return {}
 
 
-func _register_bar_node(entity: Dictionary, node: ColorRect) -> void:
+func _register_bar_node(entity: Dictionary, node: Control) -> void:
 	if str(entity.get("type", "")) != "bar":
 		return
 	var id := str(entity.get("id", ""))
@@ -502,7 +523,7 @@ func _set_combo_text(id: String, value: int, threshold: int) -> void:
 func _set_bar_fill(id: String, value: float, limit: float) -> void:
 	var node: Variant = _bar_nodes.get(id)
 	var rect: Dictionary = _bar_rects.get(id, {})
-	if not node is ColorRect or rect.is_empty():
+	if not node is Control or rect.is_empty():
 		return
 
 	var base_position: Vector2 = rect.get("position", Vector2.ZERO)

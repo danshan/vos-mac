@@ -69,13 +69,13 @@ func _init() -> void:
 		return
 	if not _expect_bool(note_play.get("registeredInstance", false), true, "note keysound registers instance"):
 		return
-	if not _expect_float(float(note_play.get("sampleVolume", -1.0)), 0.8, "note sample volume"):
+	if not _expect_float(float(note_play.get("sampleVolume", -1.0)), 1.0, "note sample volume"):
 		return
 	if not _expect_float(float(note_play.get("masterVolume", -1.0)), 0.5, "note master volume"):
 		return
 	if not _expect_float(float(note_play.get("channelVolume", -1.0)), 0.25, "note channel volume"):
 		return
-	if not _expect_float(float(note_play.get("effectiveVolume", -1.0)), 0.1, "note effective volume"):
+	if not _expect_float(float(note_play.get("effectiveVolume", -1.0)), 0.125, "note effective volume"):
 		return
 	if not _expect_float(float(note_play.get("pan", 0.0)), -1.0, "note clamped pan"):
 		return
@@ -86,14 +86,14 @@ func _init() -> void:
 		return
 	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 2.0, "note player initial pitch scale"):
 		return
-	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.1, "note player initial db volume"):
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.125, "note player initial db volume"):
 		return
 	pool.set_pitch_scale(8.0)
 	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 4.0, "active note player pitch scale clamp"):
 		return
 	pool.set_pitch_scale(2.0)
 	pool.set_volume_state(0.4, 0.5, 0.75)
-	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.16, "active note player volume update"):
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.2, "active note player volume update"):
 		return
 	pool.set_volume_state(0.5, 0.25, 0.75)
 
@@ -147,13 +147,13 @@ func _init() -> void:
 		return
 	if not _expect_bool(batch_results[0].get("played", false), true, "batch autoplay played"):
 		return
-	if not _expect_float(float(batch_results[0].get("sampleVolume", -1.0)), 0.8, "autoplay sample volume"):
+	if not _expect_float(float(batch_results[0].get("sampleVolume", -1.0)), 1.0, "autoplay sample volume"):
 		return
 	if not _expect_float(float(batch_results[0].get("masterVolume", -1.0)), 0.5, "autoplay master volume"):
 		return
 	if not _expect_float(float(batch_results[0].get("channelVolume", -1.0)), 0.75, "autoplay channel volume"):
 		return
-	if not _expect_float(float(batch_results[0].get("effectiveVolume", -1.0)), 0.3, "autoplay effective volume"):
+	if not _expect_float(float(batch_results[0].get("effectiveVolume", -1.0)), 0.375, "autoplay effective volume"):
 		return
 	if not _expect_float(float(batch_results[0].get("pan", 0.0)), 0.5, "autoplay pan"):
 		return

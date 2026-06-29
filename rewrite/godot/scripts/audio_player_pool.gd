@@ -110,7 +110,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	var player := AudioStreamPlayer.new()
 	player.name = "Sample_%d_%d" % [sample_id, _play_events.size() + 1]
 	player.stream = stream
-	var sample_volume := _clamped_volume(float(command.get("volume", 1.0)))
+	var sample_volume := 1.0
 	var pan := _clamped_pan(float(command.get("pan", 0.0)))
 	var uses_bgm_channel := _asset_uses_bgm_channel(asset)
 	var channel_volume := _channel_volume(uses_bgm_channel)

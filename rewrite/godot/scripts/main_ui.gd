@@ -1,6 +1,11 @@
 extends Control
 
 const AppState = preload("res://scripts/app_state.gd")
+const AudioManifestLoader = preload("res://scripts/audio_manifest_loader.gd")
+const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
+const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
+const GameplayView = preload("res://scripts/gameplay_view.gd")
+const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
 
@@ -17,6 +22,8 @@ var _status_label: Label = null
 var _start_button: Button = null
 var _settings_button: Button = null
 var _layout_buttons: Array[Button] = []
+var _runtime: Node = null
+var _gameplay_view: Control = null
 
 
 func _ready() -> void:
@@ -222,12 +229,40 @@ func _show_gameplay() -> void:
 	_title_label = _label("Title", str(_selected_entry.get("title", "Gameplay")), HORIZONTAL_ALIGNMENT_CENTER)
 	_content.add_child(_title_label)
 
+	var bundle := _load_selected_gameplay_bundle()
+	if bundle.is_empty():
+		_status_label = _label("Status", "Unable to load gameplay bundle", HORIZONTAL_ALIGNMENT_CENTER)
+		_content.add_child(_status_label)
+		var back_button := _button("BackButton", "Back")
+		back_button.pressed.connect(_on_gameplay_back_pressed)
+		_content.add_child(back_button)
+		apply_layout_for_size(_layout_size())
+		return
+
+	var gameplay_area := Control.new()
+	gameplay_area.name = "GameplayArea"
+	gameplay_area.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	gameplay_area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.add_child(gameplay_area)
+
+	_gameplay_view = GameplayView.new()
+	_gameplay_view.name = "GameplayView"
+	_gameplay_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	if not _gameplay_view.load_metadata(bundle.get("renderMetadata", {})):
+		_show_gameplay_load_error("Unable to load render metadata")
+		return
+	gameplay_area.add_child(_gameplay_view)
+
+	_runtime = GameplayRuntime.new()
+	_runtime.name = "GameplayRuntime"
+	_runtime.completed.connect(complete_game)
+	add_child(_runtime)
+	if not _runtime.start(bundle.get("chart", {}), bundle.get("audioManifest", {})):
+		_show_gameplay_load_error("Unable to start gameplay")
+		return
+
 	_status_label = _label("Status", "Playing", HORIZONTAL_ALIGNMENT_CENTER)
 	_content.add_child(_status_label)
-
-	var finish_button := _button("FinishButton", "Finish")
-	finish_button.pressed.connect(_on_finish_pressed)
-	_content.add_child(finish_button)
 
 	apply_layout_for_size(_layout_size())
 
@@ -268,8 +303,9 @@ func _on_song_selected(entry: Dictionary) -> void:
 		_show_gameplay()
 
 
-func _on_finish_pressed() -> void:
-	complete_game({"score": 0, "maxCombo": 0})
+func _on_gameplay_back_pressed() -> void:
+	if _app_state.transition_to(AppState.SONG_SELECT):
+		_show_song_select()
 
 
 func _on_retry_pressed() -> void:
@@ -300,6 +336,7 @@ func _button(name: String, text: String) -> Button:
 
 
 func _clear_content() -> void:
+	_clear_gameplay_runtime()
 	_title_label = null
 	_subtitle_label = null
 	_status_label = null
@@ -313,6 +350,72 @@ func _clear_content() -> void:
 	for child in _content.get_children():
 		_content.remove_child(child)
 		child.queue_free()
+
+
+func _clear_gameplay_runtime() -> void:
+	_gameplay_view = null
+	if _runtime == null:
+		return
+	if _runtime.has_method("stop"):
+		_runtime.stop()
+	remove_child(_runtime)
+	_runtime.queue_free()
+	_runtime = null
+
+
+func _load_selected_gameplay_bundle() -> Dictionary:
+	var gameplay_path := _selected_bundle_path("gameplayPath", "gameplay.json")
+	var audio_manifest_path := _selected_bundle_path("audioManifestPath", "audio-manifest.json")
+	var render_metadata_path := _selected_bundle_path("renderMetadataPath", "render-metadata.json")
+	if gameplay_path.is_empty() or audio_manifest_path.is_empty() or render_metadata_path.is_empty():
+		return {}
+
+	var gameplay_loader = GameplayLoader.new()
+	var chart: Dictionary = gameplay_loader.load_from_file(gameplay_path)
+	if chart.is_empty():
+		return {}
+
+	var audio_loader = AudioManifestLoader.new()
+	var audio_manifest: Dictionary = audio_loader.load_from_file(audio_manifest_path)
+	if audio_manifest.is_empty():
+		return {}
+
+	var render_model = RenderEntityModel.new()
+	var render_metadata: Dictionary = render_model.load_from_file(render_metadata_path)
+	if render_metadata.is_empty():
+		return {}
+
+	return {
+		"chart": chart,
+		"audioManifest": audio_manifest,
+		"renderMetadata": render_metadata,
+	}
+
+
+func _selected_bundle_path(field: String, bundle_file_name: String) -> String:
+	var direct_path := str(_selected_entry.get(field, "")).strip_edges()
+	if not direct_path.is_empty():
+		return direct_path
+
+	var bundle_dir := str(_selected_entry.get("bundleDir", "")).strip_edges()
+	if bundle_dir.is_empty():
+		return ""
+	return _join_path(bundle_dir, bundle_file_name)
+
+
+func _join_path(directory: String, file_name: String) -> String:
+	if directory.ends_with("/") or directory.ends_with("\\"):
+		return "%s%s" % [directory, file_name]
+	return "%s/%s" % [directory, file_name]
+
+
+func _show_gameplay_load_error(message: String) -> void:
+	_clear_gameplay_runtime()
+	if _status_label == null:
+		_status_label = _label("Status", message, HORIZONTAL_ALIGNMENT_CENTER)
+		_content.add_child(_status_label)
+	else:
+		_status_label.text = message
 
 
 func _safe_name(value: String) -> String:

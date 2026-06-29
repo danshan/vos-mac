@@ -13,6 +13,9 @@ func _init() -> void:
 			"title": "Canon in D",
 			"artist": "Pachelbel",
 			"level": 7,
+			"gameplayPath": "res://test/fixtures/gameplay.json",
+			"audioManifestPath": "res://test/fixtures/audio-manifest.json",
+			"renderMetadataPath": "res://test/fixtures/render-metadata.json",
 		},
 	])
 
@@ -46,10 +49,12 @@ func _init() -> void:
 	ui.get_node("Content/SongList/Song_vos_fixture").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.GAMEPLAY, "gameplay state"):
 		return
-	if not _expect_bool(ui.has_node("Content/FinishButton"), true, "finish button"):
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView"), true, "gameplay view"):
+		return
+	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return
 
-	ui.get_node("Content/FinishButton").emit_signal("pressed")
+	ui.complete_game({"score": 200, "maxCombo": 0})
 	if not _expect_string(ui.current_state(), AppState.RESULT, "result state"):
 		return
 	if not _expect_bool(ui.has_node("Content/RetryButton"), true, "retry button"):

@@ -159,10 +159,10 @@ func update_hud_state(state: Dictionary) -> void:
 	_set_bar_fill("LIFE_BAR", float(state.get("life", 0.0)), float(state.get("lifeLimit", 0.0)))
 	_set_bar_fill("JAM_BAR", float(state.get("jamBar", 0.0)), float(state.get("jamBarLimit", 0.0)))
 	_sync_pressed_lanes(state.get("pressedLanes", []))
-	_sync_judgment_event(state.get("judgmentEvent", {}))
+	_sync_judgment_event(state.get("judgmentEvent", {}), hud_time_ms)
 	_sync_click_events(state.get("clickEvents", []), hud_time_ms)
 	_sync_pills(int(state.get("pills", 0)))
-	_sync_longflares(state.get("longFlares", []))
+	_sync_longflares(state.get("longFlares", []), hud_time_ms)
 	_sync_note_visibility(state.get("hiddenNotes", []))
 	_sync_measure_visibility(state.get("hiddenMeasures", []))
 	_sync_status_texts(state.get("statusTexts", []))
@@ -665,7 +665,7 @@ func _sync_pressed_lanes(raw_lanes: Variant) -> void:
 			piece_index += 1
 
 
-func _sync_judgment_event(raw_event: Variant) -> void:
+func _sync_judgment_event(raw_event: Variant, now_ms: float) -> void:
 	_clear_judgment_node()
 	if not raw_event is Dictionary or raw_event.is_empty():
 		return
@@ -682,6 +682,7 @@ func _sync_judgment_event(raw_event: Variant) -> void:
 		_judgment_node.set_meta("judgmentEffect", true)
 		_judgment_node.pivot_offset = _judgment_node.size * 0.5
 	add_child(_judgment_node)
+	_update_animation_frames_for_node(_judgment_node, now_ms)
 
 
 func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
@@ -702,6 +703,7 @@ func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
 		event_entity["animationStartMs"] = float(raw_event.get("startMs", 0.0))
 		var node := _entity_rect(event_entity, "Click_EFFECT_CLICK_%03d" % sequence)
 		_position_click_node(node, entity, int(raw_event.get("lane", -1)))
+		_update_animation_frames_for_node(node, now_ms)
 		add_child(node)
 		_click_nodes.append(node)
 
@@ -718,7 +720,7 @@ func _sync_pills(count: int) -> void:
 		_pill_nodes.append(node)
 
 
-func _sync_longflares(raw_flares: Variant) -> void:
+func _sync_longflares(raw_flares: Variant, now_ms: float) -> void:
 	_clear_nodes(_longflare_nodes)
 	if not raw_flares is Array:
 		return
@@ -736,6 +738,7 @@ func _sync_longflares(raw_flares: Variant) -> void:
 		flare_entity["animationStartMs"] = float(raw_flare.get("startMs", 0.0))
 		var node := _entity_rect(flare_entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
 		_position_longflare_node(node, entity, lane_index, raw_flare)
+		_update_animation_frames_for_node(node, now_ms)
 		add_child(node)
 		_longflare_nodes.append(node)
 

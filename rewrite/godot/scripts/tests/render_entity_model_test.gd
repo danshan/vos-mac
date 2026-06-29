@@ -592,6 +592,32 @@ func _init() -> void:
 	if not _expect_float(click_node.position.y, 352.0, "click node y"):
 		return
 	view.update_hud_state({
+		"elapsedMs": 1200.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+		"clickEvents": [
+			{
+				"sequence": 2,
+				"lane": 0,
+				"startMs": 1000.0,
+			},
+		],
+	})
+	judgment_node = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
+	judgment_texture = judgment_node.texture
+	if not _expect_float(judgment_texture.region.position.y, 308.0, "judgment effect advances during state sync"):
+		return
+	if not _expect_float(judgment_node.scale.x, 1.0, "judgment effect scale advances during state sync"):
+		return
+	click_node = view.get_node("Click_EFFECT_CLICK_002")
+	click_texture = click_node.texture
+	if not _expect_float(click_texture.region.position.y, 436.0, "click effect advances during state sync"):
+		return
+	view.update_hud_state({
 		"elapsedMs": 1400.0,
 		"clickEvents": [
 			{
@@ -656,6 +682,19 @@ func _init() -> void:
 	if not _expect_float(longflare_texture.region.position.y, 308.0, "longflare advances from hold start"):
 		return
 	if not _expect_float(longflare_node.position.x, 5.0, "longflare node x"):
+		return
+	view.update_hud_state({
+		"elapsedMs": 3200.0,
+		"longFlares": [
+			{
+				"lane": 2,
+				"startMs": 3000.0,
+			},
+		],
+	})
+	longflare_node = view.get_node("Longflare_EFFECT_LONGFLARE_002")
+	longflare_texture = longflare_node.texture
+	if not _expect_float(longflare_texture.region.position.y, 308.0, "longflare advances during state sync"):
 		return
 
 	view.update_hud_state({

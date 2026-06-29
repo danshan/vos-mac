@@ -96,9 +96,10 @@ public final class VosExportCli {
         File outDir = ExportPaths.ensureDirectory(new File(args[2]));
         File input = new File(args[3]);
         File audioDir = ExportPaths.child(outDir, "audio");
+        File bgaDir = ExportPaths.child(outDir, "bga");
 
         writeJson(ExportPaths.child(outDir, "catalog.json"), new VosCatalogExporter().exportCatalog(input));
-        writeJson(ExportPaths.child(outDir, "gameplay.json"), new VosGameplayExporter().exportGameplay(input));
+        writeJson(ExportPaths.child(outDir, "gameplay.json"), new VosGameplayExporter().exportGameplay(input, bgaDir));
         writeJson(ExportPaths.child(outDir, "audio-manifest.json"), new VosAudioExporter().exportAudio(input, audioDir));
         writeJson(ExportPaths.child(outDir, "render-metadata.json"),
                 new VosRenderMetadataExporter().exportDefaultMetadata());

@@ -1,9 +1,13 @@
 package org.open2jam.export;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import org.open2jam.game.TimingData;
 import org.open2jam.parsers.Chart;
 import org.open2jam.parsers.ChartList;
@@ -18,10 +22,19 @@ public final class VosGameplayExporter {
 
     public String exportGameplay(File input) throws Exception {
         VOSChart chart = firstVosChart(input);
-        return exportGameplay(chart, input);
+        return exportGameplay(chart, input, null);
+    }
+
+    public String exportGameplay(File input, File bgaAssetDir) throws Exception {
+        VOSChart chart = firstVosChart(input);
+        return exportGameplay(chart, input, bgaAssetDir);
     }
 
     String exportGameplay(VOSChart chart, File input) throws Exception {
+        return exportGameplay(chart, input, null);
+    }
+
+    String exportGameplay(VOSChart chart, File input, File bgaAssetDir) throws Exception {
         TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
                 JAVA_RENDER_DELAY_MS, new TimingData(), visualTiming);
@@ -77,7 +90,8 @@ public final class VosGameplayExporter {
                 JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))),
                 JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))),
                 JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))),
-                JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))));
+                JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))),
+                JsonWriter.rawField("bgaSprites", JsonWriter.array(bgaSprites(chart, bgaAssetDir))));
     }
 
     private static VOSChart firstVosChart(File input) {
@@ -117,6 +131,41 @@ public final class VosGameplayExporter {
         return JsonWriter.object(
                 JsonWriter.field("startMs", event.getTime()),
                 JsonWriter.field("spriteId", (int) event.getValue()));
+    }
+
+    private static String[] bgaSprites(VOSChart chart, File bgaAssetDir) throws Exception {
+        Map<Integer, File> images = chart.getImages();
+        if (images.isEmpty()) {
+            return new String[0];
+        }
+        File outputDir = bgaAssetDir == null ? null : ExportPaths.ensureDirectory(bgaAssetDir);
+        List<Integer> spriteIds = new ArrayList<Integer>(images.keySet());
+        Collections.sort(spriteIds);
+        List<String> json = new ArrayList<String>();
+        for (Integer spriteId : spriteIds) {
+            File source = images.get(spriteId);
+            if (source == null) {
+                continue;
+            }
+            File output = source;
+            if (outputDir != null) {
+                output = ExportPaths.child(outputDir, "bga-" + spriteId + extensionFor(source));
+                Files.copy(source.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+            json.add(JsonWriter.object(
+                    JsonWriter.field("spriteId", spriteId.intValue()),
+                    JsonWriter.field("texturePath", output.getCanonicalPath())));
+        }
+        return json.toArray(new String[json.size()]);
+    }
+
+    private static String extensionFor(File source) {
+        String name = source.getName();
+        int dot = name.lastIndexOf('.');
+        if (dot < 0 || dot == name.length() - 1) {
+            return ".png";
+        }
+        return name.substring(dot).toLowerCase();
     }
 
     private static String[] visualTimingJson(TimingData timing) {

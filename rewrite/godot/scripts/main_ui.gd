@@ -254,6 +254,30 @@ func _show_settings() -> void:
 	display_latency.value = _settings_store.display_latency_ms()
 	_content.add_child(display_latency)
 
+	var master_volume := SpinBox.new()
+	master_volume.name = "MasterVolumeSpinBox"
+	master_volume.min_value = 0.0
+	master_volume.max_value = 1.0
+	master_volume.step = 0.05
+	master_volume.value = _settings_store.master_volume()
+	_content.add_child(master_volume)
+
+	var key_volume := SpinBox.new()
+	key_volume.name = "KeyVolumeSpinBox"
+	key_volume.min_value = 0.0
+	key_volume.max_value = 1.0
+	key_volume.step = 0.05
+	key_volume.value = _settings_store.key_volume()
+	_content.add_child(key_volume)
+
+	var bgm_volume := SpinBox.new()
+	bgm_volume.name = "BgmVolumeSpinBox"
+	bgm_volume.min_value = 0.0
+	bgm_volume.max_value = 1.0
+	bgm_volume.step = 0.05
+	bgm_volume.value = _settings_store.bgm_volume()
+	_content.add_child(bgm_volume)
+
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
 	for modifier: String in CHANNEL_MODIFIERS:
@@ -639,6 +663,18 @@ func _save_settings_from_controls() -> void:
 	if display_latency is SpinBox:
 		_settings_store.set_display_latency_ms(float(display_latency.value))
 
+	var master_volume: Node = _content.get_node_or_null("MasterVolumeSpinBox")
+	if master_volume is SpinBox:
+		_settings_store.set_master_volume(float(master_volume.value))
+
+	var key_volume: Node = _content.get_node_or_null("KeyVolumeSpinBox")
+	if key_volume is SpinBox:
+		_settings_store.set_key_volume(float(key_volume.value))
+
+	var bgm_volume: Node = _content.get_node_or_null("BgmVolumeSpinBox")
+	if bgm_volume is SpinBox:
+		_settings_store.set_bgm_volume(float(bgm_volume.value))
+
 	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
@@ -686,6 +722,9 @@ func _gameplay_option_overrides() -> Dictionary:
 		"autosound": _settings_store.autosound_enabled(),
 		"audioLatencyMs": _settings_store.audio_latency_ms(),
 		"displayLatencyMs": _settings_store.display_latency_ms(),
+		"masterVolume": _settings_store.master_volume(),
+		"keyVolume": _settings_store.key_volume(),
+		"bgmVolume": _settings_store.bgm_volume(),
 		"channelModifier": _settings_store.channel_modifier(),
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),

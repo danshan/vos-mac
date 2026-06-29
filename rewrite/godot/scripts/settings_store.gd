@@ -15,6 +15,9 @@ var _autoplay_enabled: bool = false
 var _autosound_enabled: bool = false
 var _audio_latency_ms: float = 0.0
 var _display_latency_ms: float = 0.0
+var _master_volume: float = 1.0
+var _key_volume: float = 1.0
+var _bgm_volume: float = 1.0
 var _key_bindings: Array[String] = []
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
@@ -69,6 +72,30 @@ func set_display_latency_ms(latency_ms: float) -> void:
 
 func display_latency_ms() -> float:
 	return _display_latency_ms
+
+
+func set_master_volume(volume: float) -> void:
+	_master_volume = _clamped_volume(volume)
+
+
+func master_volume() -> float:
+	return _master_volume
+
+
+func set_key_volume(volume: float) -> void:
+	_key_volume = _clamped_volume(volume)
+
+
+func key_volume() -> float:
+	return _key_volume
+
+
+func set_bgm_volume(volume: float) -> void:
+	_bgm_volume = _clamped_volume(volume)
+
+
+func bgm_volume() -> float:
+	return _bgm_volume
 
 
 func set_key_bindings(bindings: Array[String]) -> void:
@@ -129,3 +156,7 @@ func set_judgment_type(judgment_type: String) -> void:
 
 func judgment_type() -> String:
 	return _judgment_type
+
+
+func _clamped_volume(volume: float) -> float:
+	return clampf(volume, 0.0, 1.0)

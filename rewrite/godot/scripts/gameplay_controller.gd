@@ -128,9 +128,9 @@ func load_chart(chart: Dictionary) -> bool:
 	_has_distance_update_ms = false
 	_last_speed_update_ms = 0.0
 	_has_speed_update_ms = true
-	_master_volume = 1.0
-	_key_volume = 1.0
-	_bgm_volume = 1.0
+	_master_volume = _normalized_volume(_chart.get("masterVolume", 1.0))
+	_key_volume = _normalized_volume(_chart.get("keyVolume", 1.0))
+	_bgm_volume = _normalized_volume(_chart.get("bgmVolume", 1.0))
 	_haste_enabled = _normalized_bool(_chart.get("hasteMode", false))
 	_normalize_haste_speed = _normalized_bool(_chart.get("hasteModeNormalizeSpeed", true))
 	_game_speed = 1.0
@@ -715,6 +715,12 @@ func _normalized_bool(value: Variant) -> bool:
 	if value is bool:
 		return value
 	return false
+
+
+func _normalized_volume(value: Variant) -> float:
+	if value is int or value is float:
+		return _clamped_volume(float(value))
+	return 1.0
 
 
 func _update_game_speed_state(now_ms: float) -> void:

@@ -28,6 +28,8 @@ func _init() -> void:
 		return
 	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_java_initial_volume_options(chart, audio_manifest):
+		return
 	if not _test_java_haste_mode_pitch_sync(audio_manifest):
 		return
 	if not _test_java_bga_events_follow_game_time(audio_manifest):
@@ -264,6 +266,29 @@ func _test_java_volume_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionar
 	_send_input_action(runtime, "bgm_volume_down", true)
 	var bgm_down_state: Dictionary = runtime.hud_state()
 	if not _expect_float(float(bgm_down_state.get("bgmVolume", -1.0)), 0.95, "bgm volume down"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_initial_volume_options(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var volume_chart: Dictionary = chart.duplicate(true)
+	volume_chart["masterVolume"] = 0.5
+	volume_chart["keyVolume"] = 0.25
+	volume_chart["bgmVolume"] = 0.75
+
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(volume_chart, audio_manifest), true, "initial volume runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(initial_state.get("masterVolume", -1.0)), 0.5, "configured master volume"):
+		return false
+	if not _expect_float(float(initial_state.get("keyVolume", -1.0)), 0.25, "configured key volume"):
+		return false
+	if not _expect_float(float(initial_state.get("bgmVolume", -1.0)), 0.75, "configured bgm volume"):
 		return false
 
 	runtime.free()

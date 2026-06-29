@@ -25,6 +25,15 @@ func _init() -> void:
 		return
 	store.set_audio_latency_ms(120.0)
 	store.set_display_latency_ms(45.0)
+	if not _expect_bool(store.has_method("set_master_volume"), true, "master volume setter"):
+		return
+	if not _expect_bool(store.has_method("set_key_volume"), true, "key volume setter"):
+		return
+	if not _expect_bool(store.has_method("set_bgm_volume"), true, "bgm volume setter"):
+		return
+	store.set_master_volume(1.5)
+	store.set_key_volume(-0.5)
+	store.set_bgm_volume(0.75)
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -49,6 +58,12 @@ func _init() -> void:
 	if not _expect_float(store.audio_latency_ms(), 120.0, "audio latency"):
 		return
 	if not _expect_float(store.display_latency_ms(), 45.0, "display latency"):
+		return
+	if not _expect_float(store.master_volume(), 1.0, "master volume clamp"):
+		return
+	if not _expect_float(store.key_volume(), 0.0, "key volume clamp"):
+		return
+	if not _expect_float(store.bgm_volume(), 0.75, "bgm volume"):
 		return
 
 	var directories: Array[String] = store.song_directories()

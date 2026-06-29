@@ -84,7 +84,7 @@ public final class VosCatalogExporter {
                 JsonWriter.field("durationMs", chart.getDuration() * 1000),
                 JsonWriter.field("noteCount", chart.getNoteCount()),
                 JsonWriter.field("coverAsset", coverAsset(chart)),
-                JsonWriter.field("exportStatus", "ok"));
+                JsonWriter.field("exportStatus", "ready"));
     }
 
     private static String idFor(String sourcePath) throws Exception {

@@ -27,6 +27,7 @@ class VosCatalogExporterTest {
         assertContains(json, JsonWriter.field("artist", "Pachelbel"));
         assertContains(json, JsonWriter.field("level", 7));
         assertContains(json, JsonWriter.field("levelKnown", true));
+        assertContains(json, JsonWriter.field("exportStatus", "ready"));
     }
 
     @Test

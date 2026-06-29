@@ -422,6 +422,31 @@ func _init() -> void:
 	if not _expect_bool(fallback_bga_node.has_meta("bgaVideoPath"), false, "missing bga video metadata omitted"):
 		return
 	video_view.free()
+	var gated_video_view = GameplayView.new()
+	if not _expect_bool(gated_video_view.load_metadata(metadata), true, "gated bga video metadata load"):
+		return
+	var gated_bga_template: Control = gated_video_view.get_node("Entity_BGA")
+	var gated_video_node := VideoStreamPlayer.new()
+	gated_video_node.name = "Entity_BGA"
+	gated_video_node.position = gated_bga_template.position
+	gated_video_node.size = gated_bga_template.size
+	gated_video_node.z_index = gated_bga_template.z_index
+	gated_video_node.z_as_relative = gated_bga_template.z_as_relative
+	gated_video_node.set_meta("bgaVideoStarted", false)
+	gated_video_view._replace_bga_node(gated_video_node)
+	gated_video_view.update_hud_state({
+		"elapsedMs": 0.0,
+		"gameStarted": false,
+	})
+	if not _expect_bool(bool(gated_video_node.get_meta("bgaVideoStarted", false)), false, "manual start bga video waits"):
+		return
+	gated_video_view.update_hud_state({
+		"elapsedMs": 0.0,
+		"gameStarted": true,
+	})
+	if not _expect_bool(bool(gated_video_node.get_meta("bgaVideoStarted", false)), true, "started bga video begins"):
+		return
+	gated_video_view.free()
 	var judgment_line_node: Control = view.get_node("Entity_JUDGMENT_LINE")
 	if not _expect_int(judgment_line_node.z_index, 2, "judgment line Java layer"):
 		return

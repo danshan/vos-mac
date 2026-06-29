@@ -192,6 +192,7 @@ func hud_state() -> Dictionary:
 	state["judgmentTimeMs"] = int(round(_judgment_time_ms()))
 	state["displayTimeMs"] = int(round(_display_time_ms()))
 	state["durationMs"] = int(round(_duration_ms))
+	state["gameStarted"] = _game_started
 	state["fps"] = _display_fps
 	state["minute"] = _display_minute
 	state["second"] = _display_second

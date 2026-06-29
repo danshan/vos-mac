@@ -519,6 +519,8 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 		return false
 	if not _expect_int(waiting_state.get("gameTimeMs", -1), 0, "manual start game time waits"):
 		return false
+	if not _expect_bool(bool(waiting_state.get("gameStarted", true)), false, "manual start game started state waits"):
+		return false
 	var waiting_status: Array = waiting_state.get("statusTexts", [])
 	if not _expect_string(str(waiting_status[3]), "Press any note button to start the game.", "manual start status"):
 		return false
@@ -529,6 +531,8 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	var started_state: Dictionary = runtime.hud_state()
 	var started_status: Array = started_state.get("statusTexts", [])
 	if not _expect_int(started_status.size(), 3, "manual start prompt clears"):
+		return false
+	if not _expect_bool(bool(started_state.get("gameStarted", false)), true, "manual start game started state begins"):
 		return false
 	if not _expect_int(started_state.get("gameTimeMs", -1), 0, "manual start input begins at zero"):
 		return false

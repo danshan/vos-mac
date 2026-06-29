@@ -169,7 +169,7 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_note_visibility(state.get("hiddenNotes", []), _last_update_time_ms)
 	_sync_measure_visibility(state.get("hiddenMeasures", []), _last_update_time_ms)
 	_sync_status_texts(state.get("statusTexts", []))
-	_sync_bga_event(state.get("currentBgaEvent", {}))
+	_sync_bga_event(state.get("currentBgaEvent", {}), bool(state.get("gameStarted", true)))
 
 
 func _rebuild_entities() -> void:
@@ -852,7 +852,9 @@ func _sync_status_texts(raw_texts: Variant) -> void:
 		_status_nodes.append(label)
 
 
-func _sync_bga_event(raw_event: Variant) -> void:
+func _sync_bga_event(raw_event: Variant, game_started: bool = true) -> void:
+	if not game_started:
+		return
 	if not raw_event is Dictionary:
 		return
 	var raw_bga_node: Variant = get_node_or_null("Entity_BGA")

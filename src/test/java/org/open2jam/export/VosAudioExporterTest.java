@@ -33,14 +33,9 @@ class VosAudioExporterTest {
                 asset(assetDir, 1),
                 asset(assetDir, 2)), json);
 
-        File sample = new File(assetDir, "sample-1.wav");
-        assertTrue(sample.isFile());
-        byte[] wav = Files.readAllBytes(sample.toPath());
-        assertArrayEquals(ascii("RIFF"), slice(wav, 0, 4));
-        assertArrayEquals(ascii("WAVE"), slice(wav, 8, 12));
-        assertTrue(containsChunk(wav, "fmt "));
-        assertTrue(containsChunk(wav, "data"));
-        assertFalse(startsWith(wav, "MThd"));
+        for (int sampleId = 1; sampleId <= 2; sampleId++) {
+            assertWavFile(new File(assetDir, "sample-" + sampleId + ".wav"));
+        }
     }
 
     private static String audioJson(File source, File assetDir, String... assets) throws Exception {
@@ -62,21 +57,32 @@ class VosAudioExporterTest {
                 JsonWriter.field("role", "sample"));
     }
 
-    private static boolean containsChunk(byte[] bytes, String chunk) {
-        byte[] needle = ascii(chunk);
-        for (int i = 0; i <= bytes.length - needle.length; i++) {
-            boolean matched = true;
-            for (int j = 0; j < needle.length; j++) {
-                if (bytes[i + j] != needle[j]) {
-                    matched = false;
-                    break;
-                }
-            }
-            if (matched) {
-                return true;
-            }
-        }
-        return false;
+    private static void assertWavFile(File file) throws Exception {
+        assertTrue(file.isFile());
+        byte[] wav = Files.readAllBytes(file.toPath());
+        assertTrue(wav.length >= 44);
+        assertArrayEquals(ascii("RIFF"), slice(wav, 0, 4));
+        assertEquals(wav.length - 8, readLittleEndianInt(wav, 4));
+        assertArrayEquals(ascii("WAVE"), slice(wav, 8, 12));
+        assertArrayEquals(ascii("fmt "), slice(wav, 12, 16));
+        assertEquals(16, readLittleEndianInt(wav, 16));
+        assertEquals(1, readLittleEndianShort(wav, 20));
+
+        int channels = readLittleEndianShort(wav, 22);
+        int sampleRate = readLittleEndianInt(wav, 24);
+        int byteRate = readLittleEndianInt(wav, 28);
+        int blockAlign = readLittleEndianShort(wav, 32);
+        int bitsPerSample = readLittleEndianShort(wav, 34);
+        assertTrue(channels > 0);
+        assertTrue(sampleRate > 0);
+        assertTrue(bitsPerSample > 0);
+        assertEquals(0, bitsPerSample % 8);
+        assertEquals(channels * bitsPerSample / 8, blockAlign);
+        assertEquals(sampleRate * blockAlign, byteRate);
+
+        assertArrayEquals(ascii("data"), slice(wav, 36, 40));
+        assertEquals(wav.length - 44, readLittleEndianInt(wav, 40));
+        assertFalse(startsWith(wav, "MThd"));
     }
 
     private static boolean startsWith(byte[] bytes, String prefix) {
@@ -96,6 +102,17 @@ class VosAudioExporterTest {
         byte[] out = new byte[end - start];
         System.arraycopy(bytes, start, out, 0, out.length);
         return out;
+    }
+
+    private static int readLittleEndianInt(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xFF)
+                | ((bytes[offset + 1] & 0xFF) << 8)
+                | ((bytes[offset + 2] & 0xFF) << 16)
+                | ((bytes[offset + 3] & 0xFF) << 24);
+    }
+
+    private static int readLittleEndianShort(byte[] bytes, int offset) {
+        return (bytes[offset] & 0xFF) | ((bytes[offset + 1] & 0xFF) << 8);
     }
 
     private static byte[] ascii(String value) {

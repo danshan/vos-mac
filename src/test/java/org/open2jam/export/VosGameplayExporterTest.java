@@ -75,6 +75,28 @@ class VosGameplayExporterTest {
     }
 
     @Test
+    void appliesOpen2jamEventListFixesBeforeExportingNotes() throws Exception {
+        File chartFile = new File(tempDir, "fixed-long-note.vos");
+        Files.write(chartFile.toPath(), new byte[0]);
+        VOSChart chart = new VOSChart();
+        chart.setTitle("Canon in D");
+        chart.setLevel(0);
+        chart.setBPM(120.0);
+        chart.setDuration(123);
+        EventList events = new EventList();
+        events.add(new Event(Event.Channel.NOTE_1, 0, 0.25, 5, Event.Flag.NONE));
+        events.add(new Event(Event.Channel.NOTE_1, 0, 0.50, 5, Event.Flag.RELEASE));
+        chart.setEvents(events);
+
+        String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
+
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(holdNote(0, 2000.0, 2500.0, 5)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
+                JsonWriter.array(), JsonWriter.array()), json);
+    }
+
+    @Test
     void exportsBgaSpriteAssetsFromChartImages() throws Exception {
         File chartFile = new File(tempDir, "bga.vos");
         Files.write(chartFile.toPath(), new byte[0]);

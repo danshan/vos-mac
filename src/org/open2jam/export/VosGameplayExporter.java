@@ -38,6 +38,7 @@ public final class VosGameplayExporter {
         TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
                 JAVA_RENDER_DELAY_MS, new TimingData(), visualTiming);
+        timedEvents.fixEventList(EventList.FixMethod.OPEN2JAM, true);
 
         List<ExportNote> notes = new ArrayList<ExportNote>();
         EnumMap<Event.Channel, ExportNote> pendingLongNotes = new EnumMap<Event.Channel, ExportNote>(

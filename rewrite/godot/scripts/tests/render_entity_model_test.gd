@@ -158,6 +158,56 @@ func _init() -> void:
 	})
 	if not _expect_int(_count_children_with_prefix(view, "Pressed_PRESSED_NOTE_1_"), 0, "pressed lane clears"):
 		return
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), false, "judgment starts hidden"):
+		return
+	if not _expect_bool(view.has_node("Click_EFFECT_CLICK_002"), false, "click starts hidden"):
+		return
+	if not _expect_bool(view.has_node("Pill_PILL_1"), false, "pill starts hidden"):
+		return
+
+	view.update_hud_state({
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+		},
+		"clickEvents": [
+			{
+				"sequence": 2,
+				"lane": 0,
+			},
+		],
+		"pills": 1,
+	})
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), true, "cool judgment node"):
+		return
+	if not _expect_bool(view.has_node("Click_EFFECT_CLICK_002"), true, "cool click node"):
+		return
+	if not _expect_bool(view.has_node("Pill_PILL_1"), true, "first pill node"):
+		return
+	var click_node: ColorRect = view.get_node("Click_EFFECT_CLICK_002")
+	if not _expect_float(click_node.position.x, -109.0, "click node x"):
+		return
+	if not _expect_float(click_node.position.y, 352.0, "click node y"):
+		return
+
+	view.update_hud_state({
+		"judgmentEvent": {
+			"sequence": 3,
+			"result": "bad",
+			"lane": 0,
+		},
+		"clickEvents": [],
+		"pills": 0,
+	})
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), false, "cool judgment replaced"):
+		return
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_BAD"), true, "bad judgment node"):
+		return
+	if not _expect_int(_count_children_with_prefix(view, "Click_EFFECT_CLICK_"), 0, "click nodes clear"):
+		return
+	if not _expect_bool(view.has_node("Pill_PILL_1"), false, "pill node clears"):
+		return
 
 	var gameplay_loader = GameplayLoader.new()
 	var chart: Dictionary = gameplay_loader.load_from_file("res://test/fixtures/gameplay.json")

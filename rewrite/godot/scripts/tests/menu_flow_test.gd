@@ -75,6 +75,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_1_000"), true, "gameplay pressed lane"):
 		return
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Judgment_EFFECT_JUDGMENT_COOL"), true, "gameplay cool judgment"):
+		return
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Click_EFFECT_CLICK_002"), true, "gameplay cool click"):
+		return
 
 	ui.get_node("GameplayRuntime").release_action("vos_lane_1", 1000.0)
 	ui._process(0.0)

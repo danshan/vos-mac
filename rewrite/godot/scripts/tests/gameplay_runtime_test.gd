@@ -52,6 +52,16 @@ func _init() -> void:
 		return
 	if not _expect_int(int(pressed_lanes[0]), 0, "hud state pressed lane"):
 		return
+	var judgment_event: Dictionary = hud_state.get("judgmentEvent", {})
+	if not _expect_string(judgment_event.get("result", ""), "cool", "hud state judgment event result"):
+		return
+	if not _expect_int(judgment_event.get("lane", -1), 0, "hud state judgment event lane"):
+		return
+	var click_events: Array = hud_state.get("clickEvents", [])
+	if not _expect_int(click_events.size(), 1, "hud state click event count"):
+		return
+	if not _expect_int(click_events[0].get("lane", -1), 0, "hud state click event lane"):
+		return
 	runtime.release_action("vos_lane_1", 1000.0)
 	var released_state: Dictionary = runtime.hud_state()
 	if not _expect_int(released_state.get("pressedLanes", []).size(), 0, "hud state released lane count"):
@@ -89,6 +99,14 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 
 
 func _expect_int(actual: int, expected: int, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)

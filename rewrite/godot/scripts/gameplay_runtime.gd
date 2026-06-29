@@ -121,6 +121,7 @@ func hud_state() -> Dictionary:
 	state["elapsedMs"] = int(round(_elapsed_ms))
 	state["durationMs"] = int(round(_duration_ms))
 	state["pressedLanes"] = _controller.pressed_lanes()
+	state.merge(_controller.render_state(_elapsed_ms), true)
 	return state
 
 

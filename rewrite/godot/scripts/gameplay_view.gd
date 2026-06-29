@@ -33,6 +33,9 @@ var _hud_labels: Dictionary = {}
 var _bar_nodes: Dictionary = {}
 var _bar_rects: Dictionary = {}
 var _pressed_nodes: Array[Node] = []
+var _judgment_node: Node = null
+var _click_nodes: Array[Node] = []
+var _pill_nodes: Array[Node] = []
 
 
 func load_metadata(metadata: Dictionary) -> bool:
@@ -107,6 +110,9 @@ func update_hud_state(state: Dictionary) -> void:
 	_set_bar_fill("LIFE_BAR", float(state.get("life", 0.0)), float(state.get("lifeLimit", 0.0)))
 	_set_bar_fill("JAM_BAR", float(state.get("jamBar", 0.0)), float(state.get("jamBarLimit", 0.0)))
 	_sync_pressed_lanes(state.get("pressedLanes", []))
+	_sync_judgment_event(state.get("judgmentEvent", {}))
+	_sync_click_events(state.get("clickEvents", []))
+	_sync_pills(int(state.get("pills", 0)))
 
 
 func _rebuild_entities() -> void:
@@ -118,6 +124,9 @@ func _rebuild_entities() -> void:
 	_bar_nodes.clear()
 	_bar_rects.clear()
 	_clear_pressed_nodes()
+	_clear_judgment_node()
+	_clear_nodes(_click_nodes)
+	_clear_nodes(_pill_nodes)
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -236,14 +245,83 @@ func _sync_pressed_lanes(raw_lanes: Variant) -> void:
 			piece_index += 1
 
 
+func _sync_judgment_event(raw_event: Variant) -> void:
+	_clear_judgment_node()
+	if not raw_event is Dictionary or raw_event.is_empty():
+		return
+
+	var result := str(raw_event.get("result", "")).to_upper()
+	if result.is_empty():
+		return
+	var entity := _first_entity_by_id("EFFECT_JUDGMENT_%s" % result)
+	if entity.is_empty():
+		return
+	_judgment_node = _entity_rect(entity, "Judgment_EFFECT_JUDGMENT_%s" % result)
+	add_child(_judgment_node)
+
+
+func _sync_click_events(raw_events: Variant) -> void:
+	_clear_nodes(_click_nodes)
+	if not raw_events is Array:
+		return
+
+	var entity := _first_entity_by_id("EFFECT_CLICK")
+	if entity.is_empty():
+		return
+	for raw_event: Variant in raw_events:
+		if not raw_event is Dictionary:
+			continue
+		var sequence := int(raw_event.get("sequence", 0))
+		var node := _entity_rect(entity, "Click_EFFECT_CLICK_%03d" % sequence)
+		_position_click_node(node, entity, int(raw_event.get("lane", -1)))
+		add_child(node)
+		_click_nodes.append(node)
+
+
+func _sync_pills(count: int) -> void:
+	_clear_nodes(_pill_nodes)
+	for i in range(clamp(count, 0, 5)):
+		var id := "PILL_%d" % (i + 1)
+		var entity := _first_entity_by_id(id)
+		if entity.is_empty():
+			continue
+		var node := _entity_rect(entity, "Pill_%s" % _safe_node_id(id))
+		add_child(node)
+		_pill_nodes.append(node)
+
+
+func _position_click_node(node: ColorRect, entity: Dictionary, lane_index: int) -> void:
+	var lane := _lane_for_index(lane_index)
+	if lane.is_empty():
+		return
+	var width: float = max(float(entity.get("width", 0.0)), 1.0)
+	var height: float = max(float(entity.get("height", 0.0)), 1.0)
+	node.position.x = float(lane.get("x", 0.0)) + float(lane.get("width", 0.0)) * 0.5 - width * 0.5
+	node.position.y = float(_metadata.get("judgmentLine", 0.0)) - height * 0.5
+
+
 func _clear_pressed_nodes() -> void:
-	for node: Node in _pressed_nodes:
+	_clear_nodes(_pressed_nodes)
+
+
+func _clear_judgment_node() -> void:
+	if _judgment_node == null or not is_instance_valid(_judgment_node):
+		_judgment_node = null
+		return
+	if _judgment_node.get_parent() == self:
+		remove_child(_judgment_node)
+	_judgment_node.free()
+	_judgment_node = null
+
+
+func _clear_nodes(nodes: Array[Node]) -> void:
+	for node: Node in nodes:
 		if not is_instance_valid(node):
 			continue
 		if node.get_parent() == self:
 			remove_child(node)
 		node.free()
-	_pressed_nodes.clear()
+	nodes.clear()
 
 
 func _entities_by_id(id: String) -> Array[Dictionary]:
@@ -252,6 +330,13 @@ func _entities_by_id(id: String) -> Array[Dictionary]:
 		if str(entity.get("id", "")) == id:
 			matches.append(entity.duplicate(true))
 	return matches
+
+
+func _first_entity_by_id(id: String) -> Dictionary:
+	for entity: Dictionary in _metadata.get("entities", []):
+		if str(entity.get("id", "")) == id:
+			return entity.duplicate(true)
+	return {}
 
 
 func _register_bar_node(entity: Dictionary, node: ColorRect) -> void:

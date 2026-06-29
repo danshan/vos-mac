@@ -17,11 +17,16 @@ const AUDIO_TRIGGER_KEYSOUND: String = "keysound"
 const AUDIO_TRIGGER_EXTRASOUND: String = "extrasound"
 const AUDIO_TRIGGER_AUTOSOUND: String = "autosound"
 const AUDIO_TRIGGER_MISSED: String = "missed"
+const JUDGMENT_EVENT_DURATION_MS: float = 3000.0
+const CLICK_EVENT_DURATION_MS: float = 3000.0
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
 var _auto_play_events: Array[Dictionary] = []
 var _audio_commands: Array[Dictionary] = []
+var _render_sequence: int = 0
+var _last_judgment_event: Dictionary = {}
+var _click_events: Array[Dictionary] = []
 var _score_state = ScoreState.new()
 var _input_map = InputMapStore.new()
 var _judgment = JudgmentStrategy.new()
@@ -38,6 +43,9 @@ func load_chart(chart: Dictionary) -> bool:
 	_notes = _normalized_notes(_chart.get("notes", []))
 	_auto_play_events = _normalized_auto_play_events(_chart.get("autoPlayEvents", []))
 	_audio_commands.clear()
+	_render_sequence = 0
+	_last_judgment_event.clear()
+	_click_events.clear()
 	_pressed_lanes.clear()
 	_held_note_indices.clear()
 	return true
@@ -81,6 +89,16 @@ func pressed_lanes() -> Array[int]:
 	return lanes
 
 
+func render_state(now_ms: float) -> Dictionary:
+	var state := {
+		"pills": _score_state.pills,
+		"clickEvents": _active_events(_click_events, now_ms, CLICK_EVENT_DURATION_MS),
+	}
+	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
+		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
+	return state
+
+
 func press_lane(lane: int, now_ms: float) -> Dictionary:
 	var audio_start_index := _audio_commands.size()
 	if lane < 0:
@@ -111,7 +129,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 			"audioCommands": _audio_commands_since(audio_start_index),
 		}
 
-	var result := _apply_note_judgment(note_index, hit_time)
+	var result := _apply_note_judgment(note_index, hit_time, now_ms)
 	if result != "miss":
 		_emit_note_play_command(note_index, AUDIO_TRIGGER_KEYSOUND, true)
 	if str(note.get("kind", "")) == "holdStart" and result != "miss":
@@ -148,7 +166,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 	note["hitTime"] = hit_time
 	_notes[note_index] = note
 
-	var result := _apply_note_judgment(note_index, hit_time)
+	var result := _apply_note_judgment(note_index, hit_time, now_ms)
 	return {
 		"released": true,
 		"accepted": result != "miss",
@@ -166,12 +184,12 @@ func advance_to(now_ms: float) -> int:
 		if str(note.get("state", STATE_NOT_JUDGED)) == STATE_NOT_JUDGED:
 			var hit_time := _hit_time_for_note(note, now_ms)
 			if _judgment.missed_time(hit_time):
-				_apply_note_judgment(i, hit_time)
+				_apply_note_judgment(i, hit_time, now_ms)
 				judged += 1
 		elif str(note.get("state", "")) == STATE_HOLDING:
 			var tail_hit_time := _tail_hit_time_for_note(note, now_ms)
 			if _judgment.missed_time(tail_hit_time):
-				_apply_note_judgment(i, tail_hit_time)
+				_apply_note_judgment(i, tail_hit_time, now_ms)
 				_held_note_indices.erase(int(note.get("lane", -1)))
 				judged += 1
 	return judged
@@ -240,15 +258,48 @@ func _tail_hit_time_for_note(note: Dictionary, now_ms: float) -> float:
 	return _hit_time_for_note(note, now_ms)
 
 
-func _apply_note_judgment(note_index: int, hit_time: float) -> String:
+func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float) -> String:
 	var note := _notes[note_index]
 	var result := _score_state.apply_judgment(_judgment.judge_time(hit_time).to_lower())
 	if result == "miss" and bool(note.get("samplePlayed", false)):
 		_emit_note_stop_command(note)
+	_emit_judgment_render_event(note, result, now_ms)
 	note["state"] = STATE_DEAD
 	note["hitTime"] = hit_time
 	_notes[note_index] = note
 	return result
+
+
+func _emit_judgment_render_event(note: Dictionary, result: String, now_ms: float) -> void:
+	_render_sequence += 1
+	_last_judgment_event = {
+		"sequence": _render_sequence,
+		"result": result,
+		"lane": int(note.get("lane", -1)),
+		"startMs": now_ms,
+	}
+	if result == "cool" or result == "good":
+		_render_sequence += 1
+		_click_events.append({
+			"sequence": _render_sequence,
+			"lane": int(note.get("lane", -1)),
+			"startMs": now_ms,
+		})
+
+
+func _active_events(events: Array[Dictionary], now_ms: float, duration_ms: float) -> Array[Dictionary]:
+	var active: Array[Dictionary] = []
+	for event: Dictionary in events:
+		if _event_is_active(event, now_ms, duration_ms):
+			active.append(event.duplicate(true))
+	return active
+
+
+func _event_is_active(event: Dictionary, now_ms: float, duration_ms: float) -> bool:
+	if event.is_empty():
+		return false
+	var start_ms := float(event.get("startMs", 0.0))
+	return now_ms - start_ms <= duration_ms
 
 
 func _advance_auto_play(now_ms: float) -> void:

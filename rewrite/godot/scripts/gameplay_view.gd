@@ -806,6 +806,37 @@ func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: Pa
 		digit.position = Vector2(tx, y)
 		container.add_child(digit)
 		tx += float(frame.get("textureWidth", entity.get("width", 1.0)))
+	_add_combo_title(container, entity)
+
+
+func _add_combo_title(container: Control, entity: Dictionary) -> void:
+	var title_frame := _combo_title_frame(entity)
+	if title_frame.is_empty():
+		return
+	var title := _digit_texture_rect(title_frame, "Title")
+	title.set_meta("spriteFrames", _combo_title_frames(entity))
+	title.set_meta("frameSpeed", float(entity.get("titleFrameSpeed", 0.0)))
+	title.position = Vector2(
+			float(entity.get("x", 0.0)) - title.size.x * 0.5,
+			float(entity.get("y", 0.0)) - max(float(entity.get("height", 1.0)), 1.0))
+	container.add_child(title)
+
+
+func _combo_title_frame(entity: Dictionary) -> Dictionary:
+	var frames := _combo_title_frames(entity)
+	if frames.is_empty():
+		return {}
+	return frames[0].duplicate(true)
+
+
+func _combo_title_frames(entity: Dictionary) -> Array[Dictionary]:
+	var frames: Array[Dictionary] = []
+	var raw_frames: Variant = entity.get("titleSpriteFrames", [])
+	if raw_frames is Array:
+		for raw_frame: Variant in raw_frames:
+			if raw_frame is Dictionary:
+				frames.append(raw_frame.duplicate(true))
+	return frames
 
 
 func _combo_base_y(id: String) -> float:

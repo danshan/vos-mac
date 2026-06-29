@@ -23,6 +23,9 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"id\":\"EFFECT_JUDGMENT_COOL\""));
         assertTrue(json.contains(
                 "\"id\":\"EFFECT_JUDGMENT_COOL\",\"type\":\"judgmentEffect\",\"layer\":10,\"x\":-34.0"));
+        assertTrue(json.contains("\"titleFrameSpeed\":0.012"));
+        assertTrue(json.contains("\"titleSpriteFrames\":[{\"id\":\"combo_title\""));
+        assertTrue(json.contains("\"titleTextureWidth\":64.0"));
         assertTrue(json.contains("\"channel\":\"NOTE_1\""));
         assertTrue(json.contains("\"lane\":0"));
         assertTrue(json.contains("\"x\":5.0"));

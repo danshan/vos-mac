@@ -111,6 +111,25 @@ func _init() -> void:
 					"textureHeight": 71.0,
 				})
 			entity["spriteFrames"] = combo_frames
+			entity["titleFrameSpeed"] = 0.012
+			entity["titleSpriteFrames"] = [
+				{
+					"id": "combo_title_0",
+					"texturePath": "%s/combo_title.png" % resource_root,
+					"textureX": 0.0,
+					"textureY": 0.0,
+					"textureWidth": 64.0,
+					"textureHeight": 64.0,
+				},
+				{
+					"id": "combo_title_1",
+					"texturePath": "%s/combo_title.png" % resource_root,
+					"textureX": 64.0,
+					"textureY": 0.0,
+					"textureWidth": 64.0,
+					"textureHeight": 64.0,
+				},
+			]
 		if str(entity.get("id", "")) == "MEASURE_MARK":
 			entity["frameSpeed"] = 0.005
 			entity["spriteFrames"] = [
@@ -296,7 +315,14 @@ func _init() -> void:
 		return
 
 	var combo_sprite_hud: Control = view.get_node("HudSprite_COMBO_COUNTER")
-	if not _expect_int(combo_sprite_hud.get_child_count(), 2, "combo sprite digit count"):
+	if not _expect_int(combo_sprite_hud.get_child_count(), 3, "combo sprite digit and title count"):
+		return
+	if not _expect_bool(combo_sprite_hud.has_node("Title"), true, "combo title node"):
+		return
+	var combo_title: TextureRect = combo_sprite_hud.get_node("Title")
+	if not _expect_float(combo_title.position.x, 67.0, "combo title Java x"):
+		return
+	if not _expect_float(combo_title.position.y, 139.0, "combo title Java y"):
 		return
 	var combo_digit_0: TextureRect = combo_sprite_hud.get_child(0)
 	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble start y"):
@@ -329,7 +355,7 @@ func _init() -> void:
 		"jamCombo": 2,
 		"elapsedMs": 87002.0,
 	})
-	if not _expect_int(combo_sprite_hud.get_child_count(), 2, "combo reappears after increment"):
+	if not _expect_int(combo_sprite_hud.get_child_count(), 3, "combo reappears after increment"):
 		return
 	combo_digit_0 = combo_sprite_hud.get_child(0)
 	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble restarts after increment"):

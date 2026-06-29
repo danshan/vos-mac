@@ -87,6 +87,8 @@ func update_time(now_ms: float) -> void:
 			var end_y: float = judgment_line - _distance.calculate_hi_speed(now_ms, float(end_ms), _speed)
 			node.position.y = min(start_y, end_y) - note_height
 			node.size.y = max(absf(start_y - end_y) + note_height, note_height)
+			if bool(entry.get("longNote", false)):
+				_position_long_note_parts(node)
 		else:
 			node.position.y = start_y - note_height
 			node.size.y = note_height
@@ -188,15 +190,19 @@ func _rebuild_note_nodes() -> void:
 		if template.is_empty():
 			continue
 
-		var node := _entity_rect(template, "Note_%03d" % index)
+		var is_long_note := str(template.get("type", "")) == "longNote"
+		var node := _long_note_node(template, "Note_%03d" % index) if is_long_note else _entity_rect(template, "Note_%03d" % index)
 		node.position.x = float(lane.get("x", template.get("x", 0.0)))
 		node.size.x = float(lane.get("width", template.get("width", 1.0)))
 		node.size.y = max(float(template.get("height", 1.0)), 1.0)
+		if is_long_note:
+			_position_long_note_parts(node)
 		add_child(node)
 		_note_entries.append({
 			"note": note,
 			"node": node,
 			"height": node.size.y,
+			"longNote": is_long_note,
 		})
 		index += 1
 
@@ -292,17 +298,70 @@ func _entity_rect(entity: Dictionary, node_name: String) -> Control:
 	return node
 
 
+func _long_note_node(entity: Dictionary, node_name: String) -> Control:
+	var node := Control.new()
+	node.name = node_name
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.position = Vector2(float(entity.get("x", 0.0)), float(entity.get("y", 0.0)))
+	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), max(float(entity.get("height", 0.0)), 1.0))
+	node.add_child(_entity_part_rect(entity, "Body", "body"))
+	node.add_child(_entity_part_rect(entity, "Tail", "tail"))
+	node.add_child(_entity_part_rect(entity, "Head", ""))
+	_position_long_note_parts(node)
+	return node
+
+
+func _entity_part_rect(entity: Dictionary, node_name: String, prefix: String) -> Control:
+	var texture := _texture_for_entity_part(entity, prefix)
+	if texture != null:
+		var texture_node := TextureRect.new()
+		texture_node.name = node_name
+		texture_node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		texture_node.texture = texture
+		texture_node.stretch_mode = TextureRect.STRETCH_SCALE
+		texture_node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), _texture_height_for_part(entity, prefix))
+		return texture_node
+
+	var node := ColorRect.new()
+	node.name = node_name
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	node.size = Vector2(max(float(entity.get("width", 0.0)), 1.0), _texture_height_for_part(entity, prefix))
+	node.color = _color_for_type(str(entity.get("type", "")))
+	return node
+
+
+func _position_long_note_parts(node: Control) -> void:
+	if not node.has_node("Head") or not node.has_node("Body") or not node.has_node("Tail"):
+		return
+	var head: Control = node.get_node("Head")
+	var body: Control = node.get_node("Body")
+	var tail: Control = node.get_node("Tail")
+	head.position = Vector2.ZERO
+	head.size.x = node.size.x
+	body.position = Vector2.ZERO
+	body.size = node.size
+	tail.position = Vector2(0.0, max(node.size.y - tail.size.y, 0.0))
+	tail.size.x = node.size.x
+
+
 func _texture_for_entity(entity: Dictionary) -> Texture2D:
+	return _texture_for_entity_part(entity, "")
+
+
+func _texture_for_entity_part(entity: Dictionary, prefix: String) -> Texture2D:
+	var path_key := "texturePath" if prefix.is_empty() else "%sTexturePath" % prefix
 	var texture_path := str(entity.get("texturePath", "")).strip_edges()
+	if not prefix.is_empty():
+		texture_path = str(entity.get(path_key, "")).strip_edges()
 	if texture_path.is_empty():
 		return null
 	var extension := texture_path.get_extension().to_lower()
 	if ["png", "jpg", "jpeg", "webp", "bmp", "tga"].has(extension):
 		var image_texture := _image_texture_for_path(texture_path)
-		return _texture_with_region(entity, image_texture)
+		return _texture_with_region(entity, image_texture, prefix)
 	var resource := ResourceLoader.load(texture_path)
 	if resource is Texture2D:
-		return _texture_with_region(entity, resource)
+		return _texture_with_region(entity, resource, prefix)
 	return null
 
 
@@ -313,22 +372,31 @@ func _image_texture_for_path(texture_path: String) -> Texture2D:
 	return null
 
 
-func _texture_with_region(entity: Dictionary, texture: Texture2D) -> Texture2D:
+func _texture_with_region(entity: Dictionary, texture: Texture2D, prefix: String = "") -> Texture2D:
 	if texture == null:
 		return null
-	if not entity.has("textureX") or not entity.has("textureY") or not entity.has("textureWidth") or not entity.has("textureHeight"):
+	var x_key := "textureX" if prefix.is_empty() else "%sTextureX" % prefix
+	var y_key := "textureY" if prefix.is_empty() else "%sTextureY" % prefix
+	var width_key := "textureWidth" if prefix.is_empty() else "%sTextureWidth" % prefix
+	var height_key := "textureHeight" if prefix.is_empty() else "%sTextureHeight" % prefix
+	if not entity.has(x_key) or not entity.has(y_key) or not entity.has(width_key) or not entity.has(height_key):
 		return texture
 	var region := Rect2(
-			float(entity.get("textureX", 0.0)),
-			float(entity.get("textureY", 0.0)),
-			float(entity.get("textureWidth", 0.0)),
-			float(entity.get("textureHeight", 0.0)))
+			float(entity.get(x_key, 0.0)),
+			float(entity.get(y_key, 0.0)),
+			float(entity.get(width_key, 0.0)),
+			float(entity.get(height_key, 0.0)))
 	if region.size.x <= 0.0 or region.size.y <= 0.0:
 		return texture
 	var atlas := AtlasTexture.new()
 	atlas.atlas = texture
 	atlas.region = region
 	return atlas
+
+
+func _texture_height_for_part(entity: Dictionary, prefix: String) -> float:
+	var height_key := "textureHeight" if prefix.is_empty() else "%sTextureHeight" % prefix
+	return max(float(entity.get(height_key, entity.get("height", 1.0))), 1.0)
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:

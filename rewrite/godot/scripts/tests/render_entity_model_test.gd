@@ -68,6 +68,22 @@ func _init() -> void:
 			entity["textureY"] = 142.0
 			entity["textureWidth"] = 28.0
 			entity["textureHeight"] = 7.0
+		if str(entity.get("id", "")) == "LONG_NOTE_1":
+			entity["texturePath"] = "%s/main.png" % resource_root
+			entity["textureX"] = 225.0
+			entity["textureY"] = 142.0
+			entity["textureWidth"] = 28.0
+			entity["textureHeight"] = 7.0
+			entity["bodyTexturePath"] = "%s/main.png" % resource_root
+			entity["bodyTextureX"] = 225.0
+			entity["bodyTextureY"] = 143.0
+			entity["bodyTextureWidth"] = 28.0
+			entity["bodyTextureHeight"] = 5.0
+			entity["tailTexturePath"] = "%s/main.png" % resource_root
+			entity["tailTextureX"] = 225.0
+			entity["tailTextureY"] = 142.0
+			entity["tailTextureWidth"] = 28.0
+			entity["tailTextureHeight"] = 7.0
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
@@ -251,6 +267,16 @@ func _init() -> void:
 		push_error("Expected gameplay fixture to load.")
 		quit(1)
 		return
+	chart["notes"].append({
+		"id": 2,
+		"lane": 0,
+		"startMs": 1300.0,
+		"endMs": 1600.0,
+		"sampleId": 2,
+		"volume": 1.0,
+		"pan": 0.0,
+		"kind": "holdStart",
+	})
 	chart["visualTiming"] = [
 		{
 			"timeMs": 0.0,
@@ -264,6 +290,8 @@ func _init() -> void:
 	if not _expect_bool(view.load_chart(chart), true, "view chart load"):
 		return
 	if not _expect_bool(view.has_node("Note_000"), true, "dynamic note node"):
+		return
+	if not _expect_bool(view.has_node("Note_001"), true, "dynamic long note node"):
 		return
 	if not _expect_bool(view.has_node("Measure_000"), true, "dynamic measure node"):
 		return
@@ -290,6 +318,42 @@ func _init() -> void:
 	if not _expect_float(note_node.size.x, 28.0, "dynamic note node width"):
 		return
 	if not _expect_float(note_node.size.y, 7.0, "dynamic note node height"):
+		return
+	var long_note_node: Control = view.get_node("Note_001")
+	if not _expect_bool(long_note_node.has_node("Head"), true, "long note head node"):
+		return
+	if not _expect_bool(long_note_node.has_node("Body"), true, "long note body node"):
+		return
+	if not _expect_bool(long_note_node.has_node("Tail"), true, "long note tail node"):
+		return
+	var long_note_head: TextureRect = long_note_node.get_node("Head")
+	var long_note_body: TextureRect = long_note_node.get_node("Body")
+	var long_note_tail: TextureRect = long_note_node.get_node("Tail")
+	if not _expect_bool(long_note_head.texture is AtlasTexture, true, "long note head atlas"):
+		return
+	if not _expect_bool(long_note_body.texture is AtlasTexture, true, "long note body atlas"):
+		return
+	if not _expect_bool(long_note_tail.texture is AtlasTexture, true, "long note tail atlas"):
+		return
+	var long_note_body_texture: AtlasTexture = long_note_body.texture
+	if not _expect_float(long_note_body_texture.region.position.y, 143.0, "long note body texture y"):
+		return
+	if not _expect_float(long_note_body_texture.region.size.y, 5.0, "long note body texture height"):
+		return
+	var long_note_tail_texture: AtlasTexture = long_note_tail.texture
+	if not _expect_float(long_note_tail_texture.region.position.y, 142.0, "long note tail texture y"):
+		return
+	if not _expect_float(long_note_tail_texture.region.size.y, 7.0, "long note tail texture height"):
+		return
+	if not _expect_float(long_note_node.position.y, -46.75, "long note node y"):
+		return
+	if not _expect_float(long_note_node.size.y, 122.5, "long note node height"):
+		return
+	if not _expect_float(long_note_head.position.y, 0.0, "long note head y"):
+		return
+	if not _expect_float(long_note_body.size.y, 122.5, "long note body height"):
+		return
+	if not _expect_float(long_note_tail.position.y, 115.5, "long note tail y"):
 		return
 	var measure_node: ColorRect = view.get_node("Measure_000")
 	if not _expect_float(measure_node.position.x, 5.0, "dynamic measure node x"):

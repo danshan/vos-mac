@@ -117,20 +117,23 @@ public final class VosRenderMetadataExporter {
         double x = doubleAttribute(entity, "x", 0.0);
         double y = doubleAttribute(entity, "y", 0.0);
         if (id != null && id.startsWith("NOTE_")) {
+            SpriteMetadata bodySprite = spriteForReference(sprites, entity.getAttribute("body"), sprite);
+            SpriteMetadata tailSprite = spriteForReference(sprites, entity.getAttribute("tail"), sprite);
             entities.add(entityJson("LONG_" + id, "longNote", layer, x, y, sprite.width, sprite.height, spriteRefs,
-                    entity, true, id, sprite));
+                    entity, true, id, sprite, bodySprite, tailSprite));
             entities.add(entityJson(id, "note", layer, x, y, sprite.width, sprite.height, spriteRefs, entity, true,
-                    id, sprite));
+                    id, sprite, null, null));
             lanes.add(laneJson(id, laneForNoteId(id), x, sprite.width));
             return;
         }
 
         entities.add(entityJson(id == null ? "" : id, typeFor(id), layer, x, y, sprite.width, sprite.height,
-                spriteRefs, entity, id != null, id, sprite));
+                spriteRefs, entity, id != null, id, sprite, null, null));
     }
 
     private static String entityJson(String id, String type, int layer, double x, double y, double width, double height,
-            String[] spriteRefs, Element source, boolean named, String channel, SpriteMetadata sprite) {
+            String[] spriteRefs, Element source, boolean named, String channel, SpriteMetadata sprite,
+            SpriteMetadata bodySprite, SpriteMetadata tailSprite) {
         List<String> fields = new ArrayList<String>();
         fields.add(JsonWriter.field("id", id));
         fields.add(JsonWriter.field("type", type));
@@ -150,12 +153,35 @@ public final class VosRenderMetadataExporter {
             fields.add(JsonWriter.field("textureWidth", sprite.textureWidth));
             fields.add(JsonWriter.field("textureHeight", sprite.textureHeight));
         }
+        addSpriteFields(fields, "body", bodySprite);
+        addSpriteFields(fields, "tail", tailSprite);
         String fillDirection = source.getAttribute("fill_direction");
         if (fillDirection != null && !fillDirection.trim().isEmpty()) {
             fields.add(JsonWriter.field("fillDirection", fillDirection));
         }
         fields.add(JsonWriter.rawField("sprites", JsonWriter.array(quoted(spriteRefs))));
         return JsonWriter.object(fields.toArray(new String[0]));
+    }
+
+    private static SpriteMetadata spriteForReference(Map<String, SpriteMetadata> sprites, String reference,
+            SpriteMetadata fallback) {
+        String id = emptyToNull(reference);
+        if (id == null) {
+            return fallback;
+        }
+        SpriteMetadata sprite = sprites.get(id);
+        return sprite == null ? fallback : sprite;
+    }
+
+    private static void addSpriteFields(List<String> fields, String prefix, SpriteMetadata sprite) {
+        if (sprite == null || sprite.texturePath.isEmpty()) {
+            return;
+        }
+        fields.add(JsonWriter.field(prefix + "TexturePath", sprite.texturePath));
+        fields.add(JsonWriter.field(prefix + "TextureX", sprite.textureX));
+        fields.add(JsonWriter.field(prefix + "TextureY", sprite.textureY));
+        fields.add(JsonWriter.field(prefix + "TextureWidth", sprite.textureWidth));
+        fields.add(JsonWriter.field(prefix + "TextureHeight", sprite.textureHeight));
     }
 
     private static String laneJson(String channel, int lane, double x, double width) {

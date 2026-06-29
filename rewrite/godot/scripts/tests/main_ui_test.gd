@@ -48,6 +48,25 @@ func _init() -> void:
 	if not _expect_float(content.anchor_bottom, 1.0, "content bottom anchor"):
 		return
 
+	ui.apply_layout_for_size(Vector2(1280.0, 720.0))
+	var base_title_font: int = title.get_theme_font_size("font_size")
+	var base_start_size: Vector2 = ui.get_node("Content/Menu/StartButton").custom_minimum_size
+	var base_content_left: float = content.offset_left
+
+	ui.apply_layout_for_size(Vector2(2560.0, 1440.0))
+	var fullscreen_title_font: int = title.get_theme_font_size("font_size")
+	var fullscreen_start_size: Vector2 = ui.get_node("Content/Menu/StartButton").custom_minimum_size
+	var fullscreen_content_left: float = content.offset_left
+
+	if not _expect_bool(fullscreen_title_font > base_title_font, true, "fullscreen title font grows"):
+		return
+	if not _expect_bool(fullscreen_start_size.x > base_start_size.x, true, "fullscreen button width grows"):
+		return
+	if not _expect_bool(fullscreen_start_size.y > base_start_size.y, true, "fullscreen button height grows"):
+		return
+	if not _expect_bool(fullscreen_content_left > base_content_left, true, "fullscreen content margin grows"):
+		return
+
 	var status: Label = ui.get_node("Content/Status")
 	if not _expect_bool(status.text.is_empty(), false, "status text"):
 		return

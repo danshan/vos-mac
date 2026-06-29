@@ -47,6 +47,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/BgmVolumeSpinBox"), true, "bgm volume spinbox"):
 		return
+	if not _expect_bool(ui.has_node("Content/HasteModeCheckBox"), true, "haste mode checkbox"):
+		return
+	if not _expect_bool(ui.has_node("Content/HasteNormalizeSpeedCheckBox"), true, "haste normalize speed checkbox"):
+		return
 	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
 		return
 	if not _expect_bool(ui.has_node("Content/SpeedTypeOption"), true, "speed type option"):
@@ -69,6 +73,8 @@ func _init() -> void:
 	ui.get_node("Content/MasterVolumeSpinBox").value = 0.6
 	ui.get_node("Content/KeyVolumeSpinBox").value = 0.7
 	ui.get_node("Content/BgmVolumeSpinBox").value = 0.8
+	ui.get_node("Content/HasteModeCheckBox").button_pressed = true
+	ui.get_node("Content/HasteNormalizeSpeedCheckBox").button_pressed = false
 	ui.get_node("Content/ChannelModifierOption").select(1)
 	ui.get_node("Content/SpeedTypeOption").select(3)
 	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
@@ -96,6 +102,10 @@ func _init() -> void:
 	if not _expect_float(ui.get_node("Content/KeyVolumeSpinBox").value, 0.7, "persisted key volume"):
 		return
 	if not _expect_float(ui.get_node("Content/BgmVolumeSpinBox").value, 0.8, "persisted bgm volume"):
+		return
+	if not _expect_bool(ui.get_node("Content/HasteModeCheckBox").button_pressed, true, "persisted haste mode"):
+		return
+	if not _expect_bool(ui.get_node("Content/HasteNormalizeSpeedCheckBox").button_pressed, false, "persisted haste normalize speed"):
 		return
 	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
 			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
@@ -127,6 +137,10 @@ func _init() -> void:
 	if not _expect_float(float(option_overrides.get("keyVolume", -1.0)), 0.7, "key volume gameplay override"):
 		return
 	if not _expect_float(float(option_overrides.get("bgmVolume", -1.0)), 0.8, "bgm volume gameplay override"):
+		return
+	if not _expect_bool(option_overrides.get("hasteMode", false), true, "haste mode gameplay override"):
+		return
+	if not _expect_bool(option_overrides.get("hasteModeNormalizeSpeed", true), false, "haste normalize gameplay override"):
 		return
 	ui.get_node("Content/AutoplayCheckBox").button_pressed = false
 	ui.get_node("Content/AutoSoundCheckBox").button_pressed = false

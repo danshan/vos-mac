@@ -278,6 +278,18 @@ func _show_settings() -> void:
 	bgm_volume.value = _settings_store.bgm_volume()
 	_content.add_child(bgm_volume)
 
+	var haste_mode := CheckBox.new()
+	haste_mode.name = "HasteModeCheckBox"
+	haste_mode.text = "Haste Mode"
+	haste_mode.button_pressed = _settings_store.haste_mode_enabled()
+	_content.add_child(haste_mode)
+
+	var haste_normalize := CheckBox.new()
+	haste_normalize.name = "HasteNormalizeSpeedCheckBox"
+	haste_normalize.text = "Haste Normalize Speed"
+	haste_normalize.button_pressed = _settings_store.haste_mode_normalize_speed()
+	_content.add_child(haste_normalize)
+
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
 	for modifier: String in CHANNEL_MODIFIERS:
@@ -675,6 +687,14 @@ func _save_settings_from_controls() -> void:
 	if bgm_volume is SpinBox:
 		_settings_store.set_bgm_volume(float(bgm_volume.value))
 
+	var haste_mode: Node = _content.get_node_or_null("HasteModeCheckBox")
+	if haste_mode is CheckBox:
+		_settings_store.set_haste_mode_enabled(haste_mode.button_pressed)
+
+	var haste_normalize: Node = _content.get_node_or_null("HasteNormalizeSpeedCheckBox")
+	if haste_normalize is CheckBox:
+		_settings_store.set_haste_mode_normalize_speed(haste_normalize.button_pressed)
+
 	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
@@ -725,6 +745,8 @@ func _gameplay_option_overrides() -> Dictionary:
 		"masterVolume": _settings_store.master_volume(),
 		"keyVolume": _settings_store.key_volume(),
 		"bgmVolume": _settings_store.bgm_volume(),
+		"hasteMode": _settings_store.haste_mode_enabled(),
+		"hasteModeNormalizeSpeed": _settings_store.haste_mode_normalize_speed(),
 		"channelModifier": _settings_store.channel_modifier(),
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),

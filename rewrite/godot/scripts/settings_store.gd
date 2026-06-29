@@ -18,6 +18,8 @@ var _display_latency_ms: float = 0.0
 var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
+var _haste_mode_enabled: bool = false
+var _haste_mode_normalize_speed: bool = true
 var _key_bindings: Array[String] = []
 var _channel_modifier: String = CHANNEL_MOD_NONE
 var _speed_type: String = SPEED_TYPE_DEFAULT
@@ -96,6 +98,22 @@ func set_bgm_volume(volume: float) -> void:
 
 func bgm_volume() -> float:
 	return _bgm_volume
+
+
+func set_haste_mode_enabled(enabled: bool) -> void:
+	_haste_mode_enabled = enabled
+
+
+func haste_mode_enabled() -> bool:
+	return _haste_mode_enabled
+
+
+func set_haste_mode_normalize_speed(enabled: bool) -> void:
+	_haste_mode_normalize_speed = enabled
+
+
+func haste_mode_normalize_speed() -> bool:
+	return _haste_mode_normalize_speed
 
 
 func set_key_bindings(bindings: Array[String]) -> void:

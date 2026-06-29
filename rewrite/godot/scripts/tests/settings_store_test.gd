@@ -34,6 +34,12 @@ func _init() -> void:
 	store.set_master_volume(1.5)
 	store.set_key_volume(-0.5)
 	store.set_bgm_volume(0.75)
+	if not _expect_bool(store.has_method("set_haste_mode_enabled"), true, "haste mode setter"):
+		return
+	if not _expect_bool(store.has_method("set_haste_mode_normalize_speed"), true, "haste normalize setter"):
+		return
+	store.set_haste_mode_enabled(true)
+	store.set_haste_mode_normalize_speed(false)
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
@@ -64,6 +70,10 @@ func _init() -> void:
 	if not _expect_float(store.key_volume(), 0.0, "key volume clamp"):
 		return
 	if not _expect_float(store.bgm_volume(), 0.75, "bgm volume"):
+		return
+	if not _expect_bool(store.haste_mode_enabled(), true, "haste mode enabled"):
+		return
+	if not _expect_bool(store.haste_mode_normalize_speed(), false, "haste normalize speed"):
 		return
 
 	var directories: Array[String] = store.song_directories()

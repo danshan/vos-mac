@@ -60,7 +60,7 @@ func _init() -> void:
 	var view = GameplayView.new()
 	for entity: Dictionary in metadata.get("entities", []):
 		if str(entity.get("id", "")) == "BGA":
-			entity["texturePath"] = "res://test/fixtures/test-sprite.tres"
+			entity["texturePath"] = ProjectSettings.globalize_path("res://../../src/resources/Playing_BG10.png")
 			break
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return

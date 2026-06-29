@@ -299,9 +299,19 @@ func _texture_for_entity(entity: Dictionary) -> Texture2D:
 	var texture_path := str(entity.get("texturePath", "")).strip_edges()
 	if texture_path.is_empty():
 		return null
+	var extension := texture_path.get_extension().to_lower()
+	if ["png", "jpg", "jpeg", "webp", "bmp", "tga"].has(extension):
+		return _image_texture_for_path(texture_path)
 	var resource := ResourceLoader.load(texture_path)
 	if resource is Texture2D:
 		return resource
+	return null
+
+
+func _image_texture_for_path(texture_path: String) -> Texture2D:
+	var image := Image.new()
+	if image.load(texture_path) == OK:
+		return ImageTexture.create_from_image(image)
 	return null
 
 

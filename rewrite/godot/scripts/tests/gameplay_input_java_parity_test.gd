@@ -6,6 +6,8 @@ const GameplayController = preload("res://scripts/gameplay_controller.gd")
 func _init() -> void:
 	if not _test_default_beat_judgment():
 		return
+	if not _test_beat_judgment_uses_java_judgment_timing():
+		return
 	if not _test_explicit_time_judgment():
 		return
 	if not _test_late_accepted_miss_plays_then_stops_keysound():
@@ -124,6 +126,18 @@ func _test_default_beat_judgment() -> bool:
 	if not _expect_bool(beat_hit.get("accepted", false), true, "beat accepts wide early hit"):
 		return false
 	if not _expect_string(beat_hit.get("result", ""), "bad", "beat wide early result"):
+		return false
+	return true
+
+
+func _test_beat_judgment_uses_java_judgment_timing() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_scroll_speed_judgment_chart()), true, "scroll speed judgment chart load"):
+		return false
+	var hit: Dictionary = controller.press_action("vos_lane_1", 2400.0)
+	if not _expect_bool(hit.get("accepted", false), true, "scroll speed judgment hit accepted"):
+		return false
+	if not _expect_string(hit.get("result", ""), "good", "scroll speed judgment uses raw BPM"):
 		return false
 	return true
 
@@ -337,6 +351,29 @@ func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
 	for key: Variant in extra_fields.keys():
 		chart[key] = extra_fields[key]
 	return chart
+
+
+func _scroll_speed_judgment_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "vos:scroll-speed-judgment",
+		"format": "VOS",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 1, "lane": 0, "startMs": 2500.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"judgmentTiming": [
+			{"timeMs": 0.0, "bpm": 120.0},
+			{"timeMs": 2000.0, "bpm": 120.0},
+		],
+		"visualTiming": [
+			{"timeMs": 0.0, "bpm": 120.0},
+			{"timeMs": 2000.0, "bpm": 240.0},
+		],
+		"autoPlayEvents": [],
+	}
 
 
 func _autoplay_tap_chart() -> Dictionary:

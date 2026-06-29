@@ -35,9 +35,10 @@ public final class VosGameplayExporter {
     }
 
     String exportGameplay(VOSChart chart, File input, File bgaAssetDir) throws Exception {
+        TimingData judgmentTiming = new TimingData();
         TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
-                JAVA_RENDER_DELAY_MS, new TimingData(), visualTiming);
+                JAVA_RENDER_DELAY_MS, judgmentTiming, visualTiming);
         timedEvents.fixEventList(EventList.FixMethod.OPEN2JAM, true);
 
         List<ExportNote> notes = new ArrayList<ExportNote>();
@@ -90,6 +91,7 @@ public final class VosGameplayExporter {
         fields.add(JsonWriter.rawField("notes", JsonWriter.array(noteJson(notes))));
         fields.add(JsonWriter.rawField("measures", JsonWriter.array(measures.toArray(new String[0]))));
         fields.add(JsonWriter.rawField("visualTiming", JsonWriter.array(visualTimingJson(visualTiming))));
+        fields.add(JsonWriter.rawField("judgmentTiming", JsonWriter.array(visualTimingJson(judgmentTiming))));
         fields.add(JsonWriter.rawField("autoPlayEvents", JsonWriter.array(autoPlayEvents.toArray(new String[0]))));
         fields.add(JsonWriter.rawField("bgaEvents", JsonWriter.array(bgaEvents.toArray(new String[0]))));
         if (chart.hasVideo()) {

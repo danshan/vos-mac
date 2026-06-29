@@ -36,8 +36,9 @@ class VosGameplayExporterTest {
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
                 note(0, "tap", JAVA_RENDER_DELAY_MS, 1),
                 holdNote(0, 2000.0, 2250.0, 2)), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
-                JsonWriter.array(), JsonWriter.array()), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
     }
 
     @Test
@@ -49,6 +50,7 @@ class VosGameplayExporterTest {
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", JAVA_RENDER_DELAY_MS, 2)),
                 JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(autoPlayEvent(JAVA_RENDER_DELAY_MS, 1)), JsonWriter.array(),
                 JsonWriter.array()), json);
@@ -70,8 +72,32 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
-                JsonWriter.array(bgaEvent(2000.0, 7)), JsonWriter.array()), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(bgaEvent(2000.0, 7)), JsonWriter.array()), json);
+    }
+
+    @Test
+    void exportsJudgmentTimingSeparatelyFromVisualTiming() throws Exception {
+        File chartFile = new File(tempDir, "scroll-speed.vos");
+        Files.write(chartFile.toPath(), new byte[0]);
+        VOSChart chart = new VOSChart();
+        chart.setTitle("Canon in D");
+        chart.setLevel(0);
+        chart.setBPM(120.0);
+        chart.setDuration(123);
+        EventList events = new EventList();
+        events.add(new Event(Event.Channel.SCROLL_SPEED, 0, 0.25, 2.0, Event.Flag.NONE));
+        chart.setEvents(events);
+
+        String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
+
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(
+                        visualTiming(JAVA_RENDER_DELAY_MS, 120.0),
+                        visualTiming(2000.0, 240.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
     }
 
     @Test
@@ -92,8 +118,9 @@ class VosGameplayExporterTest {
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(holdNote(0, 2000.0, 2500.0, 5)),
                 JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
-                JsonWriter.array(), JsonWriter.array()), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
     }
 
     @Test
@@ -115,8 +142,9 @@ class VosGameplayExporterTest {
         File copiedImage = new File(assetDir, "bga-7.png");
         assertTrue(copiedImage.isFile());
         assertEquals(gameplayJson(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
-                JsonWriter.array(), JsonWriter.array(bgaSprite(7, copiedImage))), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array(bgaSprite(7, copiedImage))), json);
     }
 
     @Test
@@ -135,8 +163,9 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
 
         assertEquals(gameplayJsonWithBgaVideo(chartFile, JsonWriter.array(), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
-                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)), JsonWriter.array(),
-                JsonWriter.array(), videoFile, JsonWriter.array()), json);
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), videoFile, JsonWriter.array()), json);
     }
 
     @Test
@@ -148,7 +177,7 @@ class VosGameplayExporterTest {
     }
 
     private static String gameplayJson(File source, String notes, String measures, String visualTiming,
-            String autoPlayEvents, String bgaEvents, String bgaSprites) throws Exception {
+            String judgmentTiming, String autoPlayEvents, String bgaEvents, String bgaSprites) throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
                 JsonWriter.field("format", "VOS"),
@@ -163,13 +192,15 @@ class VosGameplayExporterTest {
                 JsonWriter.rawField("notes", notes),
                 JsonWriter.rawField("measures", measures),
                 JsonWriter.rawField("visualTiming", visualTiming),
+                JsonWriter.rawField("judgmentTiming", judgmentTiming),
                 JsonWriter.rawField("autoPlayEvents", autoPlayEvents),
                 JsonWriter.rawField("bgaEvents", bgaEvents),
                 JsonWriter.rawField("bgaSprites", bgaSprites));
     }
 
     private static String gameplayJsonWithBgaVideo(File source, String notes, String measures, String visualTiming,
-            String autoPlayEvents, String bgaEvents, File bgaVideo, String bgaSprites) throws Exception {
+            String judgmentTiming, String autoPlayEvents, String bgaEvents, File bgaVideo, String bgaSprites)
+            throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
                 JsonWriter.field("format", "VOS"),
@@ -184,6 +215,7 @@ class VosGameplayExporterTest {
                 JsonWriter.rawField("notes", notes),
                 JsonWriter.rawField("measures", measures),
                 JsonWriter.rawField("visualTiming", visualTiming),
+                JsonWriter.rawField("judgmentTiming", judgmentTiming),
                 JsonWriter.rawField("autoPlayEvents", autoPlayEvents),
                 JsonWriter.rawField("bgaEvents", bgaEvents),
                 JsonWriter.field("bgaVideoPath", bgaVideo.getCanonicalPath()),

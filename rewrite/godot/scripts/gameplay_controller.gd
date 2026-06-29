@@ -502,21 +502,28 @@ func _normalized_buffer_events(raw_measures: Variant, raw_notes: Variant,
 
 
 func _configure_distance() -> void:
-	var timing = TimingModel.new()
+	var visual_timing = _timing_from_chart("visualTiming")
+	_timing = _timing_from_chart("judgmentTiming", visual_timing)
+	_distance = NoteDistanceCalculator.new(visual_timing, JAVA_MEASURE_SIZE)
+	if _speed_type == SPEED_TYPE_XR_SPEED:
+		_distance.set_xr_speed_factors(_chart.get("xRSpeedFactors", []))
+
+
+func _timing_from_chart(field_name: String, fallback_timing = null):
+	var timing := TimingModel.new()
 	var loaded := false
-	var changes: Variant = _chart.get("visualTiming", [])
+	var changes: Variant = _chart.get(field_name, [])
 	if changes is Array:
 		for raw_change: Variant in changes:
 			if raw_change is Dictionary:
 				timing.add_change(float(raw_change.get("timeMs", 0.0)), float(raw_change.get("bpm", 0.0)))
 				loaded = true
+	if not loaded and fallback_timing != null:
+		return fallback_timing
 	if not loaded:
 		timing.add_change(0.0, float(_chart.get("bpm", 120.0)))
 	timing.finish()
-	_timing = timing
-	_distance = NoteDistanceCalculator.new(timing, JAVA_MEASURE_SIZE)
-	if _speed_type == SPEED_TYPE_XR_SPEED:
-		_distance.set_xr_speed_factors(_chart.get("xRSpeedFactors", []))
+	return timing
 
 
 func _compare_notes(a: Dictionary, b: Dictionary) -> bool:

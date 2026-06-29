@@ -33,7 +33,15 @@ func _init() -> void:
 		return
 	if not _expect_bool(InputMap.has_action("vos_lane_7"), true, "last input action exists"):
 		return
+	if not _expect_bool(InputMap.has_action("speed_up"), true, "speed up input action exists"):
+		return
+	if not _expect_bool(InputMap.has_action("speed_down"), true, "speed down input action exists"):
+		return
 	if not _expect_int(InputMap.action_get_events("vos_lane_1").size(), 1, "first input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("speed_up").size(), 1, "speed up input action event count"):
+		return
+	if not _expect_int(InputMap.action_get_events("speed_down").size(), 1, "speed down input action event count"):
 		return
 
 	quit(0)

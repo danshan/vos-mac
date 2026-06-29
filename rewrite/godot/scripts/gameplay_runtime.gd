@@ -39,6 +39,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.echo:
 		return
 
+	for action: String in _input_map.misc_actions():
+		if event.is_action_pressed(action):
+			_controller.press_misc_action(action)
+			_mark_input_handled()
+			return
+		if event.is_action_released(action):
+			_controller.release_misc_action(action)
+			_mark_input_handled()
+			return
+
 	for lane in range(InputMapStore.LANE_COUNT):
 		var action := _input_map.action_for_lane(lane)
 		if event.is_action_pressed(action):

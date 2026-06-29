@@ -35,6 +35,12 @@ const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
 const JAVA_GAME_SPEED_PITCH: int = 0
+const SPEED_ACTION_UP: String = "speed_up"
+const SPEED_ACTION_DOWN: String = "speed_down"
+const SPEED_STEP: float = 0.5
+const SPEED_MIN: float = 0.5
+const SPEED_MAX: float = 10.0
+const SPEED_FACTOR: float = 0.005
 
 var _chart: Dictionary = {}
 var _notes: Array[Dictionary] = []
@@ -57,9 +63,13 @@ var _timing = null
 var _autoplay_enabled: bool = false
 var _judgment_type: String = JUDGMENT_TYPE_BEAT
 var _render_speed: float = JAVA_RENDER_SPEED
+var _target_render_speed: float = JAVA_RENDER_SPEED
 var _speed_type: String = SPEED_TYPE_HI_SPEED
 var _last_distance_update_ms: float = 0.0
 var _has_distance_update_ms: bool = false
+var _last_speed_update_ms: float = 0.0
+var _has_speed_update_ms: bool = false
+var _pressed_misc_actions: Dictionary = {}
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -76,6 +86,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
 	_judgment_type = _normalized_judgment_type(_chart.get("judgmentType", JUDGMENT_TYPE_BEAT))
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
+	_target_render_speed = _render_speed
 	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
 	_configure_distance()
 	_audio_commands.clear()
@@ -85,8 +96,11 @@ func load_chart(chart: Dictionary) -> bool:
 	_pressed_lanes.clear()
 	_held_note_indices.clear()
 	_longflare_lanes.clear()
+	_pressed_misc_actions.clear()
 	_last_distance_update_ms = 0.0
 	_has_distance_update_ms = false
+	_last_speed_update_ms = 0.0
+	_has_speed_update_ms = true
 	return true
 
 
@@ -108,6 +122,29 @@ func press_action(action: String, now_ms: float) -> Dictionary:
 
 func release_action(action: String, now_ms: float) -> Dictionary:
 	return release_lane(_input_map.lane_for_action(action), now_ms)
+
+
+func press_misc_action(action: String) -> Dictionary:
+	if bool(_pressed_misc_actions.get(action, false)):
+		return {"pressed": false, "accepted": false, "reason": "already_pressed"}
+
+	_pressed_misc_actions[action] = true
+	match action:
+		SPEED_ACTION_UP:
+			_target_render_speed = min(_target_render_speed + SPEED_STEP, SPEED_MAX)
+			return {"pressed": true, "accepted": true, "action": action, "targetSpeed": _target_render_speed}
+		SPEED_ACTION_DOWN:
+			_target_render_speed = max(_target_render_speed - SPEED_STEP, SPEED_MIN)
+			return {"pressed": true, "accepted": true, "action": action, "targetSpeed": _target_render_speed}
+		_:
+			return {"pressed": true, "accepted": false, "reason": "unknown_misc_action"}
+
+
+func release_misc_action(action: String) -> Dictionary:
+	if not _pressed_misc_actions.has(action):
+		return {"released": false, "accepted": false, "reason": "not_pressed"}
+	_pressed_misc_actions.erase(action)
+	return {"released": true, "accepted": true, "action": action}
 
 
 func drain_audio_commands() -> Array[Dictionary]:
@@ -135,6 +172,8 @@ func render_state(now_ms: float) -> Dictionary:
 		"longFlares": _active_longflares(),
 		"hiddenNotes": _hidden_note_indices(),
 		"statusTexts": _status_texts(now_ms),
+		"renderSpeed": _render_speed,
+		"targetSpeed": _target_render_speed,
 	}
 	if _event_is_active(_last_judgment_event, now_ms, JUDGMENT_EVENT_DURATION_MS):
 		state["judgmentEvent"] = _last_judgment_event.duplicate(true)
@@ -229,6 +268,7 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 
 func advance_to(now_ms: float) -> int:
 	var judged := 0
+	_update_render_speed_state(now_ms)
 	_advance_event_buffer(now_ms)
 	_update_distance_state(now_ms)
 	_advance_auto_play(now_ms)
@@ -527,7 +567,7 @@ func _normalized_speed_type(value: Variant) -> String:
 
 func _status_texts(now_ms: float) -> Array[String]:
 	return [
-		"%s: x%.1f" % [_java_speed_type_name(), _render_speed],
+		"%s: x%.1f" % [_java_speed_type_name(), _target_render_speed],
 		"Current Measure: %d" % _current_measure(now_ms),
 		"Game Speed: %+d" % JAVA_GAME_SPEED_PITCH,
 	]
@@ -560,6 +600,18 @@ func _normalized_bool(value: Variant) -> bool:
 	if value is bool:
 		return value
 	return false
+
+
+func _update_render_speed_state(now_ms: float) -> void:
+	var delta_ms: float = 0.0
+	if _has_speed_update_ms:
+		delta_ms = max(now_ms - _last_speed_update_ms, 0.0)
+	if _render_speed < _target_render_speed:
+		_render_speed = min(_render_speed + SPEED_FACTOR * delta_ms, _target_render_speed)
+	elif _render_speed > _target_render_speed:
+		_render_speed = max(_render_speed - SPEED_FACTOR * delta_ms, _target_render_speed)
+	_last_speed_update_ms = now_ms
+	_has_speed_update_ms = true
 
 
 func _update_distance_state(now_ms: float) -> void:

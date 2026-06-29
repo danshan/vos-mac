@@ -24,6 +24,8 @@ func _init() -> void:
 		return
 	if not _test_java_finish_uses_buffered_autoplay(audio_manifest):
 		return
+	if not _test_java_speed_misc_hotkeys(chart, audio_manifest):
+		return
 
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -148,6 +150,67 @@ func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool
 	return true
 
 
+func _test_java_speed_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "speed misc runtime start"):
+		return false
+
+	var initial_state: Dictionary = runtime.hud_state()
+	var initial_status: Array = initial_state.get("statusTexts", [])
+	if not _expect_string(str(initial_status[0]), "HI-SPEED: x1.0", "initial speed status"):
+		return false
+	if not _expect_float(float(initial_state.get("targetSpeed", -1.0)), 1.0, "initial target speed"):
+		return false
+	if not _expect_float(float(initial_state.get("renderSpeed", -1.0)), 1.0, "initial render speed"):
+		return false
+
+	var speed_up := InputEventAction.new()
+	speed_up.action = "speed_up"
+	speed_up.pressed = true
+	runtime._unhandled_input(speed_up)
+	var speed_up_state: Dictionary = runtime.hud_state()
+	var speed_up_status: Array = speed_up_state.get("statusTexts", [])
+	if not _expect_string(str(speed_up_status[0]), "HI-SPEED: x1.5", "speed up status"):
+		return false
+	if not _expect_float(float(speed_up_state.get("targetSpeed", -1.0)), 1.5, "speed up target speed"):
+		return false
+	if not _expect_float(float(speed_up_state.get("renderSpeed", -1.0)), 1.0, "speed up current speed waits for update"):
+		return false
+
+	runtime._unhandled_input(speed_up)
+	var repeated_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(repeated_state.get("targetSpeed", -1.0)), 1.5, "held speed up does not repeat"):
+		return false
+
+	runtime.advance_to(100.0)
+	var smoothed_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(smoothed_state.get("renderSpeed", -1.0)), 1.5, "speed up current speed reaches target"):
+		return false
+
+	var speed_up_release := InputEventAction.new()
+	speed_up_release.action = "speed_up"
+	speed_up_release.pressed = false
+	runtime._unhandled_input(speed_up_release)
+	runtime._unhandled_input(speed_up)
+	var second_speed_up_state: Dictionary = runtime.hud_state()
+	var second_speed_up_status: Array = second_speed_up_state.get("statusTexts", [])
+	if not _expect_string(str(second_speed_up_status[0]), "HI-SPEED: x2.0", "second speed up status"):
+		return false
+
+	var speed_down := InputEventAction.new()
+	speed_down.action = "speed_down"
+	speed_down.pressed = true
+	runtime._unhandled_input(speed_down)
+	var speed_down_state: Dictionary = runtime.hud_state()
+	var speed_down_status: Array = speed_down_state.get("statusTexts", [])
+	if not _expect_string(str(speed_down_status[0]), "HI-SPEED: x1.5", "speed down status"):
+		return false
+
+	runtime.free()
+	return true
+
+
 func _test_java_finish_uses_buffered_autoplay(audio_manifest: Dictionary) -> bool:
 	var chart := {
 		"schemaVersion": 1,
@@ -259,6 +322,14 @@ func _expect_int(actual: int, expected: int, label: String) -> bool:
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
+	if absf(actual - expected) > 0.0001:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

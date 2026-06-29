@@ -133,6 +133,8 @@ func update_time(now_ms: float) -> void:
 
 func update_hud_state(state: Dictionary) -> void:
 	var hud_time_ms := float(state.get("elapsedMs", 0.0))
+	if state.has("renderSpeed"):
+		_speed = max(float(state.get("renderSpeed", _speed)), 0.001)
 	_set_hud_text("SCORE_COUNTER", _int_text(state.get("score", 0)))
 	_set_hud_text("FPS_COUNTER", _int_text(state.get("fps", 0)))
 	_set_combo_text("COMBO_COUNTER", int(state.get("combo", 0)), 2, hud_time_ms)

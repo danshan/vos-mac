@@ -25,5 +25,12 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"lane\":0"));
         assertTrue(json.contains("\"x\":5.0"));
         assertTrue(json.contains("\"width\":28.0"));
+        assertTrue(json.contains("\"texturePath\""));
+        assertTrue(json.contains("Playing_BG10.png"));
+        assertTrue(json.contains("main.png"));
+        assertTrue(json.contains("\"textureX\":225.0"));
+        assertTrue(json.contains("\"textureY\":142.0"));
+        assertTrue(json.contains("\"textureWidth\":28.0"));
+        assertTrue(json.contains("\"textureHeight\":7.0"));
     }
 }

@@ -58,10 +58,16 @@ func _init() -> void:
 		return
 
 	var view = GameplayView.new()
+	var resource_root := ProjectSettings.globalize_path("res://../../src/resources")
 	for entity: Dictionary in metadata.get("entities", []):
 		if str(entity.get("id", "")) == "BGA":
-			entity["texturePath"] = ProjectSettings.globalize_path("res://../../src/resources/Playing_BG10.png")
-			break
+			entity["texturePath"] = "%s/Playing_BG10.png" % resource_root
+		if str(entity.get("id", "")) == "NOTE_1":
+			entity["texturePath"] = "%s/main.png" % resource_root
+			entity["textureX"] = 225.0
+			entity["textureY"] = 142.0
+			entity["textureWidth"] = 28.0
+			entity["textureHeight"] = 7.0
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
 	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
@@ -262,7 +268,21 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Measure_000"), true, "dynamic measure node"):
 		return
 
-	var note_node: ColorRect = view.get_node("Note_000")
+	var note_node: Control = view.get_node("Note_000")
+	if not _expect_bool(note_node is TextureRect, true, "dynamic note texture node"):
+		return
+	var note_texture_node: TextureRect = note_node
+	if not _expect_bool(note_texture_node.texture is AtlasTexture, true, "dynamic note atlas texture"):
+		return
+	var note_texture: AtlasTexture = note_texture_node.texture
+	if not _expect_float(note_texture.region.position.x, 225.0, "dynamic note texture x"):
+		return
+	if not _expect_float(note_texture.region.position.y, 142.0, "dynamic note texture y"):
+		return
+	if not _expect_float(note_texture.region.size.x, 28.0, "dynamic note texture width"):
+		return
+	if not _expect_float(note_texture.region.size.y, 7.0, "dynamic note texture height"):
+		return
 	if not _expect_float(note_node.position.x, 5.0, "dynamic note node x"):
 		return
 	if not _expect_float(note_node.position.y, 184.25, "dynamic note node y with visual timing at zero"):

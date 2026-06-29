@@ -1,6 +1,8 @@
 package org.open2jam.export;
 
+import java.io.File;
 import java.io.InputStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -77,11 +79,17 @@ public final class VosRenderMetadataExporter {
 
             double scaleX = doubleAttribute(frame, "scale_x", doubleAttribute(frame, "scale", 1.0));
             double scaleY = doubleAttribute(frame, "scale_y", doubleAttribute(frame, "scale", 1.0));
-            double width = doubleAttribute(frame, "w", 0.0) * scaleX;
-            double height = doubleAttribute(frame, "h", 0.0) * scaleY;
+            double textureX = doubleAttribute(frame, "x", 0.0);
+            double textureY = doubleAttribute(frame, "y", 0.0);
+            double textureWidth = doubleAttribute(frame, "w", 0.0);
+            double textureHeight = doubleAttribute(frame, "h", 0.0);
+            double width = textureWidth * scaleX;
+            double height = textureHeight * scaleY;
             double frameSpeed = doubleAttribute(sprite, "framespeed", 0.0) / 1000.0;
             int frameCount = childElements(sprite, "frame").size();
-            sprites.put(id, new SpriteMetadata(id, width, height, frameCount, frameSpeed));
+            String texturePath = texturePathFor(frame.getAttribute("file"));
+            sprites.put(id, new SpriteMetadata(id, width, height, frameCount, frameSpeed, texturePath,
+                    textureX, textureY, textureWidth, textureHeight));
         }
         return sprites;
     }
@@ -110,19 +118,19 @@ public final class VosRenderMetadataExporter {
         double y = doubleAttribute(entity, "y", 0.0);
         if (id != null && id.startsWith("NOTE_")) {
             entities.add(entityJson("LONG_" + id, "longNote", layer, x, y, sprite.width, sprite.height, spriteRefs,
-                    entity, true, id));
+                    entity, true, id, sprite));
             entities.add(entityJson(id, "note", layer, x, y, sprite.width, sprite.height, spriteRefs, entity, true,
-                    id));
+                    id, sprite));
             lanes.add(laneJson(id, laneForNoteId(id), x, sprite.width));
             return;
         }
 
         entities.add(entityJson(id == null ? "" : id, typeFor(id), layer, x, y, sprite.width, sprite.height,
-                spriteRefs, entity, id != null, id));
+                spriteRefs, entity, id != null, id, sprite));
     }
 
     private static String entityJson(String id, String type, int layer, double x, double y, double width, double height,
-            String[] spriteRefs, Element source, boolean named, String channel) {
+            String[] spriteRefs, Element source, boolean named, String channel, SpriteMetadata sprite) {
         List<String> fields = new ArrayList<String>();
         fields.add(JsonWriter.field("id", id));
         fields.add(JsonWriter.field("type", type));
@@ -134,6 +142,13 @@ public final class VosRenderMetadataExporter {
         fields.add(JsonWriter.field("named", named));
         if (channel != null && channel.startsWith("NOTE_")) {
             fields.add(JsonWriter.field("channel", channel));
+        }
+        if (!sprite.texturePath.isEmpty()) {
+            fields.add(JsonWriter.field("texturePath", sprite.texturePath));
+            fields.add(JsonWriter.field("textureX", sprite.textureX));
+            fields.add(JsonWriter.field("textureY", sprite.textureY));
+            fields.add(JsonWriter.field("textureWidth", sprite.textureWidth));
+            fields.add(JsonWriter.field("textureHeight", sprite.textureHeight));
         }
         String fillDirection = source.getAttribute("fill_direction");
         if (fillDirection != null && !fillDirection.trim().isEmpty()) {
@@ -251,23 +266,82 @@ public final class VosRenderMetadataExporter {
         return value.trim();
     }
 
+    private static String texturePathFor(String fileName) {
+        String trimmed = fileName == null ? "" : fileName.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+
+        File sourceFile = sourceResourceFile(trimmed);
+        if (sourceFile != null) {
+            return sourceFile.getAbsolutePath();
+        }
+
+        URL resource = VosRenderMetadataExporter.class.getResource("/resources/" + trimmed);
+        if (resource != null && "file".equals(resource.getProtocol())) {
+            try {
+                return new File(resource.toURI()).getAbsolutePath();
+            } catch (Exception ignored) {
+                return new File(resource.getPath()).getAbsolutePath();
+            }
+        }
+        return "/resources/" + trimmed;
+    }
+
+    private static File sourceResourceFile(String fileName) {
+        File fromWorkingDirectory = new File("src/resources", fileName);
+        if (fromWorkingDirectory.isFile()) {
+            return fromWorkingDirectory.getAbsoluteFile();
+        }
+
+        URL location = VosRenderMetadataExporter.class.getProtectionDomain().getCodeSource().getLocation();
+        if (location == null || !"file".equals(location.getProtocol())) {
+            return null;
+        }
+        try {
+            File codeLocation = new File(location.toURI());
+            File base = codeLocation.isDirectory() ? codeLocation : codeLocation.getParentFile();
+            for (int i = 0; i < 3 && base != null; i++) {
+                File candidate = new File(base, "src/resources/" + fileName);
+                if (candidate.isFile()) {
+                    return candidate.getAbsoluteFile();
+                }
+                base = base.getParentFile();
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
+    }
+
     private static final class SpriteMetadata {
         final String id;
         final double width;
         final double height;
         final int frameCount;
         final double frameSpeed;
+        final String texturePath;
+        final double textureX;
+        final double textureY;
+        final double textureWidth;
+        final double textureHeight;
 
-        SpriteMetadata(String id, double width, double height, int frameCount, double frameSpeed) {
+        SpriteMetadata(String id, double width, double height, int frameCount, double frameSpeed,
+                String texturePath, double textureX, double textureY, double textureWidth, double textureHeight) {
             this.id = id;
             this.width = width;
             this.height = height;
             this.frameCount = frameCount;
             this.frameSpeed = frameSpeed;
+            this.texturePath = texturePath;
+            this.textureX = textureX;
+            this.textureY = textureY;
+            this.textureWidth = textureWidth;
+            this.textureHeight = textureHeight;
         }
 
         static SpriteMetadata empty() {
-            return new SpriteMetadata("", 0.0, 0.0, 0, 0.0);
+            return new SpriteMetadata("", 0.0, 0.0, 0, 0.0, "", 0.0, 0.0, 0.0, 0.0);
         }
     }
 }

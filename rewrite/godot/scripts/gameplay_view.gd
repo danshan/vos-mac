@@ -74,7 +74,7 @@ func update_time(now_ms: float) -> void:
 		var entry := _note_entries[i]
 		var note: Dictionary = entry.get("note", {})
 		var node: Variant = entry.get("node")
-		if not node is ColorRect:
+		if not node is Control:
 			continue
 
 		var note_height: float = float(entry.get("height", 1.0))
@@ -94,7 +94,7 @@ func update_time(now_ms: float) -> void:
 	for entry: Dictionary in _measure_entries:
 		var measure: Dictionary = entry.get("measure", {})
 		var node: Variant = entry.get("node")
-		if not node is ColorRect:
+		if not node is Control:
 			continue
 		node.position.y = judgment_line - _distance.calculate_hi_speed(
 				now_ms,
@@ -188,13 +188,10 @@ func _rebuild_note_nodes() -> void:
 		if template.is_empty():
 			continue
 
-		var node := ColorRect.new()
-		node.name = "Note_%03d" % index
-		node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var node := _entity_rect(template, "Note_%03d" % index)
 		node.position.x = float(lane.get("x", template.get("x", 0.0)))
 		node.size.x = float(lane.get("width", template.get("width", 1.0)))
 		node.size.y = max(float(template.get("height", 1.0)), 1.0)
-		node.color = _color_for_type(str(template.get("type", "")))
 		add_child(node)
 		_note_entries.append({
 			"note": note,
@@ -301,10 +298,11 @@ func _texture_for_entity(entity: Dictionary) -> Texture2D:
 		return null
 	var extension := texture_path.get_extension().to_lower()
 	if ["png", "jpg", "jpeg", "webp", "bmp", "tga"].has(extension):
-		return _image_texture_for_path(texture_path)
+		var image_texture := _image_texture_for_path(texture_path)
+		return _texture_with_region(entity, image_texture)
 	var resource := ResourceLoader.load(texture_path)
 	if resource is Texture2D:
-		return resource
+		return _texture_with_region(entity, resource)
 	return null
 
 
@@ -313,6 +311,24 @@ func _image_texture_for_path(texture_path: String) -> Texture2D:
 	if image.load(texture_path) == OK:
 		return ImageTexture.create_from_image(image)
 	return null
+
+
+func _texture_with_region(entity: Dictionary, texture: Texture2D) -> Texture2D:
+	if texture == null:
+		return null
+	if not entity.has("textureX") or not entity.has("textureY") or not entity.has("textureWidth") or not entity.has("textureHeight"):
+		return texture
+	var region := Rect2(
+			float(entity.get("textureX", 0.0)),
+			float(entity.get("textureY", 0.0)),
+			float(entity.get("textureWidth", 0.0)),
+			float(entity.get("textureHeight", 0.0)))
+	if region.size.x <= 0.0 or region.size.y <= 0.0:
+		return texture
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = region
+	return atlas
 
 
 func _sync_pressed_lanes(raw_lanes: Variant) -> void:

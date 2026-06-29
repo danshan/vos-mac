@@ -11,6 +11,7 @@ const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 const SettingsStore = preload("res://scripts/settings_store.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
+const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 
 var _built: bool = false
 var _app_state = AppState.new()
@@ -217,6 +218,14 @@ func _show_settings() -> void:
 	fullscreen.button_pressed = _settings_store.fullscreen_enabled()
 	_content.add_child(fullscreen)
 
+	var channel_modifier := OptionButton.new()
+	channel_modifier.name = "ChannelModifierOption"
+	for modifier: String in CHANNEL_MODIFIERS:
+		channel_modifier.add_item(modifier)
+	var selected_modifier := CHANNEL_MODIFIERS.find(_settings_store.channel_modifier())
+	channel_modifier.select(max(selected_modifier, 0))
+	_content.add_child(channel_modifier)
+
 	var key_bindings := GridContainer.new()
 	key_bindings.name = "KeyBindings"
 	key_bindings.columns = DEFAULT_KEY_BINDINGS.size()
@@ -421,7 +430,7 @@ func _load_selected_gameplay_bundle() -> Dictionary:
 		return {}
 
 	var gameplay_loader = GameplayLoader.new()
-	var chart: Dictionary = gameplay_loader.load_from_file(gameplay_path)
+	var chart: Dictionary = gameplay_loader.load_from_file_with_overrides(gameplay_path, _gameplay_option_overrides())
 	if chart.is_empty():
 		return {}
 
@@ -546,6 +555,10 @@ func _save_settings_from_controls() -> void:
 	if fullscreen is CheckBox:
 		_settings_store.set_fullscreen_enabled(fullscreen.button_pressed)
 
+	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
+	if channel_modifier is OptionButton:
+		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
+
 	var bindings: Array[String] = []
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
 		var key_input: Node = _content.get_node_or_null("KeyBindings/KeyBinding%d" % (i + 1))
@@ -565,6 +578,12 @@ func _parse_song_directories(text: String) -> Array[String]:
 		if not path.is_empty():
 			directories.append(path)
 	return directories
+
+
+func _gameplay_option_overrides() -> Dictionary:
+	return {
+		"channelModifier": _settings_store.channel_modifier(),
+	}
 
 
 func _song_directories_text() -> String:

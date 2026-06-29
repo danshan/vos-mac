@@ -17,6 +17,10 @@ const CHANNEL_MOD_RANDOM: String = "Random"
 
 
 func load_from_file(path: String) -> Dictionary:
+	return load_from_file_with_overrides(path, {})
+
+
+func load_from_file_with_overrides(path: String, overrides: Dictionary) -> Dictionary:
 	if not FileAccess.file_exists(path):
 		return {}
 
@@ -26,6 +30,8 @@ func load_from_file(path: String) -> Dictionary:
 		return {}
 
 	var chart: Dictionary = parsed
+	for key: Variant in overrides.keys():
+		chart[key] = overrides[key]
 	var normalized_chart: Dictionary = _normalized_chart(chart)
 	if normalized_chart.is_empty():
 		return {}

@@ -33,11 +33,14 @@ func _init() -> void:
 		return
 	if not _expect_bool(ui.has_node("Content/FullscreenCheckBox"), true, "fullscreen checkbox"):
 		return
+	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
+		return
 	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
 		return
 
 	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
 	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
+	ui.get_node("Content/ChannelModifierOption").select(1)
 	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
@@ -46,6 +49,9 @@ func _init() -> void:
 	if not _expect_string(ui.get_node("Content/SongDirectoryInput").text, "res://test/fixtures", "persisted song directory"):
 		return
 	if not _expect_bool(ui.get_node("Content/FullscreenCheckBox").button_pressed, true, "persisted fullscreen"):
+		return
+	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
+			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
 		return
 	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
 		return
@@ -67,6 +73,8 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView"), true, "gameplay view"):
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Note_000"), true, "gameplay note node"):
+		return
+	if not _expect_float(ui.get_node("Content/GameplayArea/GameplayView/Note_000").position.x, 165.0, "gameplay mirrored note x"):
 		return
 	if not _expect_bool(ui.has_node("GameplayRuntime"), true, "gameplay runtime"):
 		return
@@ -90,20 +98,20 @@ func _init() -> void:
 	if not _expect_float(gameplay_view.scale.y, 1.5, "gameplay view scale y"):
 		return
 
-	ui.get_node("GameplayRuntime").press_action("vos_lane_1", 1000.0)
+	ui.get_node("GameplayRuntime").press_action("vos_lane_7", 1000.0)
 	ui._process(0.0)
 	if not _expect_string(ui.get_node("Content/GameplayArea/GameplayView/Hud_SCORE_COUNTER").text, "200", "gameplay score hud update"):
 		return
-	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_1_000"), true, "gameplay pressed lane"):
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_7_000"), true, "gameplay pressed lane"):
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Judgment_EFFECT_JUDGMENT_COOL"), true, "gameplay cool judgment"):
 		return
 	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Click_EFFECT_CLICK_002"), true, "gameplay cool click"):
 		return
 
-	ui.get_node("GameplayRuntime").release_action("vos_lane_1", 1000.0)
+	ui.get_node("GameplayRuntime").release_action("vos_lane_7", 1000.0)
 	ui._process(0.0)
-	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_1_000"), false, "gameplay released lane"):
+	if not _expect_bool(ui.has_node("Content/GameplayArea/GameplayView/Pressed_PRESSED_NOTE_7_000"), false, "gameplay released lane"):
 		return
 
 	ui.complete_game({"score": 200, "maxCombo": 0})

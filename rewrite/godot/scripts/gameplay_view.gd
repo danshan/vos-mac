@@ -1029,7 +1029,12 @@ func _position_longflare_node(node: Control, entity: Dictionary, lane_index: int
 		return
 	var note_node: Variant = _note_entries[note_index].get("node")
 	if note_node is Control:
-		node.position.y = note_node.position.y
+		var head_height := 0.0
+		if note_node.has_node("Head"):
+			var head: Variant = note_node.get_node("Head")
+			if head is Control:
+				head_height = head.size.y
+		node.position.y = note_node.position.y + head_height
 
 
 func _one_shot_animation_finished(entity: Dictionary, event: Dictionary, now_ms: float) -> bool:

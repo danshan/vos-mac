@@ -1157,7 +1157,7 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_000"), true, "longflare with note index node"):
 		return
 	var note_longflare_node: TextureRect = view.get_node("Longflare_EFFECT_LONGFLARE_000")
-	if not _expect_float(note_longflare_node.position.y, longflare_y, "longflare follows long note y"):
+	if not _expect_float(note_longflare_node.position.y, longflare_y + long_note_head.size.y, "longflare follows long note y"):
 		return
 
 	view.free()

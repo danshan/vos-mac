@@ -142,6 +142,13 @@ func update_time(now_ms: float) -> void:
 				float(measure.get("startMs", 0.0))) - 1.0
 
 
+func update_frame(now_ms: float, state: Dictionary) -> void:
+	if state.has("renderSpeed"):
+		_speed = max(float(state.get("renderSpeed", _speed)), 0.001)
+	update_time(now_ms)
+	update_hud_state(state)
+
+
 func update_hud_state(state: Dictionary) -> void:
 	var hud_time_ms := float(state.get("elapsedMs", 0.0))
 	if state.has("renderSpeed"):

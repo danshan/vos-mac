@@ -54,18 +54,31 @@ func _ready() -> void:
 	build()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _runtime == null or _gameplay_view == null:
 		return
+	if _runtime.has_method("advance_to") and _runtime.has_method("elapsed_ms"):
+		_runtime.advance_to(float(_runtime.elapsed_ms()) + delta * 1000.0)
+
+	var state: Dictionary = {}
+	if _runtime.has_method("hud_state"):
+		state = _runtime.hud_state()
+
+	var view_time_ms := 0.0
+	if _runtime.has_method("display_time_ms"):
+		view_time_ms = float(_runtime.display_time_ms())
+	elif state.has("displayTimeMs"):
+		view_time_ms = float(state.get("displayTimeMs", 0.0))
+	elif _runtime.has_method("elapsed_ms"):
+		view_time_ms = float(_runtime.elapsed_ms())
+
+	if _gameplay_view.has_method("update_frame") and not state.is_empty():
+		_gameplay_view.update_frame(view_time_ms, state)
+		return
+	if _gameplay_view.has_method("update_hud_state") and not state.is_empty():
+		_gameplay_view.update_hud_state(state)
 	if _gameplay_view.has_method("update_time"):
-		var view_time_ms := 0.0
-		if _runtime.has_method("display_time_ms"):
-			view_time_ms = _runtime.display_time_ms()
-		elif _runtime.has_method("elapsed_ms"):
-			view_time_ms = _runtime.elapsed_ms()
 		_gameplay_view.update_time(view_time_ms)
-	if _runtime.has_method("hud_state") and _gameplay_view.has_method("update_hud_state"):
-		_gameplay_view.update_hud_state(_runtime.hud_state())
 
 
 func build() -> void:
@@ -453,6 +466,7 @@ func _show_gameplay() -> void:
 
 	_runtime = GameplayRuntime.new()
 	_runtime.name = "GameplayRuntime"
+	_runtime.set_process(false)
 	_runtime.completed.connect(complete_game)
 	add_child(_runtime)
 	var key_bindings := _settings_store.key_bindings()

@@ -2,6 +2,40 @@ extends SceneTree
 
 const MainUi = preload("res://scripts/main_ui.gd")
 
+
+class RecordingRuntime:
+	extends Node
+
+	var advanced_to_ms: float = -1.0
+
+	func elapsed_ms() -> float:
+		return 0.0
+
+	func advance_to(now_ms: float) -> void:
+		advanced_to_ms = now_ms
+
+	func display_time_ms() -> float:
+		return advanced_to_ms
+
+	func hud_state() -> Dictionary:
+		return {"renderSpeed": 2.0 if advanced_to_ms >= 0.0 else -1.0}
+
+
+class RecordingGameplayView:
+	extends Control
+
+	var current_render_speed: float = -1.0
+	var render_speed_seen_by_update_time: float = -1.0
+	var update_time_ms: float = -1.0
+
+	func update_hud_state(state: Dictionary) -> void:
+		current_render_speed = float(state.get("renderSpeed", -1.0))
+
+	func update_time(now_ms: float) -> void:
+		update_time_ms = now_ms
+		render_speed_seen_by_update_time = current_render_speed
+
+
 func _init() -> void:
 	if not _expect_int(int(ProjectSettings.get_setting("display/window/size/viewport_width", 0)), 1280, "viewport width"):
 		return
@@ -84,7 +118,30 @@ func _init() -> void:
 	scene_root.free()
 	ui.free()
 
+	if not _test_gameplay_view_uses_current_hud_state():
+		return
+
 	quit(0)
+
+
+func _test_gameplay_view_uses_current_hud_state() -> bool:
+	var ui = MainUi.new()
+	var runtime = RecordingRuntime.new()
+	var gameplay_view = RecordingGameplayView.new()
+	ui._runtime = runtime
+	ui._gameplay_view = gameplay_view
+
+	ui._process(0.016)
+	var result := _expect_float(runtime.advanced_to_ms, 16.0, "main ui advances gameplay runtime")
+	result = result and _expect_float(gameplay_view.update_time_ms, 16.0, "gameplay view uses advanced display time")
+	result = result and _expect_float(gameplay_view.render_speed_seen_by_update_time, 2.0,
+			"gameplay view update_time uses current frame render speed")
+	ui._runtime = null
+	ui._gameplay_view = null
+	runtime.free()
+	gameplay_view.free()
+	ui.free()
+	return result
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

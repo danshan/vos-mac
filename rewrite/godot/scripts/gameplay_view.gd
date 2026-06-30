@@ -921,15 +921,17 @@ func _normalized_visibility_modifier(value: Variant) -> String:
 
 
 func _visibility_layer() -> int:
-	var layer := 0
+	var layer := _metadata_layer_for_id("NOTE_1") + 1
 	for entity: Dictionary in _metadata.get("entities", []):
-		layer = max(layer, int(entity.get("layer", 0)))
+		if not str(entity.get("id", "")).is_empty():
+			continue
+		if int(entity.get("layer", 0)) > layer:
+			layer += 1
 	return layer + 1
 
 
 func _apply_visibility_layers(modifier: String) -> void:
-	_set_static_entity_layer("JUDGMENT_LINE", _metadata_layer_for_id("JUDGMENT_LINE"))
-	_set_measure_node_layer(_metadata_layer_for_id("MEASURE_MARK"))
+	_refresh_entity_layers_for_visibility(modifier)
 	if modifier == VISIBILITY_NONE:
 		return
 
@@ -946,6 +948,13 @@ func _set_static_entity_layer(id: String, layer: int) -> void:
 	var node: Variant = get_node(node_path)
 	if node is CanvasItem:
 		node.z_index = layer
+
+
+func _refresh_entity_layers_for_visibility(modifier: String) -> void:
+	for child: Node in get_children():
+		if not child is CanvasItem or not child.has_meta("javaLayer"):
+			continue
+		child.z_index = _effective_entity_layer(int(child.get_meta("javaLayer")), modifier)
 
 
 func _set_measure_node_layer(layer: int) -> void:
@@ -1325,8 +1334,22 @@ func _digit_texture_rect(frame: Dictionary, node_name: String) -> TextureRect:
 
 
 func _apply_entity_layer(node: CanvasItem, entity: Dictionary) -> void:
-	node.z_index = int(entity.get("layer", 0))
+	var layer := int(entity.get("layer", 0))
+	node.set_meta("javaLayer", layer)
+	node.z_index = _effective_entity_layer(layer)
 	node.z_as_relative = false
+
+
+func _effective_entity_layer(layer: int, modifier: String = "") -> int:
+	var active_modifier := modifier
+	if active_modifier.is_empty():
+		active_modifier = _normalized_visibility_modifier(_chart.get("visibilityModifier", VISIBILITY_NONE))
+	if active_modifier == VISIBILITY_NONE:
+		return layer
+	var visibility_layer := _visibility_layer()
+	if layer >= visibility_layer:
+		return layer + 1
+	return layer
 
 
 func _set_bar_fill(id: String, value: float, limit: float) -> void:

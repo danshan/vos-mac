@@ -80,20 +80,26 @@ func _init() -> void:
 	if not _expect_float(float(note_play.get("pan", 0.0)), -1.0, "note clamped pan"):
 		return
 	var note_player: Node = pool.get_node(str(note_play.get("player", "")))
-	if not _expect_bool(note_player is AudioStreamPlayer, true, "note player node type"):
+	if not _expect_bool(note_player is AudioStreamPlayer2D, true, "note player node type"):
 		return
 	if not _expect_float(float(note_player.get_meta("pan", 0.0)), -1.0, "note player pan metadata"):
 		return
-	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 2.0, "note player initial pitch scale"):
+	if not _expect_float((note_player as AudioStreamPlayer2D).panning_strength, 1.0, "note player panning strength"):
 		return
-	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.125, "note player initial db volume"):
+	if not _expect_float((note_player as AudioStreamPlayer2D).attenuation, 0.0, "note player attenuation"):
+		return
+	if not _expect_float((note_player as AudioStreamPlayer2D).position.x, -1.0, "note player pan position"):
+		return
+	if not _expect_float((note_player as AudioStreamPlayer2D).pitch_scale, 2.0, "note player initial pitch scale"):
+		return
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer2D).volume_db), 0.125, "note player initial db volume"):
 		return
 	pool.set_pitch_scale(8.0)
-	if not _expect_float((note_player as AudioStreamPlayer).pitch_scale, 4.0, "active note player pitch scale clamp"):
+	if not _expect_float((note_player as AudioStreamPlayer2D).pitch_scale, 4.0, "active note player pitch scale clamp"):
 		return
 	pool.set_pitch_scale(2.0)
 	pool.set_volume_state(0.4, 0.5, 0.75)
-	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer).volume_db), 0.2, "active note player volume update"):
+	if not _expect_float(db_to_linear((note_player as AudioStreamPlayer2D).volume_db), 0.2, "active note player volume update"):
 		return
 	pool.set_volume_state(0.5, 0.25, 0.75)
 

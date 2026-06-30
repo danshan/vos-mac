@@ -8,6 +8,8 @@ var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
 var _pitch_scale: float = 1.0
+const JAVA_PAN_DISTANCE_SCALE: float = 1.0
+const JAVA_PANNING_STRENGTH: float = 1.0
 
 
 func load_manifest(manifest: Dictionary) -> bool:
@@ -107,7 +109,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	if stream == null:
 		return {"played": false, "sampleId": sample_id, "reason": "missing_stream", "path": path}
 
-	var player := AudioStreamPlayer.new()
+	var player := AudioStreamPlayer2D.new()
 	player.name = "Sample_%d_%d" % [sample_id, _play_events.size() + 1]
 	player.stream = stream
 	var sample_volume := 1.0
@@ -115,6 +117,9 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	var uses_bgm_channel := _asset_uses_bgm_channel(asset)
 	var channel_volume := _channel_volume(uses_bgm_channel)
 	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
+	player.position = Vector2(pan * JAVA_PAN_DISTANCE_SCALE, 0.0)
+	player.panning_strength = JAVA_PANNING_STRENGTH
+	player.attenuation = 0.0
 	player.volume_db = _volume_db_for_linear(effective_volume)
 	player.pitch_scale = _pitch_scale
 	player.set_meta("sample_volume", sample_volume)
@@ -165,7 +170,7 @@ func play_events() -> Array[Dictionary]:
 func stop_all() -> int:
 	var stopped := 0
 	for child in get_children():
-		if child is AudioStreamPlayer:
+		if child is AudioStreamPlayer2D:
 			child.stop()
 			stopped += 1
 	_registered_players.clear()
@@ -182,7 +187,7 @@ func _stop_sample_for_command(command: Dictionary) -> Dictionary:
 
 	var player: Variant = _registered_players.get(instance_key)
 	_registered_players.erase(instance_key)
-	if player is AudioStreamPlayer and is_instance_valid(player):
+	if player is AudioStreamPlayer2D and is_instance_valid(player):
 		player.stop()
 		return {
 			"stopped": true,
@@ -217,17 +222,17 @@ func _channel_volume(uses_bgm_channel: bool) -> float:
 
 func _update_active_player_volumes() -> void:
 	for child in get_children():
-		if child is AudioStreamPlayer and child.has_meta("sample_volume") and child.has_meta("uses_bgm_channel"):
+		if child is AudioStreamPlayer2D and child.has_meta("sample_volume") and child.has_meta("uses_bgm_channel"):
 			var sample_volume := float(child.get_meta("sample_volume"))
 			var uses_bgm_channel := bool(child.get_meta("uses_bgm_channel"))
 			var effective_volume := _clamped_volume(_master_volume * _channel_volume(uses_bgm_channel) * sample_volume)
-			(child as AudioStreamPlayer).volume_db = _volume_db_for_linear(effective_volume)
+			(child as AudioStreamPlayer2D).volume_db = _volume_db_for_linear(effective_volume)
 
 
 func _update_active_player_pitch_scale() -> void:
 	for child in get_children():
-		if child is AudioStreamPlayer:
-			(child as AudioStreamPlayer).pitch_scale = _pitch_scale
+		if child is AudioStreamPlayer2D:
+			(child as AudioStreamPlayer2D).pitch_scale = _pitch_scale
 
 
 func _clamped_volume(volume: float) -> float:

@@ -63,6 +63,7 @@ var _current_judgment_sequence: int = -1
 var _click_nodes: Array[Node] = []
 var _click_nodes_by_sequence: Dictionary = {}
 var _pill_nodes: Array[Node] = []
+var _pill_nodes_by_index: Dictionary = {}
 var _longflare_nodes: Array[Node] = []
 var _longflare_nodes_by_lane: Dictionary = {}
 var _visibility_nodes: Array[Node] = []
@@ -189,7 +190,7 @@ func _rebuild_entities() -> void:
 	_clear_pressed_nodes()
 	_clear_judgment_node()
 	_clear_click_nodes()
-	_clear_nodes(_pill_nodes)
+	_clear_pill_nodes()
 	_clear_longflare_nodes()
 	_clear_nodes(_visibility_nodes)
 	_clear_nodes(_status_nodes)
@@ -777,15 +778,28 @@ func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
 
 
 func _sync_pills(count: int) -> void:
-	_clear_nodes(_pill_nodes)
-	for i in range(clamp(count, 0, 5)):
-		var id := "PILL_%d" % (i + 1)
+	var target_count: int = int(clamp(count, 0, 5))
+	for raw_index: Variant in _pill_nodes_by_index.keys():
+		var index := int(raw_index)
+		if index > target_count:
+			_clear_pill_node(index)
+	for i in range(target_count):
+		var index := i + 1
+		var existing: Variant = _pill_nodes_by_index.get(index)
+		if existing is Node and is_instance_valid(existing):
+			_update_animation_frames_for_node(existing, _last_update_time_ms)
+			continue
+		if _pill_nodes_by_index.has(index):
+			_clear_pill_node(index)
+		var id := "PILL_%d" % index
 		var entity := _first_entity_by_id(id)
 		if entity.is_empty():
+			_clear_pill_node(index)
 			continue
 		var node := _entity_rect(entity, "Pill_%s" % _safe_node_id(id))
 		add_child(node)
 		_pill_nodes.append(node)
+		_pill_nodes_by_index[index] = node
 
 
 func _sync_longflares(raw_flares: Variant, now_ms: float) -> void:
@@ -1129,6 +1143,24 @@ func _clear_click_node(sequence: int) -> void:
 	if not raw_node is Node:
 		return
 	_click_nodes.erase(raw_node)
+	if not is_instance_valid(raw_node):
+		return
+	if raw_node.get_parent() == self:
+		remove_child(raw_node)
+	raw_node.free()
+
+
+func _clear_pill_nodes() -> void:
+	_clear_nodes(_pill_nodes)
+	_pill_nodes_by_index.clear()
+
+
+func _clear_pill_node(index: int) -> void:
+	var raw_node: Variant = _pill_nodes_by_index.get(index)
+	_pill_nodes_by_index.erase(index)
+	if not raw_node is Node:
+		return
+	_pill_nodes.erase(raw_node)
 	if not is_instance_valid(raw_node):
 		return
 	if raw_node.get_parent() == self:

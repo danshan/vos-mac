@@ -692,6 +692,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Pill_PILL_1"), true, "first pill node"):
 		return
+	var pill_node: Control = view.get_node("Pill_PILL_1")
+	var pill_instance_id := pill_node.get_instance_id()
 	var judgment_node: TextureRect = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
 	var judgment_instance_id := judgment_node.get_instance_id()
 	view.update_time(1000.0)
@@ -749,8 +751,9 @@ func _init() -> void:
 				"lane": 0,
 				"startMs": 1000.0,
 			},
-		],
-	})
+			],
+			"pills": 1,
+		})
 	judgment_node = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
 	judgment_texture = judgment_node.texture
 	if not _expect_int(judgment_node.get_instance_id(), judgment_instance_id, "judgment effect keeps Java entity instance during state sync"):
@@ -764,6 +767,9 @@ func _init() -> void:
 	if not _expect_int(click_node.get_instance_id(), click_instance_id, "click effect keeps Java entity instance during state sync"):
 		return
 	if not _expect_float(click_texture.region.position.y, 436.0, "click effect advances during state sync"):
+		return
+	pill_node = view.get_node("Pill_PILL_1")
+	if not _expect_int(pill_node.get_instance_id(), pill_instance_id, "pill keeps Java entity instance during state sync"):
 		return
 	view.update_hud_state({
 		"elapsedMs": 1400.0,

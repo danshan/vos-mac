@@ -722,6 +722,7 @@ func _init() -> void:
 	if not _expect_float(judgment_node.scale.y, 1.0, "judgment effect final scale y"):
 		return
 	var click_node: TextureRect = view.get_node("Click_EFFECT_CLICK_002")
+	var click_instance_id := click_node.get_instance_id()
 	view.update_time(1000.0)
 	var click_texture: AtlasTexture = click_node.texture
 	if not _expect_float(click_texture.region.position.y, 180.0, "click effect starts on first frame"):
@@ -760,6 +761,8 @@ func _init() -> void:
 		return
 	click_node = view.get_node("Click_EFFECT_CLICK_002")
 	click_texture = click_node.texture
+	if not _expect_int(click_node.get_instance_id(), click_instance_id, "click effect keeps Java entity instance during state sync"):
+		return
 	if not _expect_float(click_texture.region.position.y, 436.0, "click effect advances during state sync"):
 		return
 	view.update_hud_state({

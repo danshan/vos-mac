@@ -61,6 +61,7 @@ var _pressed_lane_nodes: Dictionary = {}
 var _judgment_node: Node = null
 var _current_judgment_sequence: int = -1
 var _click_nodes: Array[Node] = []
+var _click_nodes_by_sequence: Dictionary = {}
 var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
 var _visibility_nodes: Array[Node] = []
@@ -186,7 +187,7 @@ func _rebuild_entities() -> void:
 	_bar_rects.clear()
 	_clear_pressed_nodes()
 	_clear_judgment_node()
-	_clear_nodes(_click_nodes)
+	_clear_click_nodes()
 	_clear_nodes(_pill_nodes)
 	_clear_nodes(_longflare_nodes)
 	_clear_nodes(_visibility_nodes)
@@ -737,19 +738,29 @@ func _sync_judgment_event(raw_event: Variant, now_ms: float) -> void:
 
 
 func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
-	_clear_nodes(_click_nodes)
 	if not raw_events is Array:
+		_clear_click_nodes()
 		return
 
 	var entity := _first_entity_by_id("EFFECT_CLICK")
 	if entity.is_empty():
+		_clear_click_nodes()
 		return
+	var active_sequences := {}
 	for raw_event: Variant in raw_events:
 		if not raw_event is Dictionary:
 			continue
 		if _one_shot_animation_finished(entity, raw_event, now_ms):
 			continue
 		var sequence := int(raw_event.get("sequence", 0))
+		active_sequences[sequence] = true
+		var existing: Variant = _click_nodes_by_sequence.get(sequence)
+		if existing is Control and is_instance_valid(existing):
+			_position_click_node(existing, entity, int(raw_event.get("lane", -1)))
+			_update_animation_frames_for_node(existing, now_ms)
+			continue
+		if _click_nodes_by_sequence.has(sequence):
+			_clear_click_node(sequence)
 		var event_entity := entity.duplicate(true)
 		event_entity["animationStartMs"] = float(raw_event.get("startMs", 0.0))
 		var node := _entity_rect(event_entity, "Click_EFFECT_CLICK_%03d" % sequence)
@@ -757,6 +768,11 @@ func _sync_click_events(raw_events: Variant, now_ms: float) -> void:
 		_update_animation_frames_for_node(node, now_ms)
 		add_child(node)
 		_click_nodes.append(node)
+		_click_nodes_by_sequence[sequence] = node
+	for raw_sequence: Variant in _click_nodes_by_sequence.keys():
+		var sequence := int(raw_sequence)
+		if not bool(active_sequences.get(sequence, false)):
+			_clear_click_node(sequence)
 
 
 func _sync_pills(count: int) -> void:
@@ -1082,6 +1098,24 @@ func _clear_judgment_node() -> void:
 	_judgment_node.free()
 	_judgment_node = null
 	_current_judgment_sequence = -1
+
+
+func _clear_click_nodes() -> void:
+	_clear_nodes(_click_nodes)
+	_click_nodes_by_sequence.clear()
+
+
+func _clear_click_node(sequence: int) -> void:
+	var raw_node: Variant = _click_nodes_by_sequence.get(sequence)
+	_click_nodes_by_sequence.erase(sequence)
+	if not raw_node is Node:
+		return
+	_click_nodes.erase(raw_node)
+	if not is_instance_valid(raw_node):
+		return
+	if raw_node.get_parent() == self:
+		remove_child(raw_node)
+	raw_node.free()
 
 
 func _clear_nodes(nodes: Array[Node]) -> void:

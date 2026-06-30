@@ -693,6 +693,7 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Pill_PILL_1"), true, "first pill node"):
 		return
 	var judgment_node: TextureRect = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
+	var judgment_instance_id := judgment_node.get_instance_id()
 	view.update_time(1000.0)
 	var judgment_texture: AtlasTexture = judgment_node.texture
 	if not _expect_float(judgment_texture.region.position.y, 180.0, "judgment effect starts on first frame"):
@@ -751,6 +752,8 @@ func _init() -> void:
 	})
 	judgment_node = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
 	judgment_texture = judgment_node.texture
+	if not _expect_int(judgment_node.get_instance_id(), judgment_instance_id, "judgment effect keeps Java entity instance during state sync"):
+		return
 	if not _expect_float(judgment_texture.region.position.y, 308.0, "judgment effect advances during state sync"):
 		return
 	if not _expect_float(judgment_node.scale.x, 1.0, "judgment effect scale advances during state sync"):

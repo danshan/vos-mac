@@ -59,6 +59,7 @@ var _bar_rects: Dictionary = {}
 var _pressed_nodes: Array[Node] = []
 var _pressed_lane_nodes: Dictionary = {}
 var _judgment_node: Node = null
+var _current_judgment_sequence: int = -1
 var _click_nodes: Array[Node] = []
 var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
@@ -708,10 +709,16 @@ func _sync_pressed_lanes(raw_lanes: Variant) -> void:
 
 
 func _sync_judgment_event(raw_event: Variant, now_ms: float) -> void:
-	_clear_judgment_node()
 	if not raw_event is Dictionary or raw_event.is_empty():
+		_clear_judgment_node()
 		return
 
+	var sequence := int(raw_event.get("sequence", -1))
+	if sequence == _current_judgment_sequence and _judgment_node != null and is_instance_valid(_judgment_node):
+		_update_animation_frames_for_node(_judgment_node, now_ms)
+		return
+
+	_clear_judgment_node()
 	var result := str(raw_event.get("result", "")).to_upper()
 	if result.is_empty():
 		return
@@ -723,7 +730,9 @@ func _sync_judgment_event(raw_event: Variant, now_ms: float) -> void:
 	if _judgment_node is Control:
 		_judgment_node.set_meta("judgmentEffect", true)
 		_judgment_node.pivot_offset = _judgment_node.size * 0.5
+		_judgment_node.set_meta("judgmentSequence", sequence)
 	add_child(_judgment_node)
+	_current_judgment_sequence = sequence
 	_update_animation_frames_for_node(_judgment_node, now_ms)
 
 
@@ -1066,11 +1075,13 @@ func _clear_pressed_lane(lane: int) -> void:
 func _clear_judgment_node() -> void:
 	if _judgment_node == null or not is_instance_valid(_judgment_node):
 		_judgment_node = null
+		_current_judgment_sequence = -1
 		return
 	if _judgment_node.get_parent() == self:
 		remove_child(_judgment_node)
 	_judgment_node.free()
 	_judgment_node = null
+	_current_judgment_sequence = -1
 
 
 func _clear_nodes(nodes: Array[Node]) -> void:

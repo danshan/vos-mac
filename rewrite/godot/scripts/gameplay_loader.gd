@@ -3,6 +3,7 @@ extends RefCounted
 const REQUIRED_NOTE_FIELDS: Array[String] = [
 	"lane",
 	"startMs",
+	"measure",
 	"sampleId",
 	"volume",
 	"pan",
@@ -170,6 +171,10 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	if not _is_non_negative_number(start_ms):
 		return {}
 
+	var measure: Variant = note.get("measure")
+	if not _is_integer_like(measure) or int(measure) < 0:
+		return {}
+
 	var sample_id: Variant = note.get("sampleId")
 	if not _is_positive_integer_like(sample_id):
 		return {}
@@ -188,6 +193,7 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	var normalized_note: Dictionary = note.duplicate(true)
 	normalized_note["lane"] = int(lane)
 	normalized_note["startMs"] = float(start_ms)
+	normalized_note["measure"] = int(measure)
 	normalized_note["sampleId"] = int(sample_id)
 	if str(kind) == "holdStart" and not _normalize_hold_note(normalized_note, float(start_ms)):
 		return {}

@@ -22,9 +22,25 @@ func _init() -> void:
 		return
 	if not _expect_string(note.get("kind", ""), "tap", "note kind"):
 		return
+	if not _expect_int(typeof(note.get("measure")), TYPE_INT, "note measure type"):
+		return
+	if not _expect_int(note.get("measure", -1), 0, "note measure"):
+		return
 
 	var auto_play_events: Array = chart.get("autoPlayEvents", [])
 	if not _expect_int(auto_play_events.size(), 1, "auto play event count"):
+		return
+
+	var measure_chart_path := _chart_path("normalized_measure")
+	if not _write_chart(measure_chart_path, _chart_with_note("measure", 1.0)):
+		return
+	var measure_chart: Dictionary = loader.load_from_file(measure_chart_path)
+	if not _expect_bool(measure_chart.is_empty(), false, "measure chart load"):
+		return
+	var measure_notes: Array = measure_chart.get("notes", [])
+	if not _expect_int(typeof(measure_notes[0].get("measure")), TYPE_INT, "normalized measure type"):
+		return
+	if not _expect_int(measure_notes[0].get("measure", -1), 1, "normalized measure"):
 		return
 
 	var time_ms_chart: Dictionary = _valid_chart()
@@ -124,9 +140,9 @@ func _init() -> void:
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 2, "lane": 3, "startMs": 1100.0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 3, "lane": 6, "startMs": 1200.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 2, "lane": 3, "startMs": 1100.0, "measure": 0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 3, "lane": 6, "startMs": 1200.0, "measure": 0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var mirror_path := _chart_path("mirror_modifier")
 	if not _write_chart(mirror_path, mirror_chart):
@@ -146,9 +162,9 @@ func _init() -> void:
 	shuffle_chart["channelModifier"] = "Shuffle"
 	shuffle_chart["channelMap"] = [6, 4, 2, 3, 1, 5, 0]
 	shuffle_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 2, "lane": 1, "startMs": 1100.0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 3, "lane": 6, "startMs": 1200.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 2, "lane": 1, "startMs": 1100.0, "measure": 0, "endMs": null, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 3, "lane": 6, "startMs": 1200.0, "measure": 0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var shuffle_path := _chart_path("shuffle_modifier")
 	if not _write_chart(shuffle_path, shuffle_chart):
@@ -232,6 +248,12 @@ func _init() -> void:
 		return
 	if not _expect_rejected(loader, _chart_with_note("kind", "holdEnd"), "standalone hold end"):
 		return
+	if not _expect_rejected(loader, _chart_without_note_field("measure"), "missing note measure"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("measure", "0"), "string note measure"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("measure", -1), "negative note measure"):
+		return
 	if not _expect_rejected(loader, _chart_with_note("sampleId", "2"), "string note sample id"):
 		return
 	if not _expect_rejected(loader, _chart_with_note("sampleId", 0), "zero note sample id"):
@@ -308,7 +330,7 @@ func _valid_chart() -> Dictionary:
 		"keys": 7,
 		"bpm": 120.0,
 		"durationMs": 3000,
-		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
+		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
 		"visualTiming": [{"timeMs": 0.0, "bpm": 120.0}],
 		"judgmentTiming": [{"timeMs": 0.0, "bpm": 120.0}],
 		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],

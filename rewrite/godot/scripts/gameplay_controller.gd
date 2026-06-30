@@ -434,6 +434,7 @@ func _normalized_notes(raw_notes: Variant) -> Array[Dictionary]:
 		for raw_note: Variant in raw_notes:
 			if raw_note is Dictionary:
 				var note: Dictionary = raw_note.duplicate(true)
+				note["measure"] = int(note.get("measure", 0))
 				note["state"] = STATE_NOT_JUDGED
 				note["hitTime"] = 0.0
 				note["samplePlayed"] = false
@@ -451,6 +452,8 @@ func _notes_match_java_contract(raw_notes: Variant) -> bool:
 	for raw_note: Variant in raw_notes:
 		if not raw_note is Dictionary:
 			return false
+		if not _note_matches_java_contract(raw_note):
+			return false
 		var kind := str(raw_note.get("kind", ""))
 		if kind == "tap":
 			continue
@@ -459,6 +462,11 @@ func _notes_match_java_contract(raw_notes: Variant) -> bool:
 		if not _hold_note_matches_java_contract(raw_note):
 			return false
 	return true
+
+
+func _note_matches_java_contract(note: Dictionary) -> bool:
+	var measure: Variant = note.get("measure")
+	return _is_integer_like(measure) and int(measure) >= 0
 
 
 func _hold_note_matches_java_contract(note: Dictionary) -> bool:

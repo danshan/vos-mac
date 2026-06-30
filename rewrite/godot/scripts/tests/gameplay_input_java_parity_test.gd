@@ -26,6 +26,8 @@ func _init() -> void:
 		return
 	if not _test_rejects_non_exported_long_note_contract():
 		return
+	if not _test_rejects_non_exported_note_measure_contract():
+		return
 
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
@@ -343,7 +345,7 @@ func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"visualTiming": [
 			{"timeMs": 0.0, "bpm": 120.0},
@@ -364,7 +366,7 @@ func _scroll_speed_judgment_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 2500.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 2500.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"judgmentTiming": [
 			{"timeMs": 0.0, "bpm": 120.0},
@@ -389,7 +391,7 @@ func _autoplay_tap_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -423,8 +425,8 @@ func _autoplay_same_lane_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 0, "startMs": 1100.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 0, "startMs": 1100.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -440,10 +442,10 @@ func _chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 5000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 2000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
-			{"id": 4, "lane": 3, "startMs": 4000.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 4, "lane": 3, "startMs": 4000.0, "measure": 0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -460,6 +462,28 @@ func _test_rejects_non_exported_long_note_contract() -> bool:
 	var hold_end_chart: Dictionary = _autoplay_long_note_chart()
 	hold_end_chart["notes"][0]["kind"] = "holdEnd"
 	if not _expect_bool(standalone_hold_end.load_chart(hold_end_chart), false, "standalone hold end chart rejected"):
+		return false
+
+	return true
+
+
+func _test_rejects_non_exported_note_measure_contract() -> bool:
+	var missing_measure = GameplayController.new()
+	var missing_chart: Dictionary = _chart()
+	missing_chart["notes"][0].erase("measure")
+	if not _expect_bool(missing_measure.load_chart(missing_chart), false, "missing note measure chart rejected"):
+		return false
+
+	var string_measure = GameplayController.new()
+	var string_chart: Dictionary = _chart()
+	string_chart["notes"][0]["measure"] = "0"
+	if not _expect_bool(string_measure.load_chart(string_chart), false, "string note measure chart rejected"):
+		return false
+
+	var negative_measure = GameplayController.new()
+	var negative_chart: Dictionary = _chart()
+	negative_chart["notes"][0]["measure"] = -1
+	if not _expect_bool(negative_measure.load_chart(negative_chart), false, "negative note measure chart rejected"):
 		return false
 
 	return true

@@ -140,7 +140,7 @@ func _test_java_fps_timer(chart: Dictionary, audio_manifest: Dictionary) -> bool
 	var long_chart := chart.duplicate(true)
 	long_chart["durationMs"] = 65000
 	long_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 70000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"id": 1, "lane": 0, "startMs": 70000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var runtime = GameplayRuntime.new()
 	get_root().add_child(runtime)
@@ -353,8 +353,8 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 		"hasteMode": true,
 		"hasteModeNormalizeSpeed": true,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 6100.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 9200.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 6100.0, "measure": 6, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 9200.0, "measure": 9, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"measures": [
 			{"startMs": 0.0},
@@ -540,7 +540,7 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 0.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 0.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -600,7 +600,7 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 			{"startMs": 1000.0},
 		],
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [
 			{"startMs": 1000.0, "sampleId": 1, "volume": 1.0, "pan": 0.0},
@@ -694,7 +694,7 @@ func _test_java_finish_ignores_chart_duration(audio_manifest: Dictionary) -> boo
 		"bpm": 120.0,
 		"durationMs": 65000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -726,7 +726,7 @@ func _test_java_finish_waits_for_note_layer(audio_manifest: Dictionary) -> bool:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 12000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 12000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -758,9 +758,9 @@ func _test_java_buffered_visual_entities_match_render_window(audio_manifest: Dic
 		"bpm": 120.0,
 		"durationMs": 8000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 3000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 3, "lane": 2, "startMs": 6000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 3000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 3, "lane": 2, "startMs": 6000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

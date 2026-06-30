@@ -17,7 +17,7 @@ func _init() -> void:
 	if not _expect_bool(first.has_node("Content/SettingsScroll/SettingsForm"), true, "settings form"):
 		return
 	if not _expect_string(_settings_label_text(first, "AudioLatencySpinBoxDescription"),
-			"Offset audio and autosound timing in milliseconds.", "audio latency description"):
+			"Audio timing offset in milliseconds. Positive values delay judgment and autosound timing.", "audio latency description"):
 		return
 
 	_settings_node(first, "SongDirectoryInput").text = "res://test/fixtures"

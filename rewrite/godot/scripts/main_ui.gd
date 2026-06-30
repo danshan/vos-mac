@@ -27,6 +27,16 @@ const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
 const SPEED_TYPES: Array[String] = ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
 const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
+const MISC_KEY_DESCRIPTIONS: Dictionary = {
+	InputMapStore.ACTION_SPEED_UP: "Raises note scroll speed by 0.5 during gameplay.",
+	InputMapStore.ACTION_SPEED_DOWN: "Lowers note scroll speed by 0.5 during gameplay.",
+	InputMapStore.ACTION_MAIN_VOLUME_UP: "Raises master volume by 0.05 during gameplay.",
+	InputMapStore.ACTION_MAIN_VOLUME_DOWN: "Lowers master volume by 0.05 during gameplay.",
+	InputMapStore.ACTION_KEY_VOLUME_UP: "Raises keysound volume by 0.05 during gameplay.",
+	InputMapStore.ACTION_KEY_VOLUME_DOWN: "Lowers keysound volume by 0.05 during gameplay.",
+	InputMapStore.ACTION_BGM_VOLUME_UP: "Raises background music volume by 0.05 during gameplay.",
+	InputMapStore.ACTION_BGM_VOLUME_DOWN: "Lowers background music volume by 0.05 during gameplay.",
+}
 const DEFAULT_SETTINGS_PATH: String = "user://settings.cfg"
 
 var _built: bool = false
@@ -269,25 +279,25 @@ func _show_settings() -> void:
 	directory_input.name = "SongDirectoryInput"
 	directory_input.placeholder_text = "Song directory"
 	directory_input.text = _song_directories_text()
-	_add_setting_row(form, "Song directories", "Semicolon-separated folders scanned for VOS songs.", directory_input)
+	_add_setting_row(form, "Song directories", "One or more folders to scan for VOS songs. Separate multiple paths with semicolons.", directory_input)
 
 	var fullscreen := CheckBox.new()
 	fullscreen.name = "FullscreenCheckBox"
 	fullscreen.text = "Enabled"
 	fullscreen.button_pressed = _settings_store.fullscreen_enabled()
-	_add_setting_row(form, "Fullscreen", "Use fullscreen window mode when the app starts.", fullscreen)
+	_add_setting_row(form, "Fullscreen", "Switch the game window to fullscreen when enabled.", fullscreen)
 
 	var autoplay := CheckBox.new()
 	autoplay.name = "AutoplayCheckBox"
 	autoplay.text = "Enabled"
 	autoplay.button_pressed = _settings_store.autoplay_enabled()
-	_add_setting_row(form, "Autoplay", "Let the runtime play note lanes automatically.", autoplay)
+	_add_setting_row(form, "Autoplay", "Automatically hits note lanes for playback, testing, and visual checks.", autoplay)
 
 	var autosound := CheckBox.new()
 	autosound.name = "AutoSoundCheckBox"
 	autosound.text = "Enabled"
 	autosound.button_pressed = _settings_store.autosound_enabled()
-	_add_setting_row(form, "AutoSound", "Play note keysounds automatically when they reach timing.", autosound)
+	_add_setting_row(form, "AutoSound", "Plays note keysounds at chart timing without requiring key presses.", autosound)
 
 	var audio_latency := SpinBox.new()
 	audio_latency.name = "AudioLatencySpinBox"
@@ -295,7 +305,7 @@ func _show_settings() -> void:
 	audio_latency.max_value = 60000.0
 	audio_latency.step = 1.0
 	audio_latency.value = _settings_store.audio_latency_ms()
-	_add_setting_row(form, "Audio latency", "Offset audio and autosound timing in milliseconds.", audio_latency)
+	_add_setting_row(form, "Audio latency", "Audio timing offset in milliseconds. Positive values delay judgment and autosound timing.", audio_latency)
 
 	var display_latency := SpinBox.new()
 	display_latency.name = "DisplayLatencySpinBox"
@@ -303,7 +313,7 @@ func _show_settings() -> void:
 	display_latency.max_value = 60000.0
 	display_latency.step = 1.0
 	display_latency.value = _settings_store.display_latency_ms()
-	_add_setting_row(form, "Display latency", "Offset visual note and HUD timing in milliseconds.", display_latency)
+	_add_setting_row(form, "Display latency", "Visual timing offset in milliseconds applied after audio latency. Positive values draw notes later in chart time.", display_latency)
 
 	var master_volume := SpinBox.new()
 	master_volume.name = "MasterVolumeSpinBox"
@@ -311,7 +321,7 @@ func _show_settings() -> void:
 	master_volume.max_value = 1.0
 	master_volume.step = 0.05
 	master_volume.value = _settings_store.master_volume()
-	_add_setting_row(form, "Master volume", "Overall output volume.", master_volume)
+	_add_setting_row(form, "Master volume", "Volume multiplier from 0.0 to 1.0 applied to all audio.", master_volume)
 
 	var key_volume := SpinBox.new()
 	key_volume.name = "KeyVolumeSpinBox"
@@ -319,7 +329,7 @@ func _show_settings() -> void:
 	key_volume.max_value = 1.0
 	key_volume.step = 0.05
 	key_volume.value = _settings_store.key_volume()
-	_add_setting_row(form, "Key volume", "Keysound volume multiplier.", key_volume)
+	_add_setting_row(form, "Key volume", "Volume multiplier from 0.0 to 1.0 applied to note keysounds.", key_volume)
 
 	var bgm_volume := SpinBox.new()
 	bgm_volume.name = "BgmVolumeSpinBox"
@@ -327,25 +337,25 @@ func _show_settings() -> void:
 	bgm_volume.max_value = 1.0
 	bgm_volume.step = 0.05
 	bgm_volume.value = _settings_store.bgm_volume()
-	_add_setting_row(form, "BGM volume", "Background music volume multiplier.", bgm_volume)
+	_add_setting_row(form, "BGM volume", "Volume multiplier from 0.0 to 1.0 applied to background music.", bgm_volume)
 
 	var haste_mode := CheckBox.new()
 	haste_mode.name = "HasteModeCheckBox"
 	haste_mode.text = "Enabled"
 	haste_mode.button_pressed = _settings_store.haste_mode_enabled()
-	_add_setting_row(form, "Haste mode", "Gradually increases game speed using Java haste rules.", haste_mode)
+	_add_setting_row(form, "Haste mode", "Gradually changes game speed and audio pitch using Java haste rules.", haste_mode)
 
 	var haste_normalize := CheckBox.new()
 	haste_normalize.name = "HasteNormalizeSpeedCheckBox"
 	haste_normalize.text = "Enabled"
 	haste_normalize.button_pressed = _settings_store.haste_mode_normalize_speed()
-	_add_setting_row(form, "Haste normalize speed", "Compensate note scroll speed while haste changes pitch.", haste_normalize)
+	_add_setting_row(form, "Haste normalize speed", "Keeps note scroll distance stable while haste changes audio pitch.", haste_normalize)
 
 	var start_paused := CheckBox.new()
 	start_paused.name = "StartPausedCheckBox"
 	start_paused.text = "Enabled"
 	start_paused.button_pressed = _settings_store.start_paused_enabled()
-	_add_setting_row(form, "Start paused", "Wait for the first note key before game time starts.", start_paused)
+	_add_setting_row(form, "Start paused", "Waits for the first lane key before game time starts.", start_paused)
 
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
@@ -353,7 +363,9 @@ func _show_settings() -> void:
 		channel_modifier.add_item(modifier)
 	var selected_modifier := CHANNEL_MODIFIERS.find(_settings_store.channel_modifier())
 	channel_modifier.select(max(selected_modifier, 0))
-	_add_setting_row(form, "Channel modifier", "Apply Java lane modifiers before gameplay.", channel_modifier)
+	_add_setting_row(form, "Channel modifier",
+			"None keeps original lanes. Mirror reverses lanes. Shuffle remaps once per chart. Random remaps by measure while preserving active long notes.",
+			channel_modifier)
 
 	var speed_type := OptionButton.new()
 	speed_type.name = "SpeedTypeOption"
@@ -361,7 +373,9 @@ func _show_settings() -> void:
 		speed_type.add_item(option)
 	var selected_speed_type := SPEED_TYPES.find(_settings_store.speed_type())
 	speed_type.select(max(selected_speed_type, 0))
-	_add_setting_row(form, "Speed type", "Select Java note-distance mode.", speed_type)
+	_add_setting_row(form, "Speed type",
+			"HiSpeed follows BPM beat distance. xRSpeed adds per-lane distance variation. WSpeed waves distance over time. RegulSpeed uses fixed 150 BPM distance.",
+			speed_type)
 
 	var speed_multiplier := SpinBox.new()
 	speed_multiplier.name = "SpeedMultiplierSpinBox"
@@ -369,7 +383,7 @@ func _show_settings() -> void:
 	speed_multiplier.max_value = 10.0
 	speed_multiplier.step = 0.5
 	speed_multiplier.value = _settings_store.speed_multiplier()
-	_add_setting_row(form, "Speed multiplier", "Base note scroll speed.", speed_multiplier)
+	_add_setting_row(form, "Speed multiplier", "Base note scroll speed multiplier. 1.0 matches exported Java speed; larger values scroll faster.", speed_multiplier)
 
 	var visibility_modifier := OptionButton.new()
 	visibility_modifier.name = "VisibilityModifierOption"
@@ -377,7 +391,9 @@ func _show_settings() -> void:
 		visibility_modifier.add_item(option)
 	var selected_visibility := VISIBILITY_MODIFIERS.find(_settings_store.visibility_modifier())
 	visibility_modifier.select(max(selected_visibility, 0))
-	_add_setting_row(form, "Visibility modifier", "Apply Java Hidden, Sudden, or Dark lane overlay.", visibility_modifier)
+	_add_setting_row(form, "Visibility modifier",
+			"None leaves lanes uncovered. Hidden covers lower lanes. Sudden covers upper lanes. Dark masks top and bottom lanes.",
+			visibility_modifier)
 
 	var judgment_type := OptionButton.new()
 	judgment_type.name = "JudgmentTypeOption"
@@ -385,7 +401,7 @@ func _show_settings() -> void:
 		judgment_type.add_item(option)
 	var selected_judgment := JUDGMENT_TYPES.find(_settings_store.judgment_type())
 	judgment_type.select(max(selected_judgment, 0))
-	_add_setting_row(form, "Judgment type", "Choose beat-based or time-based judgment.", judgment_type)
+	_add_setting_row(form, "Judgment type", "Beat uses BPM-relative windows. Time uses millisecond windows.", judgment_type)
 
 	var key_bindings := GridContainer.new()
 	key_bindings.name = "KeyBindings"
@@ -393,12 +409,23 @@ func _show_settings() -> void:
 	key_bindings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
+		var lane_description := _lane_key_description(i)
+		var key_group := VBoxContainer.new()
+		key_group.name = "KeyBinding%dGroup" % (i + 1)
+		key_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		key_group.add_theme_constant_override("separation", 4)
+		key_group.add_child(_setting_caption("KeyBinding%dLabel" % (i + 1), "Lane %d" % (i + 1)))
+		key_group.add_child(_setting_description("KeyBinding%dDescription" % (i + 1), lane_description))
+
 		var key_input := LineEdit.new()
 		key_input.name = "KeyBinding%d" % (i + 1)
+		key_input.placeholder_text = "Lane %d key" % (i + 1)
 		key_input.text = _key_binding_for_settings(i)
 		key_input.custom_minimum_size = Vector2(96.0, 44.0)
-		key_bindings.add_child(key_input)
-	_add_setting_row(form, "Lane key bindings", "Lane keys from left to right.", key_bindings)
+		key_input.tooltip_text = lane_description
+		key_group.add_child(key_input)
+		key_bindings.add_child(key_group)
+	_add_setting_row(form, "Lane key bindings", "Assign one key per VOS 7K lane from left to right.", key_bindings)
 
 	var misc_key_bindings := GridContainer.new()
 	misc_key_bindings.name = "MiscKeyBindings"
@@ -406,13 +433,23 @@ func _show_settings() -> void:
 	misc_key_bindings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	for action: String in MISC_KEY_ACTIONS:
+		var action_description := _misc_key_description(action)
+		var action_group := VBoxContainer.new()
+		action_group.name = "MiscKey_%sGroup" % action
+		action_group.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		action_group.add_theme_constant_override("separation", 4)
+		action_group.add_child(_setting_caption("MiscKey_%sLabel" % action, _misc_key_label(action)))
+		action_group.add_child(_setting_description("MiscKey_%sDescription" % action, action_description))
+
 		var key_input := LineEdit.new()
 		key_input.name = "MiscKey_%s" % action
-		key_input.placeholder_text = action
+		key_input.placeholder_text = _misc_key_label(action)
 		key_input.text = _misc_key_binding_for_settings(action)
 		key_input.custom_minimum_size = Vector2(128.0, 44.0)
-		misc_key_bindings.add_child(key_input)
-	_add_setting_row(form, "Misc key bindings", "Speed and volume hotkeys.", misc_key_bindings)
+		key_input.tooltip_text = action_description
+		action_group.add_child(key_input)
+		misc_key_bindings.add_child(action_group)
+	_add_setting_row(form, "Misc key bindings", "Assign gameplay hotkeys for speed and master, keysound, and BGM volume changes.", misc_key_bindings)
 
 	var back_button := _button("BackButton", "Back")
 	back_button.pressed.connect(_on_settings_back_pressed)
@@ -433,16 +470,60 @@ func _add_setting_row(parent: VBoxContainer, title_text: String, description_tex
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(title)
 
-	var description := Label.new()
-	description.name = "%sDescription" % control.name
-	description.text = description_text
-	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	description.modulate = Color(0.68, 0.72, 0.78, 1.0)
-	row.add_child(description)
+	row.add_child(_setting_description("%sDescription" % control.name, description_text))
 
 	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	control.tooltip_text = description_text
 	row.add_child(control)
 	parent.add_child(row)
+
+
+func _setting_caption(node_name: String, text: String) -> Label:
+	var label := Label.new()
+	label.name = node_name
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.modulate = Color(0.78, 0.82, 0.88, 1.0)
+	return label
+
+
+func _setting_description(node_name: String, text: String) -> Label:
+	var label := Label.new()
+	label.name = node_name
+	label.text = text
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.modulate = Color(0.68, 0.72, 0.78, 1.0)
+	return label
+
+
+func _lane_key_description(index: int) -> String:
+	return "Triggers lane %d of the VOS 7K layout from left to right." % (index + 1)
+
+
+func _misc_key_label(action: String) -> String:
+	match action:
+		InputMapStore.ACTION_SPEED_UP:
+			return "Speed up"
+		InputMapStore.ACTION_SPEED_DOWN:
+			return "Speed down"
+		InputMapStore.ACTION_MAIN_VOLUME_UP:
+			return "Master volume up"
+		InputMapStore.ACTION_MAIN_VOLUME_DOWN:
+			return "Master volume down"
+		InputMapStore.ACTION_KEY_VOLUME_UP:
+			return "Key volume up"
+		InputMapStore.ACTION_KEY_VOLUME_DOWN:
+			return "Key volume down"
+		InputMapStore.ACTION_BGM_VOLUME_UP:
+			return "BGM volume up"
+		InputMapStore.ACTION_BGM_VOLUME_DOWN:
+			return "BGM volume down"
+		_:
+			return action
+
+
+func _misc_key_description(action: String) -> String:
+	return str(MISC_KEY_DESCRIPTIONS.get(action, action))
 
 
 func _show_song_select() -> void:

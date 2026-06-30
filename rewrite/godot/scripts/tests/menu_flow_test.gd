@@ -37,8 +37,7 @@ func _init() -> void:
 		return
 	if not _expect_string(_settings_label_text(ui, "SongDirectoryInputLabel"), "Song directories", "song directory label"):
 		return
-	if not _expect_string(_settings_label_text(ui, "SpeedTypeOptionDescription"),
-			"Select Java note-distance mode.", "speed type description"):
+	if not _expect_settings_descriptions(ui, _expected_settings_descriptions()):
 		return
 	if not _expect_bool(_has_settings_node(ui, "SongDirectoryInput"), true, "song directory input"):
 		return
@@ -300,6 +299,48 @@ func _settings_label_text(ui: Node, node_name: String) -> String:
 	if label is Label:
 		return label.text
 	return ""
+
+
+func _expected_settings_descriptions() -> Dictionary:
+	var expected := {
+		"SongDirectoryInputDescription": "One or more folders to scan for VOS songs. Separate multiple paths with semicolons.",
+		"FullscreenCheckBoxDescription": "Switch the game window to fullscreen when enabled.",
+		"AutoplayCheckBoxDescription": "Automatically hits note lanes for playback, testing, and visual checks.",
+		"AutoSoundCheckBoxDescription": "Plays note keysounds at chart timing without requiring key presses.",
+		"AudioLatencySpinBoxDescription": "Audio timing offset in milliseconds. Positive values delay judgment and autosound timing.",
+		"DisplayLatencySpinBoxDescription": "Visual timing offset in milliseconds applied after audio latency. Positive values draw notes later in chart time.",
+		"MasterVolumeSpinBoxDescription": "Volume multiplier from 0.0 to 1.0 applied to all audio.",
+		"KeyVolumeSpinBoxDescription": "Volume multiplier from 0.0 to 1.0 applied to note keysounds.",
+		"BgmVolumeSpinBoxDescription": "Volume multiplier from 0.0 to 1.0 applied to background music.",
+		"HasteModeCheckBoxDescription": "Gradually changes game speed and audio pitch using Java haste rules.",
+		"HasteNormalizeSpeedCheckBoxDescription": "Keeps note scroll distance stable while haste changes audio pitch.",
+		"StartPausedCheckBoxDescription": "Waits for the first lane key before game time starts.",
+		"ChannelModifierOptionDescription": "None keeps original lanes. Mirror reverses lanes. Shuffle remaps once per chart. Random remaps by measure while preserving active long notes.",
+		"SpeedTypeOptionDescription": "HiSpeed follows BPM beat distance. xRSpeed adds per-lane distance variation. WSpeed waves distance over time. RegulSpeed uses fixed 150 BPM distance.",
+		"SpeedMultiplierSpinBoxDescription": "Base note scroll speed multiplier. 1.0 matches exported Java speed; larger values scroll faster.",
+		"VisibilityModifierOptionDescription": "None leaves lanes uncovered. Hidden covers lower lanes. Sudden covers upper lanes. Dark masks top and bottom lanes.",
+		"JudgmentTypeOptionDescription": "Beat uses BPM-relative windows. Time uses millisecond windows.",
+		"KeyBindingsDescription": "Assign one key per VOS 7K lane from left to right.",
+		"MiscKeyBindingsDescription": "Assign gameplay hotkeys for speed and master, keysound, and BGM volume changes.",
+	}
+	for lane in range(7):
+		expected["KeyBinding%dDescription" % (lane + 1)] = "Triggers lane %d of the VOS 7K layout from left to right." % (lane + 1)
+	expected["MiscKey_speed_upDescription"] = "Raises note scroll speed by 0.5 during gameplay."
+	expected["MiscKey_speed_downDescription"] = "Lowers note scroll speed by 0.5 during gameplay."
+	expected["MiscKey_main_volume_upDescription"] = "Raises master volume by 0.05 during gameplay."
+	expected["MiscKey_main_volume_downDescription"] = "Lowers master volume by 0.05 during gameplay."
+	expected["MiscKey_key_volume_upDescription"] = "Raises keysound volume by 0.05 during gameplay."
+	expected["MiscKey_key_volume_downDescription"] = "Lowers keysound volume by 0.05 during gameplay."
+	expected["MiscKey_bgm_volume_upDescription"] = "Raises background music volume by 0.05 during gameplay."
+	expected["MiscKey_bgm_volume_downDescription"] = "Lowers background music volume by 0.05 during gameplay."
+	return expected
+
+
+func _expect_settings_descriptions(ui: Node, expected: Dictionary) -> bool:
+	for node_name: Variant in expected.keys():
+		if not _expect_string(_settings_label_text(ui, str(node_name)), str(expected[node_name]), "%s text" % node_name):
+			return false
+	return true
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

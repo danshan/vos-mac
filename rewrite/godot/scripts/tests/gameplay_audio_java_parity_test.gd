@@ -81,6 +81,8 @@ func _init() -> void:
 		return
 	if not _test_java_autosound_suppressed_after_miss():
 		return
+	if not _test_non_vos_rejected_keysound_keeps_java_behavior():
+		return
 
 	quit(0)
 
@@ -130,6 +132,21 @@ func _test_java_autosound_suppressed_after_miss() -> bool:
 	if not _expect_bool(hit.get("accepted", false), true, "suppressed autosound manual hit accepted"):
 		return false
 	if not _expect_result_command(hit, "playSample", 2, "note", "keysound", "suppressed autosound manual keysound"):
+		return false
+	return true
+
+
+func _test_non_vos_rejected_keysound_keeps_java_behavior() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_non_vos_rejected_keysound_chart()), true, "non VOS rejected keysound chart load"):
+		return false
+
+	var rejected_far: Dictionary = controller.press_action("vos_lane_1", 500.0)
+	if not _expect_bool(rejected_far.get("accepted", true), false, "non VOS far rejected"):
+		return false
+	if not _expect_bool(rejected_far.get("rejectedKeysound", false), true, "non VOS rejected keysound"):
+		return false
+	if not _expect_result_command(rejected_far, "playSample", 7, "note", "extrasound", "non VOS rejected command"):
 		return false
 	return true
 
@@ -185,6 +202,22 @@ func _autosound_suppression_chart() -> Dictionary:
 		"notes": [
 			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 			{"id": 2, "lane": 1, "startMs": 1300.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _non_vos_rejected_keysound_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "osu:rejected-keysound",
+		"format": "OSU",
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"id": 7, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 7, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

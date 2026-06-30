@@ -293,7 +293,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 	_notes[note_index] = note
 
 	if not _accept_note(note, hit_time, now_ms):
-		var rejected_keysound := absf(hit_time) <= VOS_LIVE_TRIGGER_THRESHOLD
+		var rejected_keysound := _should_trigger_rejected_keysound(hit_time)
 		if rejected_keysound:
 			_emit_note_play_command(note_index, AUDIO_TRIGGER_EXTRASOUND, false)
 		return {
@@ -695,6 +695,16 @@ func _missed_note(note: Dictionary, hit_time: float, now_ms: float) -> bool:
 	if _judgment_type == JUDGMENT_TYPE_TIME:
 		return _judgment.missed_time(hit_time)
 	return _judgment.missed_beat(_beat_hit_delta(note, hit_time, now_ms))
+
+
+func _should_trigger_rejected_keysound(hit_time: float) -> bool:
+	if not _is_vos_chart():
+		return true
+	return absf(hit_time) <= VOS_LIVE_TRIGGER_THRESHOLD
+
+
+func _is_vos_chart() -> bool:
+	return str(_chart.get("format", "")) == "VOS"
 
 
 func _judge_note(note: Dictionary, hit_time: float, now_ms: float) -> String:

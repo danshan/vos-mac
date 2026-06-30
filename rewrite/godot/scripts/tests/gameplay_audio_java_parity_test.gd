@@ -183,7 +183,7 @@ func _chart() -> Dictionary:
 		"notes": [
 			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 0.8, "pan": -0.2, "kind": "tap"},
 			{"id": 2, "lane": 1, "startMs": 2000.0, "endMs": null, "sampleId": 2, "volume": 0.9, "pan": 0.1, "kind": "tap"},
-			{"id": 3, "lane": 2, "startMs": 3000.0, "endMs": 3300.0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
 			{"id": 4, "lane": 3, "startMs": 4000.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [

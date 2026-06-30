@@ -105,6 +105,8 @@ var _last_game_speed_change_time_ms: float = 0.0
 func load_chart(chart: Dictionary) -> bool:
 	if chart.is_empty():
 		return false
+	if not _notes_match_java_contract(chart.get("notes", [])):
+		return false
 
 	_chart = chart.duplicate(true)
 	_score_state = ScoreState.new(_normalized_rank(_chart.get("rank", 0)))
@@ -440,6 +442,52 @@ func _normalized_notes(raw_notes: Variant) -> Array[Dictionary]:
 
 	normalized.sort_custom(_compare_notes)
 	return normalized
+
+
+func _notes_match_java_contract(raw_notes: Variant) -> bool:
+	if not raw_notes is Array:
+		return false
+
+	for raw_note: Variant in raw_notes:
+		if not raw_note is Dictionary:
+			return false
+		var kind := str(raw_note.get("kind", ""))
+		if kind == "tap":
+			continue
+		if kind != "holdStart":
+			return false
+		if not _hold_note_matches_java_contract(raw_note):
+			return false
+	return true
+
+
+func _hold_note_matches_java_contract(note: Dictionary) -> bool:
+	var start_ms: Variant = note.get("startMs")
+	var end_ms: Variant = note.get("endMs")
+	var end_measure: Variant = note.get("endMeasure")
+	if not _is_non_negative_number(start_ms):
+		return false
+	if not _is_non_negative_number(end_ms):
+		return false
+	if float(end_ms) < float(start_ms):
+		return false
+	if not _is_integer_like(end_measure) or int(end_measure) < 0:
+		return false
+	return true
+
+
+func _is_non_negative_number(value: Variant) -> bool:
+	if not (value is int or value is float):
+		return false
+	return float(value) >= 0.0
+
+
+func _is_integer_like(value: Variant) -> bool:
+	if value is int:
+		return true
+	if value is float:
+		return value == floor(value)
+	return false
 
 
 func _normalized_auto_play_events(raw_events: Variant) -> Array[Dictionary]:

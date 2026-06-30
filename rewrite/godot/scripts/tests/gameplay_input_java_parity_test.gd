@@ -24,6 +24,8 @@ func _init() -> void:
 		return
 	if not _test_autoplay_ignores_manual_input():
 		return
+	if not _test_rejects_non_exported_long_note_contract():
+		return
 
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
@@ -404,7 +406,7 @@ func _autoplay_long_note_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 5000,
 		"notes": [
-			{"id": 3, "lane": 2, "startMs": 3000.0, "endMs": 3300.0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -440,11 +442,27 @@ func _chart() -> Dictionary:
 		"notes": [
 			{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 			{"id": 2, "lane": 1, "startMs": 2000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 3, "lane": 2, "startMs": 3000.0, "endMs": 3300.0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
 			{"id": 4, "lane": 3, "startMs": 4000.0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
+
+
+func _test_rejects_non_exported_long_note_contract() -> bool:
+	var missing_end_measure = GameplayController.new()
+	var missing_chart: Dictionary = _autoplay_long_note_chart()
+	missing_chart["notes"][0].erase("endMeasure")
+	if not _expect_bool(missing_end_measure.load_chart(missing_chart), false, "missing hold end measure chart rejected"):
+		return false
+
+	var standalone_hold_end = GameplayController.new()
+	var hold_end_chart: Dictionary = _autoplay_long_note_chart()
+	hold_end_chart["notes"][0]["kind"] = "holdEnd"
+	if not _expect_bool(standalone_hold_end.load_chart(hold_end_chart), false, "standalone hold end chart rejected"):
+		return false
+
+	return true
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

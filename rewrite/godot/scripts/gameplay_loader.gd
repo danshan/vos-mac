@@ -9,7 +9,7 @@ const REQUIRED_NOTE_FIELDS: Array[String] = [
 	"kind",
 ]
 
-const VALID_NOTE_KINDS := ["tap", "holdStart", "holdEnd"]
+const VALID_NOTE_KINDS := ["tap", "holdStart"]
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MOD_MIRROR: String = "Mirror"
 const CHANNEL_MOD_SHUFFLE: String = "Shuffle"
@@ -189,7 +189,28 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	normalized_note["lane"] = int(lane)
 	normalized_note["startMs"] = float(start_ms)
 	normalized_note["sampleId"] = int(sample_id)
+	if str(kind) == "holdStart" and not _normalize_hold_note(normalized_note, float(start_ms)):
+		return {}
 	return normalized_note
+
+
+func _normalize_hold_note(note: Dictionary, start_ms: float) -> bool:
+	if not note.has("endMs") or not note.has("endMeasure"):
+		return false
+
+	var end_ms: Variant = note.get("endMs")
+	if not _is_non_negative_number(end_ms):
+		return false
+	if float(end_ms) < start_ms:
+		return false
+
+	var end_measure: Variant = note.get("endMeasure")
+	if not _is_integer_like(end_measure) or int(end_measure) < 0:
+		return false
+
+	note["endMs"] = float(end_ms)
+	note["endMeasure"] = int(end_measure)
+	return true
 
 
 func _normalized_timing(raw_timing: Variant) -> Array[Dictionary]:

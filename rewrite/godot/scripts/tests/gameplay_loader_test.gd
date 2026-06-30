@@ -107,6 +107,20 @@ func _init() -> void:
 	if not _expect_string(normalized_bga_video_chart.get("bgaVideoPath", ""), "res://test/fixtures/intro.ogv", "normalized bga video path"):
 		return
 
+	var hold_chart_path := _chart_path("hold_note_contract")
+	if not _write_chart(hold_chart_path, _valid_hold_chart()):
+		return
+	var normalized_hold_chart: Dictionary = loader.load_from_file(hold_chart_path)
+	if not _expect_bool(normalized_hold_chart.is_empty(), false, "hold note chart load"):
+		return
+	var normalized_hold_notes: Array = normalized_hold_chart.get("notes", [])
+	if not _expect_float(normalized_hold_notes[0].get("endMs", -1.0), 1500.0, "normalized hold end"):
+		return
+	if not _expect_int(typeof(normalized_hold_notes[0].get("endMeasure")), TYPE_INT, "normalized hold end measure type"):
+		return
+	if not _expect_int(normalized_hold_notes[0].get("endMeasure", -1), 1, "normalized hold end measure"):
+		return
+
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
@@ -216,11 +230,25 @@ func _init() -> void:
 		return
 	if not _expect_rejected(loader, _chart_with_note("kind", "scratch"), "invalid note kind"):
 		return
+	if not _expect_rejected(loader, _chart_with_note("kind", "holdEnd"), "standalone hold end"):
+		return
 	if not _expect_rejected(loader, _chart_with_note("sampleId", "2"), "string note sample id"):
 		return
 	if not _expect_rejected(loader, _chart_with_note("sampleId", 0), "zero note sample id"):
 		return
 	if not _expect_rejected(loader, _chart_with_note("lane", 7), "note lane outside keys"):
+		return
+	if not _expect_rejected(loader, _hold_chart_without_note_field("endMs"), "missing hold end"):
+		return
+	if not _expect_rejected(loader, _hold_chart_without_note_field("endMeasure"), "missing hold end measure"):
+		return
+	if not _expect_rejected(loader, _hold_chart_with_note("endMs", "1500"), "string hold end"):
+		return
+	if not _expect_rejected(loader, _hold_chart_with_note("endMs", 999.0), "hold end before start"):
+		return
+	if not _expect_rejected(loader, _hold_chart_with_note("endMeasure", "1"), "string hold end measure"):
+		return
+	if not _expect_rejected(loader, _hold_chart_with_note("endMeasure", -1), "negative hold end measure"):
 		return
 	if not _expect_rejected(loader, _chart_without_event_timestamp(), "missing event timestamp"):
 		return
@@ -289,6 +317,23 @@ func _valid_chart() -> Dictionary:
 	}
 
 
+func _valid_hold_chart() -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart["notes"] = [{
+		"id": 1,
+		"lane": 0,
+		"startMs": 1000.0,
+		"measure": 0,
+		"endMs": 1500.0,
+		"endMeasure": 1.0,
+		"sampleId": 2,
+		"volume": 1.0,
+		"pan": 0.0,
+		"kind": "holdStart",
+	}]
+	return chart
+
+
 func _chart_with(field: String, value: Variant) -> Dictionary:
 	var chart: Dictionary = _valid_chart()
 	chart[field] = value
@@ -303,6 +348,18 @@ func _chart_with_note(field: String, value: Variant) -> Dictionary:
 
 func _chart_without_note_field(field: String) -> Dictionary:
 	var chart: Dictionary = _valid_chart()
+	chart["notes"][0].erase(field)
+	return chart
+
+
+func _hold_chart_with_note(field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_hold_chart()
+	chart["notes"][0][field] = value
+	return chart
+
+
+func _hold_chart_without_note_field(field: String) -> Dictionary:
+	var chart: Dictionary = _valid_hold_chart()
 	chart["notes"][0].erase(field)
 	return chart
 

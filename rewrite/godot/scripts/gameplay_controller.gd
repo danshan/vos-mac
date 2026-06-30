@@ -346,6 +346,8 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 		return {"released": false, "accepted": false, "reason": "invalid_lane", "audioCommands": []}
 	if _autoplay_enabled:
 		return {"released": false, "accepted": false, "reason": "autoplay_lane", "audioCommands": []}
+	if not bool(_pressed_lanes.get(lane, false)):
+		return {"released": false, "accepted": false, "reason": "not_pressed", "audioCommands": []}
 
 	_pressed_lanes[lane] = false
 	if not _held_note_indices.has(lane):

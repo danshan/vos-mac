@@ -10,6 +10,8 @@ func _init() -> void:
 		return
 	if not _test_explicit_time_judgment():
 		return
+	if not _test_release_without_prior_press_is_noop():
+		return
 	if not _test_late_accepted_miss_plays_then_stops_keysound():
 		return
 	if not _test_ranked_chart_life_model():
@@ -156,6 +158,23 @@ func _test_explicit_time_judgment() -> bool:
 		return false
 	var time_hit: Dictionary = controller.press_action("vos_lane_1", 780.0)
 	if not _expect_bool(time_hit.get("accepted", true), false, "time rejects wide early hit"):
+		return false
+	return true
+
+
+func _test_release_without_prior_press_is_noop() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_single_note_chart({"judgmentType": "time"})), true, "release noop chart load"):
+		return false
+
+	var release_result: Dictionary = controller.release_action("vos_lane_1", 900.0)
+	if not _expect_bool(release_result.get("released", true), false, "unpressed release is ignored"):
+		return false
+	if not _expect_string(release_result.get("reason", ""), "not_pressed", "unpressed release reason"):
+		return false
+	if not _expect_int(controller.result().get("score", 0), 0, "unpressed release score"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "unpressed release audio"):
 		return false
 	return true
 

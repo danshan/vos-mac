@@ -9,6 +9,7 @@ const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
+const ResultModel = preload("res://scripts/result_model.gd")
 const SettingsStore = preload("res://scripts/settings_store.gd")
 
 const DEFAULT_KEY_BINDINGS: Array[String] = ["S", "D", "F", "Space", "J", "K", "L"]
@@ -247,33 +248,46 @@ func _on_settings_pressed() -> void:
 
 func _show_settings() -> void:
 	_clear_content()
+	_content.alignment = BoxContainer.ALIGNMENT_BEGIN
 
 	_title_label = _label("Title", "Settings", HORIZONTAL_ALIGNMENT_CENTER)
 	_content.add_child(_title_label)
+
+	var scroll := ScrollContainer.new()
+	scroll.name = "SettingsScroll"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.add_child(scroll)
+
+	var form := VBoxContainer.new()
+	form.name = "SettingsForm"
+	form.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	form.add_theme_constant_override("separation", 12)
+	scroll.add_child(form)
 
 	var directory_input := LineEdit.new()
 	directory_input.name = "SongDirectoryInput"
 	directory_input.placeholder_text = "Song directory"
 	directory_input.text = _song_directories_text()
-	_content.add_child(directory_input)
+	_add_setting_row(form, "Song directories", "Semicolon-separated folders scanned for VOS songs.", directory_input)
 
 	var fullscreen := CheckBox.new()
 	fullscreen.name = "FullscreenCheckBox"
-	fullscreen.text = "Fullscreen"
+	fullscreen.text = "Enabled"
 	fullscreen.button_pressed = _settings_store.fullscreen_enabled()
-	_content.add_child(fullscreen)
+	_add_setting_row(form, "Fullscreen", "Use fullscreen window mode when the app starts.", fullscreen)
 
 	var autoplay := CheckBox.new()
 	autoplay.name = "AutoplayCheckBox"
-	autoplay.text = "Autoplay"
+	autoplay.text = "Enabled"
 	autoplay.button_pressed = _settings_store.autoplay_enabled()
-	_content.add_child(autoplay)
+	_add_setting_row(form, "Autoplay", "Let the runtime play note lanes automatically.", autoplay)
 
 	var autosound := CheckBox.new()
 	autosound.name = "AutoSoundCheckBox"
-	autosound.text = "AutoSound"
+	autosound.text = "Enabled"
 	autosound.button_pressed = _settings_store.autosound_enabled()
-	_content.add_child(autosound)
+	_add_setting_row(form, "AutoSound", "Play note keysounds automatically when they reach timing.", autosound)
 
 	var audio_latency := SpinBox.new()
 	audio_latency.name = "AudioLatencySpinBox"
@@ -281,7 +295,7 @@ func _show_settings() -> void:
 	audio_latency.max_value = 60000.0
 	audio_latency.step = 1.0
 	audio_latency.value = _settings_store.audio_latency_ms()
-	_content.add_child(audio_latency)
+	_add_setting_row(form, "Audio latency", "Offset audio and autosound timing in milliseconds.", audio_latency)
 
 	var display_latency := SpinBox.new()
 	display_latency.name = "DisplayLatencySpinBox"
@@ -289,7 +303,7 @@ func _show_settings() -> void:
 	display_latency.max_value = 60000.0
 	display_latency.step = 1.0
 	display_latency.value = _settings_store.display_latency_ms()
-	_content.add_child(display_latency)
+	_add_setting_row(form, "Display latency", "Offset visual note and HUD timing in milliseconds.", display_latency)
 
 	var master_volume := SpinBox.new()
 	master_volume.name = "MasterVolumeSpinBox"
@@ -297,7 +311,7 @@ func _show_settings() -> void:
 	master_volume.max_value = 1.0
 	master_volume.step = 0.05
 	master_volume.value = _settings_store.master_volume()
-	_content.add_child(master_volume)
+	_add_setting_row(form, "Master volume", "Overall output volume.", master_volume)
 
 	var key_volume := SpinBox.new()
 	key_volume.name = "KeyVolumeSpinBox"
@@ -305,7 +319,7 @@ func _show_settings() -> void:
 	key_volume.max_value = 1.0
 	key_volume.step = 0.05
 	key_volume.value = _settings_store.key_volume()
-	_content.add_child(key_volume)
+	_add_setting_row(form, "Key volume", "Keysound volume multiplier.", key_volume)
 
 	var bgm_volume := SpinBox.new()
 	bgm_volume.name = "BgmVolumeSpinBox"
@@ -313,25 +327,25 @@ func _show_settings() -> void:
 	bgm_volume.max_value = 1.0
 	bgm_volume.step = 0.05
 	bgm_volume.value = _settings_store.bgm_volume()
-	_content.add_child(bgm_volume)
+	_add_setting_row(form, "BGM volume", "Background music volume multiplier.", bgm_volume)
 
 	var haste_mode := CheckBox.new()
 	haste_mode.name = "HasteModeCheckBox"
-	haste_mode.text = "Haste Mode"
+	haste_mode.text = "Enabled"
 	haste_mode.button_pressed = _settings_store.haste_mode_enabled()
-	_content.add_child(haste_mode)
+	_add_setting_row(form, "Haste mode", "Gradually increases game speed using Java haste rules.", haste_mode)
 
 	var haste_normalize := CheckBox.new()
 	haste_normalize.name = "HasteNormalizeSpeedCheckBox"
-	haste_normalize.text = "Haste Normalize Speed"
+	haste_normalize.text = "Enabled"
 	haste_normalize.button_pressed = _settings_store.haste_mode_normalize_speed()
-	_content.add_child(haste_normalize)
+	_add_setting_row(form, "Haste normalize speed", "Compensate note scroll speed while haste changes pitch.", haste_normalize)
 
 	var start_paused := CheckBox.new()
 	start_paused.name = "StartPausedCheckBox"
-	start_paused.text = "Start Paused"
+	start_paused.text = "Enabled"
 	start_paused.button_pressed = _settings_store.start_paused_enabled()
-	_content.add_child(start_paused)
+	_add_setting_row(form, "Start paused", "Wait for the first note key before game time starts.", start_paused)
 
 	var channel_modifier := OptionButton.new()
 	channel_modifier.name = "ChannelModifierOption"
@@ -339,7 +353,7 @@ func _show_settings() -> void:
 		channel_modifier.add_item(modifier)
 	var selected_modifier := CHANNEL_MODIFIERS.find(_settings_store.channel_modifier())
 	channel_modifier.select(max(selected_modifier, 0))
-	_content.add_child(channel_modifier)
+	_add_setting_row(form, "Channel modifier", "Apply Java lane modifiers before gameplay.", channel_modifier)
 
 	var speed_type := OptionButton.new()
 	speed_type.name = "SpeedTypeOption"
@@ -347,7 +361,7 @@ func _show_settings() -> void:
 		speed_type.add_item(option)
 	var selected_speed_type := SPEED_TYPES.find(_settings_store.speed_type())
 	speed_type.select(max(selected_speed_type, 0))
-	_content.add_child(speed_type)
+	_add_setting_row(form, "Speed type", "Select Java note-distance mode.", speed_type)
 
 	var speed_multiplier := SpinBox.new()
 	speed_multiplier.name = "SpeedMultiplierSpinBox"
@@ -355,7 +369,7 @@ func _show_settings() -> void:
 	speed_multiplier.max_value = 10.0
 	speed_multiplier.step = 0.5
 	speed_multiplier.value = _settings_store.speed_multiplier()
-	_content.add_child(speed_multiplier)
+	_add_setting_row(form, "Speed multiplier", "Base note scroll speed.", speed_multiplier)
 
 	var visibility_modifier := OptionButton.new()
 	visibility_modifier.name = "VisibilityModifierOption"
@@ -363,7 +377,7 @@ func _show_settings() -> void:
 		visibility_modifier.add_item(option)
 	var selected_visibility := VISIBILITY_MODIFIERS.find(_settings_store.visibility_modifier())
 	visibility_modifier.select(max(selected_visibility, 0))
-	_content.add_child(visibility_modifier)
+	_add_setting_row(form, "Visibility modifier", "Apply Java Hidden, Sudden, or Dark lane overlay.", visibility_modifier)
 
 	var judgment_type := OptionButton.new()
 	judgment_type.name = "JudgmentTypeOption"
@@ -371,12 +385,12 @@ func _show_settings() -> void:
 		judgment_type.add_item(option)
 	var selected_judgment := JUDGMENT_TYPES.find(_settings_store.judgment_type())
 	judgment_type.select(max(selected_judgment, 0))
-	_content.add_child(judgment_type)
+	_add_setting_row(form, "Judgment type", "Choose beat-based or time-based judgment.", judgment_type)
 
 	var key_bindings := GridContainer.new()
 	key_bindings.name = "KeyBindings"
 	key_bindings.columns = DEFAULT_KEY_BINDINGS.size()
-	_content.add_child(key_bindings)
+	key_bindings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
 		var key_input := LineEdit.new()
@@ -384,11 +398,12 @@ func _show_settings() -> void:
 		key_input.text = _key_binding_for_settings(i)
 		key_input.custom_minimum_size = Vector2(96.0, 44.0)
 		key_bindings.add_child(key_input)
+	_add_setting_row(form, "Lane key bindings", "Lane keys from left to right.", key_bindings)
 
 	var misc_key_bindings := GridContainer.new()
 	misc_key_bindings.name = "MiscKeyBindings"
 	misc_key_bindings.columns = 4
-	_content.add_child(misc_key_bindings)
+	misc_key_bindings.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	for action: String in MISC_KEY_ACTIONS:
 		var key_input := LineEdit.new()
@@ -397,12 +412,37 @@ func _show_settings() -> void:
 		key_input.text = _misc_key_binding_for_settings(action)
 		key_input.custom_minimum_size = Vector2(128.0, 44.0)
 		misc_key_bindings.add_child(key_input)
+	_add_setting_row(form, "Misc key bindings", "Speed and volume hotkeys.", misc_key_bindings)
 
 	var back_button := _button("BackButton", "Back")
 	back_button.pressed.connect(_on_settings_back_pressed)
 	_content.add_child(back_button)
 
 	apply_layout_for_size(_layout_size())
+
+
+func _add_setting_row(parent: VBoxContainer, title_text: String, description_text: String, control: Control) -> void:
+	var row := VBoxContainer.new()
+	row.name = "%sRow" % control.name
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 4)
+
+	var title := Label.new()
+	title.name = "%sLabel" % control.name
+	title.text = title_text
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	row.add_child(title)
+
+	var description := Label.new()
+	description.name = "%sDescription" % control.name
+	description.text = description_text
+	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	description.modulate = Color(0.68, 0.72, 0.78, 1.0)
+	row.add_child(description)
+
+	control.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(control)
+	parent.add_child(row)
 
 
 func _show_song_select() -> void:
@@ -552,7 +592,8 @@ func _label(name: String, text: String, alignment: HorizontalAlignment) -> Label
 
 func _result_summary_text(result: Dictionary) -> String:
 	var judgments: Dictionary = result.get("judgments", {})
-	return "Max Combo %d\nPerfect %d\nCool %d\nGood %d\nBad %d\nMiss %d" % [
+	return "Accuracy %.2f%%\nMax Combo %d\nPerfect %d\nCool %d\nGood %d\nBad %d\nMiss %d" % [
+		_result_accuracy(result, judgments),
 		int(result.get("maxCombo", 0)),
 		int(judgments.get("perfect", 0)),
 		int(judgments.get("cool", 0)),
@@ -560,6 +601,13 @@ func _result_summary_text(result: Dictionary) -> String:
 		int(judgments.get("bad", 0)),
 		int(judgments.get("miss", 0)),
 	]
+
+
+func _result_accuracy(result: Dictionary, judgments: Dictionary) -> float:
+	var raw_accuracy: Variant = result.get("accuracy", null)
+	if raw_accuracy is int or raw_accuracy is float:
+		return float(raw_accuracy)
+	return ResultModel.accuracy_for_judgments(judgments)
 
 
 func _button(name: String, text: String) -> Button:
@@ -582,6 +630,7 @@ func _clear_content() -> void:
 
 	if _content == null:
 		return
+	_content.alignment = BoxContainer.ALIGNMENT_CENTER
 	for child in _content.get_children():
 		_content.remove_child(child)
 		child.queue_free()
@@ -733,79 +782,85 @@ func _catalog_export_path(index: int) -> String:
 	return ProjectSettings.globalize_path("user://catalog/catalog_%d.json" % index)
 
 
+func _content_node_or_null(node_name: String) -> Node:
+	if _content == null:
+		return null
+	return _content.find_child(node_name, true, false)
+
+
 func _save_settings_from_controls() -> void:
-	var directory_input: Node = _content.get_node_or_null("SongDirectoryInput")
+	var directory_input: Node = _content_node_or_null("SongDirectoryInput")
 	if directory_input is LineEdit:
 		_settings_store.set_song_directories(_parse_song_directories(directory_input.text))
 
-	var fullscreen: Node = _content.get_node_or_null("FullscreenCheckBox")
+	var fullscreen: Node = _content_node_or_null("FullscreenCheckBox")
 	if fullscreen is CheckBox:
 		_settings_store.set_fullscreen_enabled(fullscreen.button_pressed)
 		_apply_window_mode_from_settings()
 
-	var autoplay: Node = _content.get_node_or_null("AutoplayCheckBox")
+	var autoplay: Node = _content_node_or_null("AutoplayCheckBox")
 	if autoplay is CheckBox:
 		_settings_store.set_autoplay_enabled(autoplay.button_pressed)
 
-	var autosound: Node = _content.get_node_or_null("AutoSoundCheckBox")
+	var autosound: Node = _content_node_or_null("AutoSoundCheckBox")
 	if autosound is CheckBox:
 		_settings_store.set_autosound_enabled(autosound.button_pressed)
 
-	var audio_latency: Node = _content.get_node_or_null("AudioLatencySpinBox")
+	var audio_latency: Node = _content_node_or_null("AudioLatencySpinBox")
 	if audio_latency is SpinBox:
 		_settings_store.set_audio_latency_ms(float(audio_latency.value))
 
-	var display_latency: Node = _content.get_node_or_null("DisplayLatencySpinBox")
+	var display_latency: Node = _content_node_or_null("DisplayLatencySpinBox")
 	if display_latency is SpinBox:
 		_settings_store.set_display_latency_ms(float(display_latency.value))
 
-	var master_volume: Node = _content.get_node_or_null("MasterVolumeSpinBox")
+	var master_volume: Node = _content_node_or_null("MasterVolumeSpinBox")
 	if master_volume is SpinBox:
 		_settings_store.set_master_volume(float(master_volume.value))
 
-	var key_volume: Node = _content.get_node_or_null("KeyVolumeSpinBox")
+	var key_volume: Node = _content_node_or_null("KeyVolumeSpinBox")
 	if key_volume is SpinBox:
 		_settings_store.set_key_volume(float(key_volume.value))
 
-	var bgm_volume: Node = _content.get_node_or_null("BgmVolumeSpinBox")
+	var bgm_volume: Node = _content_node_or_null("BgmVolumeSpinBox")
 	if bgm_volume is SpinBox:
 		_settings_store.set_bgm_volume(float(bgm_volume.value))
 
-	var haste_mode: Node = _content.get_node_or_null("HasteModeCheckBox")
+	var haste_mode: Node = _content_node_or_null("HasteModeCheckBox")
 	if haste_mode is CheckBox:
 		_settings_store.set_haste_mode_enabled(haste_mode.button_pressed)
 
-	var haste_normalize: Node = _content.get_node_or_null("HasteNormalizeSpeedCheckBox")
+	var haste_normalize: Node = _content_node_or_null("HasteNormalizeSpeedCheckBox")
 	if haste_normalize is CheckBox:
 		_settings_store.set_haste_mode_normalize_speed(haste_normalize.button_pressed)
 
-	var start_paused: Node = _content.get_node_or_null("StartPausedCheckBox")
+	var start_paused: Node = _content_node_or_null("StartPausedCheckBox")
 	if start_paused is CheckBox:
 		_settings_store.set_start_paused_enabled(start_paused.button_pressed)
 
-	var channel_modifier: Node = _content.get_node_or_null("ChannelModifierOption")
+	var channel_modifier: Node = _content_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(channel_modifier.get_item_text(channel_modifier.selected))
 
-	var speed_type: Node = _content.get_node_or_null("SpeedTypeOption")
+	var speed_type: Node = _content_node_or_null("SpeedTypeOption")
 	if speed_type is OptionButton:
 		_settings_store.set_speed_type(speed_type.get_item_text(speed_type.selected))
 
-	var speed_multiplier: Node = _content.get_node_or_null("SpeedMultiplierSpinBox")
+	var speed_multiplier: Node = _content_node_or_null("SpeedMultiplierSpinBox")
 	if speed_multiplier is SpinBox:
 		_settings_store.set_speed_multiplier(float(speed_multiplier.value))
 
-	var visibility_modifier: Node = _content.get_node_or_null("VisibilityModifierOption")
+	var visibility_modifier: Node = _content_node_or_null("VisibilityModifierOption")
 	if visibility_modifier is OptionButton:
 		_settings_store.set_visibility_modifier(visibility_modifier.get_item_text(visibility_modifier.selected))
 
-	var judgment_type: Node = _content.get_node_or_null("JudgmentTypeOption")
+	var judgment_type: Node = _content_node_or_null("JudgmentTypeOption")
 	if judgment_type is OptionButton:
 		_settings_store.set_judgment_type(judgment_type.get_item_text(judgment_type.selected))
 
 	var bindings: Array[String] = []
 	for i in range(DEFAULT_KEY_BINDINGS.size()):
-		var key_input: Node = _content.get_node_or_null("KeyBindings/KeyBinding%d" % (i + 1))
+		var key_input: Node = _content_node_or_null("KeyBinding%d" % (i + 1))
 		if key_input is LineEdit:
 			var key: String = key_input.text.strip_edges()
 			if key.is_empty():
@@ -816,7 +871,7 @@ func _save_settings_from_controls() -> void:
 
 	var misc_bindings := {}
 	for action: String in MISC_KEY_ACTIONS:
-		var key_input: Node = _content.get_node_or_null("MiscKeyBindings/MiscKey_%s" % action)
+		var key_input: Node = _content_node_or_null("MiscKey_%s" % action)
 		if key_input is LineEdit:
 			var key: String = key_input.text.strip_edges()
 			if key.is_empty():

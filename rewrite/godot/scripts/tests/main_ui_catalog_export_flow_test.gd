@@ -29,7 +29,7 @@ func _init() -> void:
 	ui.build()
 
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
-	ui.get_node("Content/SongDirectoryInput").text = "charts"
+	_settings_node(ui, "SongDirectoryInput").text = "charts"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 
 	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")
@@ -44,6 +44,10 @@ func _init() -> void:
 
 	ui.free()
 	quit(0)
+
+
+func _settings_node(ui: Node, node_name: String) -> Variant:
+	return ui.get_node("Content").find_child(node_name, true, false)
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

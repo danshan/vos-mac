@@ -13,19 +13,23 @@ func _init() -> void:
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.SETTINGS, "settings state"):
 		return
-	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
+	_settings_node(ui, "FullscreenCheckBox").button_pressed = true
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_int(ui.last_requested_window_mode(), DisplayServer.WINDOW_MODE_FULLSCREEN, "fullscreen mode request"):
 		return
 
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
-	ui.get_node("Content/FullscreenCheckBox").button_pressed = false
+	_settings_node(ui, "FullscreenCheckBox").button_pressed = false
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_int(ui.last_requested_window_mode(), DisplayServer.WINDOW_MODE_WINDOWED, "windowed mode request"):
 		return
 
 	ui.free()
 	quit(0)
+
+
+func _settings_node(ui: Node, node_name: String) -> Variant:
+	return ui.get_node("Content").find_child(node_name, true, false)
 
 
 func _expect_int(actual: int, expected: int, label: String) -> bool:

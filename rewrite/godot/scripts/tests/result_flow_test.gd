@@ -20,6 +20,8 @@ func _init() -> void:
 		return
 
 	var direct_result: Dictionary = ResultModel.from_score("vos:direct", score_state)
+	if not _expect_float(float(direct_result.get("accuracy", -1.0)), 50.0, "direct accuracy"):
+		return
 	var direct_judgments: Dictionary = direct_result.get("judgments", {})
 	direct_judgments["cool"] = 99
 	if not _expect_int(score_state.judgments.get("cool", 0), 1, "result judgments duplicate"):
@@ -42,6 +44,8 @@ func _init() -> void:
 		return
 	if not _expect_int(controller_result.get("maxCombo", 0), 0, "controller result Java max combo"):
 		return
+	if not _expect_float(float(controller_result.get("accuracy", -1.0)), 100.0, "controller result accuracy"):
+		return
 
 	quit(0)
 
@@ -56,6 +60,14 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 
 func _expect_int(actual: int, expected: int, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
+	if not is_equal_approx(actual, expected):
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

@@ -29,114 +29,125 @@ func _init() -> void:
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.SETTINGS, "settings state"):
 		return
-	if not _expect_bool(ui.has_node("Content/SongDirectoryInput"), true, "song directory input"):
+	if not _expect_bool(ui.has_node("Content/SettingsScroll"), true, "settings scroll container"):
 		return
-	if not _expect_bool(ui.has_node("Content/FullscreenCheckBox"), true, "fullscreen checkbox"):
+	if not _expect_bool(ui.get_node("Content/SettingsScroll") is ScrollContainer, true, "settings scroll type"):
 		return
-	if not _expect_bool(ui.has_node("Content/AutoplayCheckBox"), true, "autoplay checkbox"):
+	if not _expect_bool(ui.has_node("Content/SettingsScroll/SettingsForm"), true, "settings form"):
 		return
-	if not _expect_bool(ui.has_node("Content/AutoSoundCheckBox"), true, "autosound checkbox"):
+	if not _expect_string(_settings_label_text(ui, "SongDirectoryInputLabel"), "Song directories", "song directory label"):
 		return
-	if not _expect_bool(ui.has_node("Content/AudioLatencySpinBox"), true, "audio latency spinbox"):
+	if not _expect_string(_settings_label_text(ui, "SpeedTypeOptionDescription"),
+			"Select Java note-distance mode.", "speed type description"):
 		return
-	if not _expect_bool(ui.has_node("Content/DisplayLatencySpinBox"), true, "display latency spinbox"):
+	if not _expect_bool(_has_settings_node(ui, "SongDirectoryInput"), true, "song directory input"):
 		return
-	if not _expect_bool(ui.has_node("Content/MasterVolumeSpinBox"), true, "master volume spinbox"):
+	if not _expect_bool(_has_settings_node(ui, "FullscreenCheckBox"), true, "fullscreen checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/KeyVolumeSpinBox"), true, "key volume spinbox"):
+	if not _expect_bool(_has_settings_node(ui, "AutoplayCheckBox"), true, "autoplay checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/BgmVolumeSpinBox"), true, "bgm volume spinbox"):
+	if not _expect_bool(_has_settings_node(ui, "AutoSoundCheckBox"), true, "autosound checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/HasteModeCheckBox"), true, "haste mode checkbox"):
+	if not _expect_bool(_has_settings_node(ui, "AudioLatencySpinBox"), true, "audio latency spinbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/HasteNormalizeSpeedCheckBox"), true, "haste normalize speed checkbox"):
+	if not _expect_bool(_has_settings_node(ui, "DisplayLatencySpinBox"), true, "display latency spinbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/StartPausedCheckBox"), true, "start paused checkbox"):
+	if not _expect_bool(_has_settings_node(ui, "MasterVolumeSpinBox"), true, "master volume spinbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/ChannelModifierOption"), true, "channel modifier option"):
+	if not _expect_bool(_has_settings_node(ui, "KeyVolumeSpinBox"), true, "key volume spinbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/SpeedTypeOption"), true, "speed type option"):
+	if not _expect_bool(_has_settings_node(ui, "BgmVolumeSpinBox"), true, "bgm volume spinbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/SpeedMultiplierSpinBox"), true, "speed multiplier spinbox"):
+	if not _expect_bool(_has_settings_node(ui, "HasteModeCheckBox"), true, "haste mode checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/VisibilityModifierOption"), true, "visibility modifier option"):
+	if not _expect_bool(_has_settings_node(ui, "HasteNormalizeSpeedCheckBox"), true, "haste normalize speed checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/JudgmentTypeOption"), true, "judgment type option"):
+	if not _expect_bool(_has_settings_node(ui, "StartPausedCheckBox"), true, "start paused checkbox"):
 		return
-	if not _expect_bool(ui.has_node("Content/KeyBindings/KeyBinding1"), true, "first key binding"):
+	if not _expect_bool(_has_settings_node(ui, "ChannelModifierOption"), true, "channel modifier option"):
 		return
-	if not _expect_bool(ui.has_node("Content/MiscKeyBindings/MiscKey_speed_up"), true, "speed up misc key binding"):
+	if not _expect_bool(_has_settings_node(ui, "SpeedTypeOption"), true, "speed type option"):
 		return
-	if not _expect_bool(ui.has_node("Content/MiscKeyBindings/MiscKey_main_volume_down"), true, "main volume down misc key binding"):
+	if not _expect_bool(_has_settings_node(ui, "SpeedMultiplierSpinBox"), true, "speed multiplier spinbox"):
+		return
+	if not _expect_bool(_has_settings_node(ui, "VisibilityModifierOption"), true, "visibility modifier option"):
+		return
+	if not _expect_bool(_has_settings_node(ui, "JudgmentTypeOption"), true, "judgment type option"):
+		return
+	if not _expect_bool(_has_settings_node(ui, "KeyBinding1"), true, "first key binding"):
+		return
+	if not _expect_bool(_has_settings_node(ui, "MiscKey_speed_up"), true, "speed up misc key binding"):
+		return
+	if not _expect_bool(_has_settings_node(ui, "MiscKey_main_volume_down"), true, "main volume down misc key binding"):
 		return
 
-	ui.get_node("Content/SongDirectoryInput").text = "res://test/fixtures"
-	ui.get_node("Content/FullscreenCheckBox").button_pressed = true
-	ui.get_node("Content/AutoplayCheckBox").button_pressed = true
-	ui.get_node("Content/AutoSoundCheckBox").button_pressed = true
-	ui.get_node("Content/AudioLatencySpinBox").value = 120.0
-	ui.get_node("Content/DisplayLatencySpinBox").value = 45.0
-	ui.get_node("Content/MasterVolumeSpinBox").value = 0.6
-	ui.get_node("Content/KeyVolumeSpinBox").value = 0.7
-	ui.get_node("Content/BgmVolumeSpinBox").value = 0.8
-	ui.get_node("Content/HasteModeCheckBox").button_pressed = true
-	ui.get_node("Content/HasteNormalizeSpeedCheckBox").button_pressed = false
-	ui.get_node("Content/StartPausedCheckBox").button_pressed = true
-	ui.get_node("Content/ChannelModifierOption").select(1)
-	ui.get_node("Content/SpeedTypeOption").select(3)
-	ui.get_node("Content/SpeedMultiplierSpinBox").value = 2.0
-	ui.get_node("Content/VisibilityModifierOption").select(1)
-	ui.get_node("Content/JudgmentTypeOption").select(1)
-	ui.get_node("Content/KeyBindings/KeyBinding1").text = "A"
-	ui.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text = "PageUp"
-	ui.get_node("Content/MiscKeyBindings/MiscKey_main_volume_down").text = "Minus"
+	_settings_node(ui, "SongDirectoryInput").text = "res://test/fixtures"
+	_settings_node(ui, "FullscreenCheckBox").button_pressed = true
+	_settings_node(ui, "AutoplayCheckBox").button_pressed = true
+	_settings_node(ui, "AutoSoundCheckBox").button_pressed = true
+	_settings_node(ui, "AudioLatencySpinBox").value = 120.0
+	_settings_node(ui, "DisplayLatencySpinBox").value = 45.0
+	_settings_node(ui, "MasterVolumeSpinBox").value = 0.6
+	_settings_node(ui, "KeyVolumeSpinBox").value = 0.7
+	_settings_node(ui, "BgmVolumeSpinBox").value = 0.8
+	_settings_node(ui, "HasteModeCheckBox").button_pressed = true
+	_settings_node(ui, "HasteNormalizeSpeedCheckBox").button_pressed = false
+	_settings_node(ui, "StartPausedCheckBox").button_pressed = true
+	_settings_node(ui, "ChannelModifierOption").select(1)
+	_settings_node(ui, "SpeedTypeOption").select(3)
+	_settings_node(ui, "SpeedMultiplierSpinBox").value = 2.0
+	_settings_node(ui, "VisibilityModifierOption").select(1)
+	_settings_node(ui, "JudgmentTypeOption").select(1)
+	_settings_node(ui, "KeyBinding1").text = "A"
+	_settings_node(ui, "MiscKey_speed_up").text = "PageUp"
+	_settings_node(ui, "MiscKey_main_volume_down").text = "Minus"
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.MAIN_MENU, "back to menu from settings"):
 		return
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
-	if not _expect_string(ui.get_node("Content/SongDirectoryInput").text, "res://test/fixtures", "persisted song directory"):
+	if not _expect_string(_settings_node(ui, "SongDirectoryInput").text, "res://test/fixtures", "persisted song directory"):
 		return
-	if not _expect_bool(ui.get_node("Content/FullscreenCheckBox").button_pressed, true, "persisted fullscreen"):
+	if not _expect_bool(_settings_node(ui, "FullscreenCheckBox").button_pressed, true, "persisted fullscreen"):
 		return
-	if not _expect_bool(ui.get_node("Content/AutoplayCheckBox").button_pressed, true, "persisted autoplay"):
+	if not _expect_bool(_settings_node(ui, "AutoplayCheckBox").button_pressed, true, "persisted autoplay"):
 		return
-	if not _expect_bool(ui.get_node("Content/AutoSoundCheckBox").button_pressed, true, "persisted autosound"):
+	if not _expect_bool(_settings_node(ui, "AutoSoundCheckBox").button_pressed, true, "persisted autosound"):
 		return
-	if not _expect_float(ui.get_node("Content/AudioLatencySpinBox").value, 120.0, "persisted audio latency"):
+	if not _expect_float(_settings_node(ui, "AudioLatencySpinBox").value, 120.0, "persisted audio latency"):
 		return
-	if not _expect_float(ui.get_node("Content/DisplayLatencySpinBox").value, 45.0, "persisted display latency"):
+	if not _expect_float(_settings_node(ui, "DisplayLatencySpinBox").value, 45.0, "persisted display latency"):
 		return
-	if not _expect_float(ui.get_node("Content/MasterVolumeSpinBox").value, 0.6, "persisted master volume"):
+	if not _expect_float(_settings_node(ui, "MasterVolumeSpinBox").value, 0.6, "persisted master volume"):
 		return
-	if not _expect_float(ui.get_node("Content/KeyVolumeSpinBox").value, 0.7, "persisted key volume"):
+	if not _expect_float(_settings_node(ui, "KeyVolumeSpinBox").value, 0.7, "persisted key volume"):
 		return
-	if not _expect_float(ui.get_node("Content/BgmVolumeSpinBox").value, 0.8, "persisted bgm volume"):
+	if not _expect_float(_settings_node(ui, "BgmVolumeSpinBox").value, 0.8, "persisted bgm volume"):
 		return
-	if not _expect_bool(ui.get_node("Content/HasteModeCheckBox").button_pressed, true, "persisted haste mode"):
+	if not _expect_bool(_settings_node(ui, "HasteModeCheckBox").button_pressed, true, "persisted haste mode"):
 		return
-	if not _expect_bool(ui.get_node("Content/HasteNormalizeSpeedCheckBox").button_pressed, false, "persisted haste normalize speed"):
+	if not _expect_bool(_settings_node(ui, "HasteNormalizeSpeedCheckBox").button_pressed, false, "persisted haste normalize speed"):
 		return
-	if not _expect_bool(ui.get_node("Content/StartPausedCheckBox").button_pressed, true, "persisted start paused"):
+	if not _expect_bool(_settings_node(ui, "StartPausedCheckBox").button_pressed, true, "persisted start paused"):
 		return
-	if not _expect_string(ui.get_node("Content/ChannelModifierOption").get_item_text(
-			ui.get_node("Content/ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
+	if not _expect_string(_settings_node(ui, "ChannelModifierOption").get_item_text(
+			_settings_node(ui, "ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
 		return
-	if not _expect_string(ui.get_node("Content/SpeedTypeOption").get_item_text(
-			ui.get_node("Content/SpeedTypeOption").selected), "RegulSpeed", "persisted speed type"):
+	if not _expect_string(_settings_node(ui, "SpeedTypeOption").get_item_text(
+			_settings_node(ui, "SpeedTypeOption").selected), "RegulSpeed", "persisted speed type"):
 		return
-	if not _expect_float(ui.get_node("Content/SpeedMultiplierSpinBox").value, 2.0, "persisted speed multiplier"):
+	if not _expect_float(_settings_node(ui, "SpeedMultiplierSpinBox").value, 2.0, "persisted speed multiplier"):
 		return
-	if not _expect_string(ui.get_node("Content/VisibilityModifierOption").get_item_text(
-			ui.get_node("Content/VisibilityModifierOption").selected), "Hidden", "persisted visibility modifier"):
+	if not _expect_string(_settings_node(ui, "VisibilityModifierOption").get_item_text(
+			_settings_node(ui, "VisibilityModifierOption").selected), "Hidden", "persisted visibility modifier"):
 		return
-	if not _expect_string(ui.get_node("Content/JudgmentTypeOption").get_item_text(
-			ui.get_node("Content/JudgmentTypeOption").selected), "time", "persisted judgment type"):
+	if not _expect_string(_settings_node(ui, "JudgmentTypeOption").get_item_text(
+			_settings_node(ui, "JudgmentTypeOption").selected), "time", "persisted judgment type"):
 		return
-	if not _expect_string(ui.get_node("Content/KeyBindings/KeyBinding1").text, "A", "persisted key binding"):
+	if not _expect_string(_settings_node(ui, "KeyBinding1").text, "A", "persisted key binding"):
 		return
-	if not _expect_string(ui.get_node("Content/MiscKeyBindings/MiscKey_speed_up").text, "PageUp", "persisted speed up misc key binding"):
+	if not _expect_string(_settings_node(ui, "MiscKey_speed_up").text, "PageUp", "persisted speed up misc key binding"):
 		return
-	if not _expect_string(ui.get_node("Content/MiscKeyBindings/MiscKey_main_volume_down").text, "Minus", "persisted main volume down misc key binding"):
+	if not _expect_string(_settings_node(ui, "MiscKey_main_volume_down").text, "Minus", "persisted main volume down misc key binding"):
 		return
 	var option_overrides: Dictionary = ui._gameplay_option_overrides()
 	if not _expect_bool(option_overrides.get("autoplay", false), true, "autoplay gameplay override"):
@@ -159,8 +170,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(option_overrides.get("manualStart", false), true, "start paused gameplay override"):
 		return
-	ui.get_node("Content/AutoplayCheckBox").button_pressed = false
-	ui.get_node("Content/AutoSoundCheckBox").button_pressed = false
+	_settings_node(ui, "AutoplayCheckBox").button_pressed = false
+	_settings_node(ui, "AutoSoundCheckBox").button_pressed = false
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 
 	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")
@@ -256,7 +267,7 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/ResultSummary"), true, "result summary"):
 		return
 	if not _expect_string(ui.get_node("Content/ResultSummary").text,
-			"Max Combo 12\nPerfect 0\nCool 2\nGood 1\nBad 0\nMiss 1", "result summary text"):
+			"Accuracy 62.50%\nMax Combo 12\nPerfect 0\nCool 2\nGood 1\nBad 0\nMiss 1", "result summary text"):
 		return
 	if not _expect_bool(ui.has_node("Content/RetryButton"), true, "retry button"):
 		return
@@ -274,6 +285,21 @@ func _init() -> void:
 
 	ui.free()
 	quit(0)
+
+
+func _settings_node(ui: Node, node_name: String) -> Variant:
+	return ui.get_node("Content").find_child(node_name, true, false)
+
+
+func _has_settings_node(ui: Node, node_name: String) -> bool:
+	return _settings_node(ui, node_name) != null
+
+
+func _settings_label_text(ui: Node, node_name: String) -> String:
+	var label: Variant = _settings_node(ui, node_name)
+	if label is Label:
+		return label.text
+	return ""
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

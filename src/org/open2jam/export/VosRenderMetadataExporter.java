@@ -28,6 +28,7 @@ public final class VosRenderMetadataExporter {
         double baseWidth = doubleAttribute(skin, "width", DEFAULT_BASE_WIDTH);
         double baseHeight = doubleAttribute(skin, "height", DEFAULT_BASE_HEIGHT);
         int judgmentLine = intAttribute(skin, "judgment_line", 0);
+        int visibilityLayer = visibilityLayer(skin);
 
         List<String> entities = new ArrayList<String>();
         List<String> lanes = new ArrayList<String>();
@@ -46,9 +47,53 @@ public final class VosRenderMetadataExporter {
                 JsonWriter.field("baseWidth", baseWidth),
                 JsonWriter.field("baseHeight", baseHeight),
                 JsonWriter.field("judgmentLine", judgmentLine),
+                JsonWriter.field("visibilityLayer", visibilityLayer),
                 JsonWriter.field("measureSize", JAVA_MEASURE_SIZE),
                 JsonWriter.rawField("entities", JsonWriter.array(entities.toArray(new String[0]))),
                 JsonWriter.rawField("lanes", JsonWriter.array(lanes.toArray(new String[0]))));
+    }
+
+    private static int visibilityLayer(Element skin) {
+        int noteLayer = -1;
+        List<Element> unnamedEntities = new ArrayList<Element>();
+        int layer = -1;
+        for (Element layerElement : childElements(skin, "layer")) {
+            layer++;
+            for (Element entityElement : childElements(layerElement, "entity")) {
+                String id = emptyToNull(entityElement.getAttribute("id"));
+                if ("NOTE_1".equals(id)) {
+                    noteLayer = layer;
+                } else if (id == null) {
+                    unnamedEntities.add(entityElement);
+                }
+            }
+        }
+
+        if (noteLayer < 0) {
+            return 0;
+        }
+
+        int visibilityLayer = noteLayer + 1;
+        for (Element entity : unnamedEntities) {
+            int entityLayer = layerForEntity(skin, entity);
+            if (entityLayer > visibilityLayer) {
+                visibilityLayer++;
+            }
+        }
+        return visibilityLayer + 1;
+    }
+
+    private static int layerForEntity(Element skin, Element target) {
+        int layer = -1;
+        for (Element layerElement : childElements(skin, "layer")) {
+            layer++;
+            for (Element entityElement : childElements(layerElement, "entity")) {
+                if (entityElement == target) {
+                    return layer;
+                }
+            }
+        }
+        return 0;
     }
 
     private static Document readResourcesDocument() throws Exception {

@@ -16,6 +16,7 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"baseHeight\":600.0"));
         assertTrue(json.contains("\"judgmentLine\":480"));
         assertTrue(json.contains("\"measureSize\":385.0"));
+        assertTrue(json.contains("\"visibilityLayer\":7"));
         assertTrue(json.contains("\"id\":\"NOTE_1\""));
         assertTrue(json.contains("\"id\":\"LONG_NOTE_1\""));
         assertTrue(json.contains("\"id\":\"JAM_BAR\""));

@@ -47,6 +47,8 @@ func normalize(metadata: Dictionary) -> Dictionary:
 	normalized["baseWidth"] = _number(metadata.get("baseWidth"), 0.0)
 	normalized["baseHeight"] = _number(metadata.get("baseHeight"), 0.0)
 	normalized["judgmentLine"] = int(_number(metadata.get("judgmentLine"), 0.0))
+	if metadata.has("visibilityLayer"):
+		normalized["visibilityLayer"] = int(_number(metadata.get("visibilityLayer"), 0.0))
 	normalized["measureSize"] = _number(metadata.get("measureSize"), 0.0)
 	normalized["entities"] = normalized_entities
 	normalized["lanes"] = normalized_lanes

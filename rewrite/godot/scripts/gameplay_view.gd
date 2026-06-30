@@ -985,6 +985,10 @@ func _normalized_visibility_modifier(value: Variant) -> String:
 
 
 func _visibility_layer() -> int:
+	var metadata_layer := int(_metadata.get("visibilityLayer", 0))
+	if metadata_layer > 0:
+		return metadata_layer
+
 	var layer := _metadata_layer_for_id("NOTE_1") + 1
 	for entity: Dictionary in _metadata.get("entities", []):
 		if not str(entity.get("id", "")).is_empty():

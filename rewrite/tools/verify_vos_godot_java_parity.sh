@@ -35,6 +35,7 @@ require_file "$AUDIO_FIXTURE"
 require_file "$RENDER_FIXTURE"
 
 require_text "$RENDER_FIXTURE" '"format":"VOS_RENDER_METADATA"' "render metadata format marker"
+require_text "$RENDER_FIXTURE" '"visibilityLayer":7' "visibility layer metadata"
 require_text "$RENDER_FIXTURE" '"id":"JUDGMENT_LINE"' "judgment line entity"
 require_text "$RENDER_FIXTURE" '"id":"COMBO_COUNTER"' "combo counter entity"
 require_text "$RENDER_FIXTURE" '"id":"SCORE_COUNTER"' "score counter entity"

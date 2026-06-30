@@ -21,6 +21,8 @@ func _init() -> void:
 		return
 	if not _expect_int(metadata.get("judgmentLine", 0), 480, "judgment line"):
 		return
+	if not _expect_int(metadata.get("visibilityLayer", 0), 7, "visibility layer"):
+		return
 
 	var entities: Array = metadata.get("entities", [])
 	if not _expect_int(entities.size(), 66, "full Java skin entity count"):
@@ -1023,6 +1025,23 @@ func _init() -> void:
 	if not _expect_int(hidden_jam_bar.z_index, 8, "hidden shifts Java higher layers"):
 		return
 	hidden_view.free()
+	var metadata_visibility_layer: Dictionary = metadata.duplicate(true)
+	metadata_visibility_layer["visibilityLayer"] = 12
+	var metadata_layer_view = GameplayView.new()
+	if not _expect_bool(metadata_layer_view.load_metadata(metadata_visibility_layer), true, "metadata visibility layer view metadata load"):
+		return
+	if not _expect_bool(metadata_layer_view.load_chart(hidden_chart), true, "metadata visibility layer view chart load"):
+		return
+	var metadata_layer_overlay: Control = metadata_layer_view.get_node("Visibility_Hidden_000")
+	if not _expect_int(metadata_layer_overlay.z_index, 12, "visibility layer comes from Java metadata"):
+		return
+	var metadata_layer_judgment_line: Control = metadata_layer_view.get_node("Entity_JUDGMENT_LINE")
+	if not _expect_int(metadata_layer_judgment_line.z_index, 12, "judgment line uses Java visibility layer metadata"):
+		return
+	var metadata_layer_measure: Control = metadata_layer_view.get_node("Measure_000")
+	if not _expect_int(metadata_layer_measure.z_index, 12, "measure mark uses Java visibility layer metadata"):
+		return
+	metadata_layer_view.free()
 	var mirror_chart: Dictionary = chart.duplicate(true)
 	mirror_chart["channelModifier"] = "Mirror"
 	var mirror_path := _chart_path("mirror_modifier_render")

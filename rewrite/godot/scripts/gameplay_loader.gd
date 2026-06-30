@@ -189,6 +189,8 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 		return {}
 	if not VALID_NOTE_KINDS.has(kind):
 		return {}
+	if str(kind) == "tap" and (note.has("endMs") or note.has("endMeasure")):
+		return {}
 
 	var normalized_note: Dictionary = note.duplicate(true)
 	normalized_note["lane"] = int(lane)

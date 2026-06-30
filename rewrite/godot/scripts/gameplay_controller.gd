@@ -456,6 +456,8 @@ func _notes_match_java_contract(raw_notes: Variant) -> bool:
 			return false
 		var kind := str(raw_note.get("kind", ""))
 		if kind == "tap":
+			if not _tap_note_matches_java_contract(raw_note):
+				return false
 			continue
 		if kind != "holdStart":
 			return false
@@ -467,6 +469,10 @@ func _notes_match_java_contract(raw_notes: Variant) -> bool:
 func _note_matches_java_contract(note: Dictionary) -> bool:
 	var measure: Variant = note.get("measure")
 	return _is_integer_like(measure) and int(measure) >= 0
+
+
+func _tap_note_matches_java_contract(note: Dictionary) -> bool:
+	return not note.has("endMs") and not note.has("endMeasure")
 
 
 func _hold_note_matches_java_contract(note: Dictionary) -> bool:

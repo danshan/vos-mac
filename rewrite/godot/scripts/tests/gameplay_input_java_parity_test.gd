@@ -28,6 +28,8 @@ func _init() -> void:
 		return
 	if not _test_rejects_non_exported_note_measure_contract():
 		return
+	if not _test_rejects_non_exported_tap_end_fields():
+		return
 
 	var controller = GameplayController.new()
 	if not _expect_bool(controller.load_chart(_chart()), true, "controller load chart"):
@@ -345,7 +347,7 @@ func _single_note_chart(extra_fields: Dictionary) -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"visualTiming": [
 			{"timeMs": 0.0, "bpm": 120.0},
@@ -366,7 +368,7 @@ func _scroll_speed_judgment_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 2500.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 2500.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"judgmentTiming": [
 			{"timeMs": 0.0, "bpm": 120.0},
@@ -391,7 +393,7 @@ func _autoplay_tap_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -425,8 +427,8 @@ func _autoplay_same_lane_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 0, "startMs": 1100.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 0, "startMs": 1100.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -442,10 +444,10 @@ func _chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 5000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": null, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
-			{"id": 4, "lane": 3, "startMs": 4000.0, "measure": 0, "endMs": null, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"id": 4, "lane": 3, "startMs": 4000.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -484,6 +486,22 @@ func _test_rejects_non_exported_note_measure_contract() -> bool:
 	var negative_chart: Dictionary = _chart()
 	negative_chart["notes"][0]["measure"] = -1
 	if not _expect_bool(negative_measure.load_chart(negative_chart), false, "negative note measure chart rejected"):
+		return false
+
+	return true
+
+
+func _test_rejects_non_exported_tap_end_fields() -> bool:
+	var tap_end_ms = GameplayController.new()
+	var end_ms_chart: Dictionary = _chart()
+	end_ms_chart["notes"][0]["endMs"] = null
+	if not _expect_bool(tap_end_ms.load_chart(end_ms_chart), false, "tap note end field chart rejected"):
+		return false
+
+	var tap_end_measure = GameplayController.new()
+	var end_measure_chart: Dictionary = _chart()
+	end_measure_chart["notes"][0]["endMeasure"] = 0
+	if not _expect_bool(tap_end_measure.load_chart(end_measure_chart), false, "tap note end measure field chart rejected"):
 		return false
 
 	return true

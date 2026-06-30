@@ -114,7 +114,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	player.stream = stream
 	var sample_volume := 1.0
 	var pan := _clamped_pan(float(command.get("pan", 0.0)))
-	var uses_bgm_channel := _asset_uses_bgm_channel(asset)
+	var uses_bgm_channel := _command_uses_bgm_channel(command) or _asset_uses_bgm_channel(asset)
 	var channel_volume := _channel_volume(uses_bgm_channel)
 	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
 	player.position = Vector2(pan * JAVA_PAN_DISTANCE_SCALE, 0.0)
@@ -212,6 +212,10 @@ func _load_stream_for_asset(asset: Dictionary) -> AudioStream:
 func _asset_uses_bgm_channel(asset: Dictionary) -> bool:
 	var role := str(asset.get("role", "")).to_lower()
 	return role == "background" or role == "bgm"
+
+
+func _command_uses_bgm_channel(command: Dictionary) -> bool:
+	return str(command.get("source", "")) == "autoPlay"
 
 
 func _channel_volume(uses_bgm_channel: bool) -> float:

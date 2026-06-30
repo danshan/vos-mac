@@ -145,6 +145,21 @@ func _init() -> void:
 	if not _expect_bool(autosound_stop.get("stopped", false), true, "note autosound miss stops registered instance"):
 		return
 
+	var autoplay_keysound_asset: Dictionary = pool.apply_audio_command({
+		"action": "playSample",
+		"source": "autoPlay",
+		"trigger": "autosound",
+		"sampleId": 1,
+		"volume": 0.8,
+		"pan": 0.0,
+	})
+	if not _expect_bool(autoplay_keysound_asset.get("played", false), true, "autoplay keysound asset command played"):
+		return
+	if not _expect_float(float(autoplay_keysound_asset.get("channelVolume", -1.0)), 0.75, "autoplay keysound asset channel volume"):
+		return
+	if not _expect_float(float(autoplay_keysound_asset.get("effectiveVolume", -1.0)), 0.375, "autoplay keysound asset effective volume"):
+		return
+
 	var extra_play: Dictionary = pool.apply_audio_command({
 		"action": "playSample",
 		"source": "note",

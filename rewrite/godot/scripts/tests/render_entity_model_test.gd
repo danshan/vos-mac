@@ -623,16 +623,22 @@ func _init() -> void:
 	})
 	if not _expect_int(combo_sprite_hud.get_child_count(), 0, "combo hidden after Java show time"):
 		return
+	view.update_time(87084.0)
 	view.update_hud_state({
 		"combo": 13,
 		"jamCombo": 2,
-		"elapsedMs": 87002.0,
+		"elapsedMs": 87084.0,
 	})
 	if not _expect_int(combo_sprite_hud.get_child_count(), 3, "combo reappears after increment"):
+		return
+	combo_title = combo_sprite_hud.get_node("Title")
+	combo_title_texture = combo_title.texture
+	if not _expect_float(combo_title_texture.region.position.x, 64.0, "combo title animation persists while hidden"):
 		return
 	combo_digit_0 = combo_sprite_hud.get_child(0)
 	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble restarts after increment"):
 		return
+	view.update_time(0.0)
 
 	if not _expect_bool(view.has_node("Pressed_PRESSED_NOTE_1_000"), false, "pressed lane starts hidden"):
 		return

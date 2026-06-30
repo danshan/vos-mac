@@ -1434,6 +1434,7 @@ func _add_combo_title(container: Control, entity: Dictionary) -> void:
 	title.set_meta("spriteFrames", _combo_title_frames(entity))
 	title.set_meta("frameSpeed", float(entity.get("titleFrameSpeed", 0.0)))
 	_position_combo_title(title, entity)
+	_update_animation_frames_for_node(title, _last_update_time_ms)
 	container.add_child(title)
 
 

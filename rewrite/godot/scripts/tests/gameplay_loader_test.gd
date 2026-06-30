@@ -140,9 +140,9 @@ func _init() -> void:
 	var mirror_chart: Dictionary = _valid_chart()
 	mirror_chart["channelModifier"] = "Mirror"
 	mirror_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 2, "lane": 3, "startMs": 1100.0, "measure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 3, "lane": 6, "startMs": 1200.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 3, "startMs": 1100.0, "measure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 6, "startMs": 1200.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var mirror_path := _chart_path("mirror_modifier")
 	if not _write_chart(mirror_path, mirror_chart):
@@ -162,9 +162,9 @@ func _init() -> void:
 	shuffle_chart["channelModifier"] = "Shuffle"
 	shuffle_chart["channelMap"] = [6, 4, 2, 3, 1, 5, 0]
 	shuffle_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 2, "lane": 1, "startMs": 1100.0, "measure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 3, "lane": 6, "startMs": 1200.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 1, "startMs": 1100.0, "measure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 6, "startMs": 1200.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var shuffle_path := _chart_path("shuffle_modifier")
 	if not _write_chart(shuffle_path, shuffle_chart):
@@ -187,8 +187,8 @@ func _init() -> void:
 		[0, 1, 2, 3, 4, 5, 6],
 	]
 	random_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		{"id": 2, "lane": 0, "startMs": 2000.0, "measure": 1, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 0, "startMs": 2000.0, "measure": 1, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var random_path := _chart_path("random_modifier")
 	if not _write_chart(random_path, random_chart):
@@ -209,8 +209,8 @@ func _init() -> void:
 		[0, 1, 2, 3, 4, 5, 6],
 	]
 	random_hold_chart["notes"] = [
-		{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "endMs": 2500.0, "endMeasure": 1, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
-		{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 1, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "endMs": 2500.0, "endMeasure": 1, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+		{"lane": 1, "startMs": 2000.0, "measure": 1, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 	]
 	var random_hold_path := _chart_path("random_hold_modifier")
 	if not _write_chart(random_hold_path, random_hold_chart):
@@ -239,6 +239,8 @@ func _init() -> void:
 	if not _expect_rejected(loader, _chart_with_timing("judgmentTiming", "bpm", 0), "zero judgment timing bpm"):
 		return
 	if not _expect_rejected(loader, _chart_without_note_field("kind"), "missing note kind"):
+		return
+	if not _expect_rejected(loader, _chart_with_note("id", 1), "note id field"):
 		return
 	if not _expect_rejected(loader, _chart_with_note("lane", "0"), "string note lane"):
 		return
@@ -334,7 +336,7 @@ func _valid_chart() -> Dictionary:
 		"keys": 7,
 		"bpm": 120.0,
 		"durationMs": 3000,
-		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
+		"notes": [{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
 		"visualTiming": [{"timeMs": 0.0, "bpm": 120.0}],
 		"judgmentTiming": [{"timeMs": 0.0, "bpm": 120.0}],
 		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],
@@ -346,7 +348,6 @@ func _valid_chart() -> Dictionary:
 func _valid_hold_chart() -> Dictionary:
 	var chart: Dictionary = _valid_chart()
 	chart["notes"] = [{
-		"id": 1,
 		"lane": 0,
 		"startMs": 1000.0,
 		"measure": 0,

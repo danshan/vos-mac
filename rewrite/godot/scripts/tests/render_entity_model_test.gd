@@ -888,7 +888,6 @@ func _init() -> void:
 		quit(1)
 		return
 	chart["notes"].append({
-		"id": 2,
 		"lane": 0,
 		"startMs": 1300.0,
 		"measure": 0,

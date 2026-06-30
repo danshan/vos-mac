@@ -160,6 +160,8 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	if not _has_fields(note, REQUIRED_NOTE_FIELDS):
 		return {}
+	if note.has("id"):
+		return {}
 
 	var lane: Variant = note.get("lane")
 	if not _is_integer_like(lane):

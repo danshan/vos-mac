@@ -181,10 +181,10 @@ func _chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 5000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 0.8, "pan": -0.2, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 2000.0, "measure": 0, "sampleId": 2, "volume": 0.9, "pan": 0.1, "kind": "tap"},
-			{"id": 3, "lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
-			{"id": 4, "lane": 3, "startMs": 4000.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 0.8, "pan": -0.2, "kind": "tap"},
+			{"lane": 1, "startMs": 2000.0, "measure": 0, "sampleId": 2, "volume": 0.9, "pan": 0.1, "kind": "tap"},
+			{"lane": 2, "startMs": 3000.0, "measure": 0, "endMs": 3300.0, "endMeasure": 0, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+			{"lane": 3, "startMs": 4000.0, "measure": 0, "sampleId": 4, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [
 			{"startMs": 0.0, "sampleId": 9, "volume": 1.0, "pan": 0.0},
@@ -203,7 +203,7 @@ func _note_autosound_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -220,8 +220,8 @@ func _autosound_suppression_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 1, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-			{"id": 2, "lane": 1, "startMs": 1300.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 1, "startMs": 1300.0, "measure": 0, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}
@@ -237,7 +237,7 @@ func _non_vos_rejected_keysound_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [
-			{"id": 7, "lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 7, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 7, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

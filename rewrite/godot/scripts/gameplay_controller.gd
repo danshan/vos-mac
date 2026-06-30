@@ -467,6 +467,8 @@ func _notes_match_java_contract(raw_notes: Variant) -> bool:
 
 
 func _note_matches_java_contract(note: Dictionary) -> bool:
+	if note.has("id"):
+		return false
 	var measure: Variant = note.get("measure")
 	return _is_integer_like(measure) and int(measure) >= 0
 

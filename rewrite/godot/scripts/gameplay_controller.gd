@@ -65,6 +65,7 @@ var _buffer_timer_ms: float = 0.0
 var _buffered_note_indices: Dictionary = {}
 var _buffered_measure_indices: Dictionary = {}
 var _audio_commands: Array[Dictionary] = []
+var _last_sound_by_lane: Dictionary = {}
 var _render_sequence: int = 0
 var _last_judgment_event: Dictionary = {}
 var _click_events: Array[Dictionary] = []
@@ -118,6 +119,7 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_timer_ms = 0.0
 	_buffered_note_indices.clear()
 	_buffered_measure_indices.clear()
+	_last_sound_by_lane.clear()
 	_autosound_enabled = _normalized_bool(_chart.get("autosound", false))
 	_disable_autosound = false
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
@@ -285,9 +287,17 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 
 	var note_index := _next_note_index_for_lane(lane)
 	if note_index < 0:
-		return {"pressed": true, "accepted": false, "reason": "no_note", "rejectedKeysound": false, "audioCommands": []}
+		var replayed_last_sound := _emit_last_sound_for_lane(lane)
+		return {
+			"pressed": true,
+			"accepted": false,
+			"reason": "no_note",
+			"rejectedKeysound": replayed_last_sound,
+			"audioCommands": _audio_commands_since(audio_start_index),
+		}
 
 	var note := _notes[note_index]
+	_last_sound_by_lane[lane] = note.duplicate(true)
 	var hit_time := _hit_time_for_note(note, now_ms)
 	note["hitTime"] = hit_time
 	_notes[note_index] = note
@@ -701,6 +711,23 @@ func _should_trigger_rejected_keysound(hit_time: float) -> bool:
 	if not _is_vos_chart():
 		return true
 	return absf(hit_time) <= VOS_LIVE_TRIGGER_THRESHOLD
+
+
+func _emit_last_sound_for_lane(lane: int) -> bool:
+	if _is_vos_chart():
+		return false
+	var raw_note: Variant = _last_sound_by_lane.get(lane, {})
+	if not raw_note is Dictionary:
+		return false
+	var note: Dictionary = raw_note
+	if note.is_empty():
+		return false
+	_emit_audio_command(_sample_command(
+			AUDIO_ACTION_PLAY_SAMPLE,
+			AUDIO_SOURCE_NOTE,
+			AUDIO_TRIGGER_EXTRASOUND,
+			note))
+	return true
 
 
 func _is_vos_chart() -> bool:

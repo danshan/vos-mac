@@ -148,6 +148,26 @@ func _test_non_vos_rejected_keysound_keeps_java_behavior() -> bool:
 		return false
 	if not _expect_result_command(rejected_far, "playSample", 7, "note", "extrasound", "non VOS rejected command"):
 		return false
+
+	var no_note_controller = GameplayController.new()
+	if not _expect_bool(no_note_controller.load_chart(_non_vos_rejected_keysound_chart()), true, "non VOS no-note chart load"):
+		return false
+	var first_hit: Dictionary = no_note_controller.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(first_hit.get("accepted", false), true, "non VOS first hit accepted"):
+		return false
+	if not _expect_result_command(first_hit, "playSample", 7, "note", "keysound", "non VOS first hit command"):
+		return false
+	no_note_controller.drain_audio_commands()
+	no_note_controller.release_action("vos_lane_1", 1001.0)
+	var no_note: Dictionary = no_note_controller.press_action("vos_lane_1", 1300.0)
+	if not _expect_bool(no_note.get("accepted", true), false, "non VOS no-note rejected"):
+		return false
+	if not _expect_string(no_note.get("reason", ""), "no_note", "non VOS no-note reason"):
+		return false
+	if not _expect_bool(no_note.get("rejectedKeysound", false), true, "non VOS no-note replay keysound"):
+		return false
+	if not _expect_result_command(no_note, "playSample", 7, "note", "extrasound", "non VOS no-note replay command"):
+		return false
 	return true
 
 

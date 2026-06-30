@@ -1338,19 +1338,32 @@ func _set_hud_digits(id: String, text: String) -> void:
 	var container: Variant = entry.get("container")
 	if not container is Control:
 		return
-	for child: Node in container.get_children():
-		container.remove_child(child)
-		child.free()
-
-	if text.is_empty():
-		return
 
 	var entity: Dictionary = entry.get("entity", {})
 	var chars := text.split("")
+	if text.is_empty():
+		_clear_hud_digit_container(container)
+		container.set_meta("hudText", "")
+		return
+
+	var is_combo_counter := str(entity.get("type", "")) == "comboCounter"
+	if is_combo_counter and str(container.get_meta("hudText", "")) == text:
+		if _update_combo_counter_digit_positions(container, entity, chars, _combo_current_y(id, entity)):
+			_update_animation_frames_for_node(container, _last_update_time_ms)
+			return
+
+	_clear_hud_digit_container(container)
+	container.set_meta("hudText", text)
 	if str(entity.get("type", "")) == "comboCounter":
 		_add_combo_counter_digits(container, entity, chars, _combo_current_y(id, entity))
 	else:
 		_add_number_counter_digits(container, entity, chars)
+
+
+func _clear_hud_digit_container(container: Control) -> void:
+	for child: Node in container.get_children():
+		container.remove_child(child)
+		child.free()
 
 
 func _add_number_counter_digits(container: Control, entity: Dictionary, chars: PackedStringArray) -> void:
@@ -1388,6 +1401,31 @@ func _add_combo_counter_digits(container: Control, entity: Dictionary, chars: Pa
 	_add_combo_title(container, entity)
 
 
+func _update_combo_counter_digit_positions(container: Control, entity: Dictionary,
+		chars: PackedStringArray, y: float) -> bool:
+	var frames: Array[Dictionary] = []
+	var total_width := 0.0
+	for value: String in chars:
+		var frame := _digit_frame_for_char(entity, value)
+		if frame.is_empty():
+			return false
+		frames.append(frame)
+		total_width += float(frame.get("textureWidth", entity.get("width", 1.0)))
+
+	var tx := float(entity.get("x", 0.0)) - total_width * 0.5
+	for i in range(frames.size()):
+		var digit_node: Variant = container.get_node_or_null("Digit_%03d" % i)
+		if not digit_node is Control:
+			return false
+		digit_node.position = Vector2(tx, y)
+		tx += float(frames[i].get("textureWidth", entity.get("width", 1.0)))
+
+	var title_node: Variant = container.get_node_or_null("Title")
+	if title_node is Control:
+		_position_combo_title(title_node, entity)
+	return true
+
+
 func _add_combo_title(container: Control, entity: Dictionary) -> void:
 	var title_frame := _combo_title_frame(entity)
 	if title_frame.is_empty():
@@ -1395,10 +1433,14 @@ func _add_combo_title(container: Control, entity: Dictionary) -> void:
 	var title := _digit_texture_rect(title_frame, "Title")
 	title.set_meta("spriteFrames", _combo_title_frames(entity))
 	title.set_meta("frameSpeed", float(entity.get("titleFrameSpeed", 0.0)))
+	_position_combo_title(title, entity)
+	container.add_child(title)
+
+
+func _position_combo_title(title: Control, entity: Dictionary) -> void:
 	title.position = Vector2(
 			float(entity.get("x", 0.0)) - title.size.x * 0.5,
 			float(entity.get("y", 0.0)) - max(float(entity.get("height", 1.0)), 1.0))
-	container.add_child(title)
 
 
 func _combo_title_frame(entity: Dictionary) -> Dictionary:

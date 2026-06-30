@@ -601,6 +601,21 @@ func _init() -> void:
 	combo_digit_0 = combo_sprite_hud.get_child(0)
 	if not _expect_float(combo_digit_0.position.y, 210.0, "combo wobble base y"):
 		return
+	view.update_time(83084.0)
+	combo_title = combo_sprite_hud.get_node("Title")
+	var combo_title_texture: AtlasTexture = combo_title.texture
+	if not _expect_float(combo_title_texture.region.position.x, 64.0, "combo title animation advances like Java entity"):
+		return
+	view.update_hud_state({
+		"combo": 12,
+		"jamCombo": 2,
+		"elapsedMs": 83084.0,
+	})
+	combo_title = combo_sprite_hud.get_node("Title")
+	combo_title_texture = combo_title.texture
+	if not _expect_float(combo_title_texture.region.position.x, 64.0, "combo title animation survives same-value state sync"):
+		return
+	view.update_time(0.0)
 	view.update_hud_state({
 		"combo": 12,
 		"jamCombo": 2,

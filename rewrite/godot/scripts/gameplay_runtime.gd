@@ -164,9 +164,10 @@ func advance_to(now_ms: float) -> void:
 
 
 func press_action(action: String, now_ms: float = -1.0) -> Dictionary:
-	if _starts_game(action):
+	var starts_game := _starts_game(action)
+	if starts_game:
 		_game_started = true
-	var hit_time := _time_for_input(now_ms)
+	var hit_time := _judgment_time_ms() if starts_game else _time_for_input(now_ms)
 	var response: Dictionary = _controller.press_action(action, hit_time)
 	_apply_audio_commands()
 	return response

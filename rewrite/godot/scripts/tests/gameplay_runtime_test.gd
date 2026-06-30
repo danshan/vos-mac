@@ -544,8 +544,10 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	if not _expect_string(str(waiting_status[3]), "Press any note button to start the game.", "manual start status"):
 		return false
 
-	var hit: Dictionary = runtime.press_action("vos_lane_1")
+	var hit: Dictionary = runtime.press_action("vos_lane_1", 1000.0)
 	if not _expect_bool(hit.get("accepted", false), true, "manual start first input accepted"):
+		return false
+	if not _expect_float(float(hit.get("hitTime", -1.0)), 0.0, "manual start first input uses game time"):
 		return false
 	var started_state: Dictionary = runtime.hud_state()
 	var started_status: Array = started_state.get("statusTexts", [])

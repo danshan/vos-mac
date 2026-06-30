@@ -65,6 +65,13 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 			return {}
 		normalized_notes.append(normalized_note)
 
+	var visual_timing: Array[Dictionary] = _normalized_timing(chart.get("visualTiming"))
+	if visual_timing.is_empty():
+		return {}
+	var judgment_timing: Array[Dictionary] = _normalized_timing(chart.get("judgmentTiming"))
+	if judgment_timing.is_empty():
+		return {}
+
 	var auto_play_events: Variant = chart.get("autoPlayEvents")
 	if not auto_play_events is Array:
 		return {}
@@ -141,6 +148,8 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	if channel_modifier == CHANNEL_MOD_RANDOM and normalized_notes.size() > 0 and channel_notes.is_empty():
 		return {}
 	normalized_chart["notes"] = channel_notes
+	normalized_chart["visualTiming"] = visual_timing
+	normalized_chart["judgmentTiming"] = judgment_timing
 	normalized_chart["autoPlayEvents"] = normalized_events
 	normalized_chart["bgaEvents"] = normalized_bga_events
 	normalized_chart["bgaSprites"] = normalized_bga_sprites
@@ -181,6 +190,24 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	normalized_note["startMs"] = float(start_ms)
 	normalized_note["sampleId"] = int(sample_id)
 	return normalized_note
+
+
+func _normalized_timing(raw_timing: Variant) -> Array[Dictionary]:
+	var normalized: Array[Dictionary] = []
+	if not raw_timing is Array or raw_timing.is_empty():
+		return normalized
+	for raw_change: Variant in raw_timing:
+		if not raw_change is Dictionary:
+			return []
+		if not _is_non_negative_number(raw_change.get("timeMs")):
+			return []
+		if not _is_positive_number(raw_change.get("bpm")):
+			return []
+		var change: Dictionary = raw_change.duplicate(true)
+		change["timeMs"] = float(raw_change.get("timeMs"))
+		change["bpm"] = float(raw_change.get("bpm"))
+		normalized.append(change)
+	return normalized
 
 
 func _normalized_auto_play_event(event: Dictionary) -> Dictionary:

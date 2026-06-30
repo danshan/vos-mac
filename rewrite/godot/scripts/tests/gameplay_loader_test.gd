@@ -200,6 +200,14 @@ func _init() -> void:
 		return
 	if not _expect_rejected(loader, _chart_with("keys", 0), "zero keys"):
 		return
+	if not _expect_rejected(loader, _chart_without_timing("visualTiming"), "missing visual timing"):
+		return
+	if not _expect_rejected(loader, _chart_without_timing("judgmentTiming"), "missing judgment timing"):
+		return
+	if not _expect_rejected(loader, _chart_with_timing("visualTiming", "timeMs", "0"), "string visual timing time"):
+		return
+	if not _expect_rejected(loader, _chart_with_timing("judgmentTiming", "bpm", 0), "zero judgment timing bpm"):
+		return
 	if not _expect_rejected(loader, _chart_without_note_field("kind"), "missing note kind"):
 		return
 	if not _expect_rejected(loader, _chart_with_note("lane", "0"), "string note lane"):
@@ -273,6 +281,8 @@ func _valid_chart() -> Dictionary:
 		"bpm": 120.0,
 		"durationMs": 3000,
 		"notes": [{"id": 1, "lane": 0, "startMs": 1000.0, "endMs": null, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "tap"}],
+		"visualTiming": [{"timeMs": 0.0, "bpm": 120.0}],
+		"judgmentTiming": [{"timeMs": 0.0, "bpm": 120.0}],
 		"autoPlayEvents": [{"startMs": 0.0, "sampleId": 1, "volume": 1.0, "pan": 0.0}],
 		"bgaEvents": [{"startMs": 50.0, "spriteId": 7}],
 		"bgaSprites": [{"spriteId": 7, "texturePath": "res://test/fixtures/bga.png"}],
@@ -294,6 +304,18 @@ func _chart_with_note(field: String, value: Variant) -> Dictionary:
 func _chart_without_note_field(field: String) -> Dictionary:
 	var chart: Dictionary = _valid_chart()
 	chart["notes"][0].erase(field)
+	return chart
+
+
+func _chart_without_timing(field: String) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart.erase(field)
+	return chart
+
+
+func _chart_with_timing(timing_field: String, field: String, value: Variant) -> Dictionary:
+	var chart: Dictionary = _valid_chart()
+	chart[timing_field][0][field] = value
 	return chart
 
 

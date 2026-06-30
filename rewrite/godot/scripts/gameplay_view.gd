@@ -64,6 +64,7 @@ var _click_nodes: Array[Node] = []
 var _click_nodes_by_sequence: Dictionary = {}
 var _pill_nodes: Array[Node] = []
 var _longflare_nodes: Array[Node] = []
+var _longflare_nodes_by_lane: Dictionary = {}
 var _visibility_nodes: Array[Node] = []
 var _status_nodes: Array[Node] = []
 var _bga_sprites: Dictionary = {}
@@ -189,7 +190,7 @@ func _rebuild_entities() -> void:
 	_clear_judgment_node()
 	_clear_click_nodes()
 	_clear_nodes(_pill_nodes)
-	_clear_nodes(_longflare_nodes)
+	_clear_longflare_nodes()
 	_clear_nodes(_visibility_nodes)
 	_clear_nodes(_status_nodes)
 
@@ -788,26 +789,43 @@ func _sync_pills(count: int) -> void:
 
 
 func _sync_longflares(raw_flares: Variant, now_ms: float) -> void:
-	_clear_nodes(_longflare_nodes)
 	if not raw_flares is Array:
+		_clear_longflare_nodes()
 		return
 
 	var entity := _first_entity_by_id("EFFECT_LONGFLARE")
 	if entity.is_empty():
+		_clear_longflare_nodes()
 		return
+	var active_lanes := {}
 	for raw_flare: Variant in raw_flares:
 		if not raw_flare is Dictionary:
 			continue
 		var lane_index := int(raw_flare.get("lane", -1))
 		if lane_index < 0:
 			continue
+		active_lanes[lane_index] = true
+		var start_ms := float(raw_flare.get("startMs", 0.0))
+		var existing: Variant = _longflare_nodes_by_lane.get(lane_index)
+		if existing is Control and is_instance_valid(existing) and is_equal_approx(float(existing.get_meta("longflareStartMs", -1.0)), start_ms):
+			_position_longflare_node(existing, entity, lane_index, raw_flare)
+			_update_animation_frames_for_node(existing, now_ms)
+			continue
+		if _longflare_nodes_by_lane.has(lane_index):
+			_clear_longflare_node(lane_index)
 		var flare_entity := entity.duplicate(true)
-		flare_entity["animationStartMs"] = float(raw_flare.get("startMs", 0.0))
+		flare_entity["animationStartMs"] = start_ms
 		var node := _entity_rect(flare_entity, "Longflare_EFFECT_LONGFLARE_%03d" % lane_index)
+		node.set_meta("longflareStartMs", start_ms)
 		_position_longflare_node(node, entity, lane_index, raw_flare)
 		_update_animation_frames_for_node(node, now_ms)
 		add_child(node)
 		_longflare_nodes.append(node)
+		_longflare_nodes_by_lane[lane_index] = node
+	for raw_lane: Variant in _longflare_nodes_by_lane.keys():
+		var lane := int(raw_lane)
+		if not bool(active_lanes.get(lane, false)):
+			_clear_longflare_node(lane)
 
 
 func _sync_note_visibility(raw_hidden_notes: Variant, now_ms: float) -> void:
@@ -1111,6 +1129,24 @@ func _clear_click_node(sequence: int) -> void:
 	if not raw_node is Node:
 		return
 	_click_nodes.erase(raw_node)
+	if not is_instance_valid(raw_node):
+		return
+	if raw_node.get_parent() == self:
+		remove_child(raw_node)
+	raw_node.free()
+
+
+func _clear_longflare_nodes() -> void:
+	_clear_nodes(_longflare_nodes)
+	_longflare_nodes_by_lane.clear()
+
+
+func _clear_longflare_node(lane: int) -> void:
+	var raw_node: Variant = _longflare_nodes_by_lane.get(lane)
+	_longflare_nodes_by_lane.erase(lane)
+	if not raw_node is Node:
+		return
+	_longflare_nodes.erase(raw_node)
 	if not is_instance_valid(raw_node):
 		return
 	if raw_node.get_parent() == self:

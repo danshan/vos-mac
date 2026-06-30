@@ -821,6 +821,7 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_002"), true, "longflare lane three node"):
 		return
 	var longflare_node: TextureRect = view.get_node("Longflare_EFFECT_LONGFLARE_002")
+	var longflare_instance_id := longflare_node.get_instance_id()
 	view.update_time(3000.0)
 	var longflare_texture: AtlasTexture = longflare_node.texture
 	if not _expect_float(longflare_texture.region.position.y, 180.0, "longflare starts on first frame"):
@@ -842,6 +843,8 @@ func _init() -> void:
 	})
 	longflare_node = view.get_node("Longflare_EFFECT_LONGFLARE_002")
 	longflare_texture = longflare_node.texture
+	if not _expect_int(longflare_node.get_instance_id(), longflare_instance_id, "longflare keeps Java entity instance during state sync"):
+		return
 	if not _expect_float(longflare_texture.region.position.y, 308.0, "longflare advances during state sync"):
 		return
 

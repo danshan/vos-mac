@@ -369,15 +369,16 @@ func release_lane(lane: int, now_ms: float) -> Dictionary:
 
 
 func advance_to(now_ms: float, display_now_ms: float = -1.0,
-		autosound_now_ms: float = -1.0, game_now_ms: float = -1.0) -> int:
+		autosound_now_ms: float = -1.0, game_now_ms: float = -1.0,
+		frame_delta_ms: float = -1.0) -> int:
 	var render_now_ms := display_now_ms if display_now_ms >= 0.0 else now_ms
 	var sound_now_ms := autosound_now_ms if autosound_now_ms >= 0.0 else now_ms
 	var speed_now_ms := game_now_ms if game_now_ms >= 0.0 else now_ms
 	var judged := 0
 	_update_game_speed_state(speed_now_ms)
-	_update_render_speed_state(speed_now_ms)
+	_update_render_speed_state(speed_now_ms, frame_delta_ms)
 	_advance_event_buffer(render_now_ms)
-	_update_distance_state(render_now_ms)
+	_update_distance_state(render_now_ms, frame_delta_ms)
 	_advance_bga_event(now_ms)
 	_advance_auto_play(sound_now_ms)
 	judged += _advance_note_autoplay(now_ms)
@@ -887,9 +888,11 @@ func _is_power_of_two(value: int) -> bool:
 	return value > 0 and (value & (value - 1)) == 0
 
 
-func _update_render_speed_state(now_ms: float) -> void:
+func _update_render_speed_state(now_ms: float, frame_delta_ms: float = -1.0) -> void:
 	var delta_ms: float = 0.0
-	if _has_speed_update_ms:
+	if frame_delta_ms >= 0.0:
+		delta_ms = frame_delta_ms
+	elif _has_speed_update_ms:
 		delta_ms = max(now_ms - _last_speed_update_ms, 0.0)
 	if _render_speed < _target_render_speed:
 		_render_speed = min(_render_speed + SPEED_FACTOR * delta_ms, _target_render_speed)
@@ -899,11 +902,13 @@ func _update_render_speed_state(now_ms: float) -> void:
 	_has_speed_update_ms = true
 
 
-func _update_distance_state(now_ms: float) -> void:
+func _update_distance_state(now_ms: float, frame_delta_ms: float = -1.0) -> void:
 	if _speed_type != SPEED_TYPE_W_SPEED or _distance == null:
 		return
 	var delta_ms: float = 0.0
-	if _has_distance_update_ms:
+	if frame_delta_ms >= 0.0:
+		delta_ms = frame_delta_ms
+	elif _has_distance_update_ms:
 		delta_ms = max(now_ms - _last_distance_update_ms, 0.0)
 	_distance.update_w_speed(delta_ms, _render_speed)
 	_last_distance_update_ms = now_ms

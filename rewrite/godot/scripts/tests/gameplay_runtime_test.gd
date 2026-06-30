@@ -392,6 +392,23 @@ func _test_java_haste_mode_pitch_sync(audio_manifest: Dictionary) -> bool:
 	if not _expect_float(float(haste_state.get("audioPitchScale", -1.0)), expected_pitch, "haste audio pitch scale"):
 		return false
 
+	var speed_up := InputEventAction.new()
+	speed_up.action = "speed_up"
+	speed_up.pressed = true
+	var speed_up_release := InputEventAction.new()
+	speed_up_release.action = "speed_up"
+	speed_up_release.pressed = false
+	runtime._unhandled_input(speed_up)
+	runtime._unhandled_input(speed_up_release)
+	runtime._unhandled_input(speed_up)
+	var speed_target_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(speed_target_state.get("targetSpeed", -1.0)), 2.0, "haste speed target"):
+		return false
+	runtime.advance_to(6101.0)
+	var speed_smoothed_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(speed_smoothed_state.get("renderSpeed", -1.0)), 1.5, "haste speed smoothing uses wall clock delta"):
+		return false
+
 	var hit: Dictionary = runtime.press_action("vos_lane_1", 6100.0)
 	if not _expect_bool(hit.get("accepted", false), true, "haste note hit"):
 		return false

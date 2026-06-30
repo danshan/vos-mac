@@ -153,7 +153,7 @@ func advance_to(now_ms: float) -> void:
 		return
 
 	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
-	_controller.advance_to(_judgment_time_ms(), _display_time_ms(), _game_time_ms, _game_time_ms)
+	_controller.advance_to(_judgment_time_ms(), _display_time_ms(), _game_time_ms, _game_time_ms, delta_ms)
 	_apply_audio_commands()
 
 	if _controller.note_layer_empty() and _controller.event_buffer_empty():

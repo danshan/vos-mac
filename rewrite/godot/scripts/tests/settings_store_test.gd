@@ -9,6 +9,11 @@ func _init() -> void:
 	store.set_song_directories(input_directories)
 	input_directories.append("/tmp/input-mutated")
 	store.set_fullscreen_enabled(true)
+	if not _expect_bool(store.has_method("set_vsync_enabled"), true, "vsync setter"):
+		return
+	if not _expect_bool(store.has_method("vsync_enabled"), true, "vsync getter"):
+		return
+	store.set_vsync_enabled(false)
 	var input_bindings: Array[String] = ["A", "S", "D", "Space", "J", "K", "L"]
 	store.set_key_bindings(input_bindings)
 	input_bindings[0] = "Mutated"
@@ -34,8 +39,13 @@ func _init() -> void:
 		return
 	if not _expect_bool(store.has_method("set_display_latency_ms"), true, "display latency setter"):
 		return
+	if not _expect_bool(store.has_method("set_autosync_mode"), true, "autosync mode setter"):
+		return
+	if not _expect_bool(store.has_method("autosync_mode"), true, "autosync mode getter"):
+		return
 	store.set_audio_latency_ms(120.0)
 	store.set_display_latency_ms(45.0)
+	store.set_autosync_mode("audio")
 	if not _expect_bool(store.has_method("set_master_volume"), true, "master volume setter"):
 		return
 	if not _expect_bool(store.has_method("set_key_volume"), true, "key volume setter"):
@@ -54,10 +64,22 @@ func _init() -> void:
 	if not _expect_bool(store.has_method("set_start_paused_enabled"), true, "start paused setter"):
 		return
 	store.set_start_paused_enabled(true)
+	if not _expect_bool(store.has_method("set_local_matching_server"), true, "local matching server setter"):
+		return
+	if not _expect_bool(store.has_method("local_matching_server"), true, "local matching server getter"):
+		return
+	store.set_local_matching_server(" localhost:1234 ")
+	if not _expect_bool(store.has_method("set_settings_language"), true, "settings language setter"):
+		return
+	if not _expect_bool(store.has_method("settings_language"), true, "settings language getter"):
+		return
+	store.set_settings_language("zh")
 
 	if not _expect_array(store.song_directories(), ["/tmp/vos"], "song directories"):
 		return
 	if not _expect_bool(store.fullscreen_enabled(), true, "fullscreen enabled"):
+		return
+	if not _expect_bool(store.vsync_enabled(), false, "vsync enabled"):
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "key bindings"):
 		return
@@ -90,6 +112,12 @@ func _init() -> void:
 		return
 	if not _expect_float(store.display_latency_ms(), 45.0, "display latency"):
 		return
+	if not _expect_string(store.autosync_mode(), "audio", "autosync mode"):
+		return
+	store.set_autosync_mode("invalid")
+	if not _expect_string(store.autosync_mode(), "", "invalid autosync mode falls back"):
+		return
+	store.set_autosync_mode("audio")
 	if not _expect_float(store.master_volume(), 1.0, "master volume clamp"):
 		return
 	if not _expect_float(store.key_volume(), 0.0, "key volume clamp"):
@@ -102,6 +130,14 @@ func _init() -> void:
 		return
 	if not _expect_bool(store.start_paused_enabled(), true, "start paused enabled"):
 		return
+	if not _expect_string(store.local_matching_server(), "localhost:1234", "local matching server"):
+		return
+	if not _expect_string(store.settings_language(), "zh", "settings language"):
+		return
+	store.set_settings_language("invalid")
+	if not _expect_string(store.settings_language(), "en", "invalid settings language falls back"):
+		return
+	store.set_settings_language("zh")
 
 	var directories: Array[String] = store.song_directories()
 	directories.append("/tmp/other")
@@ -131,6 +167,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(loaded_store.fullscreen_enabled(), true, "loaded fullscreen enabled"):
 		return
+	if not _expect_bool(loaded_store.vsync_enabled(), false, "loaded vsync enabled"):
+		return
 	if not _expect_array(loaded_store.key_bindings(), ["A", "S", "D", "Space", "J", "K", "L"], "loaded key bindings"):
 		return
 	if not _expect_dictionary(loaded_store.misc_key_bindings(), {
@@ -152,6 +190,8 @@ func _init() -> void:
 		return
 	if not _expect_float(loaded_store.display_latency_ms(), 45.0, "loaded display latency"):
 		return
+	if not _expect_string(loaded_store.autosync_mode(), "audio", "loaded autosync mode"):
+		return
 	if not _expect_float(loaded_store.master_volume(), 1.0, "loaded master volume"):
 		return
 	if not _expect_float(loaded_store.key_volume(), 0.0, "loaded key volume"):
@@ -164,6 +204,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(loaded_store.start_paused_enabled(), true, "loaded start paused enabled"):
 		return
+	if not _expect_string(loaded_store.local_matching_server(), "localhost:1234", "loaded local matching server"):
+		return
 	if not _expect_string(loaded_store.channel_modifier(), "Mirror", "loaded channel modifier"):
 		return
 	if not _expect_string(loaded_store.speed_type(), "RegulSpeed", "loaded speed type"):
@@ -173,6 +215,8 @@ func _init() -> void:
 	if not _expect_string(loaded_store.visibility_modifier(), "Hidden", "loaded visibility modifier"):
 		return
 	if not _expect_string(loaded_store.judgment_type(), "time", "loaded judgment type"):
+		return
+	if not _expect_string(loaded_store.settings_language(), "zh", "loaded settings language"):
 		return
 
 	quit(0)

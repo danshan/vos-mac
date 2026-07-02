@@ -131,6 +131,7 @@ public class Render implements GameWindowCallback
     
     /** The cumulative time in this game */
     double gameTime = 0;
+    private Double fixedCaptureGameTime;
     int gameMeasure = 0;
     Runnable increaseMeasureRunnable = new Runnable() {
         @Override
@@ -297,14 +298,19 @@ public class Render implements GameWindowCallback
     
     public Render(Chart chart, GameOptions opt, DisplayMode dm) throws SoundSystemException
     {
+        this(chart, opt, dm, new OpenALSoundSystem());
+    }
+
+    public Render(Chart chart, GameOptions opt, DisplayMode dm, SoundSystem soundSystem) throws SoundSystemException
+    {
         keyboard_map = Config.getKeyboardMap(Config.KeyboardType.K7);
         keyboard_misc = Config.getKeyboardMisc();
         window = ResourceFactory.get().getGameWindow();
         
-        soundSystem = new OpenALSoundSystem();
-        soundSystem.setMasterVolume(opt.getMasterVolume());
-        soundSystem.setBGMVolume(opt.getBGMVolume());
-        soundSystem.setKeyVolume(opt.getKeyVolume());
+        this.soundSystem = soundSystem;
+        this.soundSystem.setMasterVolume(opt.getMasterVolume());
+        this.soundSystem.setBGMVolume(opt.getBGMVolume());
+        this.soundSystem.setKeyVolume(opt.getKeyVolume());
         
         entities_matrix = new EntityMatrix();
         this.chart = chart;
@@ -421,6 +427,10 @@ public class Render implements GameWindowCallback
 
     public void setRank(int rank) {
         this.rank = rank;
+    }
+
+    public void setFixedCaptureGameTime(double gameTime) {
+        fixedCaptureGameTime = Math.max(0.0, gameTime);
     }
 
     
@@ -777,6 +787,9 @@ public class Render implements GameWindowCallback
         
         if (gameStarted) {
             gameTime += delta * effectiveSpeed;
+        }
+        if (fixedCaptureGameTime != null) {
+            gameTime = fixedCaptureGameTime.doubleValue();
         }
         
         now = gameTime;
@@ -1560,7 +1573,13 @@ public class Render implements GameWindowCallback
 
     private EventList construct_velocity_tree(EventList list)
     {
-        EventList new_list = RenderTimingCompiler.compile(list, chart.type, bpm, DELAY_TIME, timing, visualTiming);
+        return constructVelocityTree(list, chart.type, bpm, DELAY_TIME, timing, visualTiming, last_sound, this);
+    }
+
+    static EventList constructVelocityTree(EventList list, Chart.TYPE chartType, double bpm, double startTime,
+            TimingData timing, TimingData visualTiming, EnumMap<Event.Channel, SampleEntity> lastSound,
+            Render render) {
+        EventList new_list = RenderTimingCompiler.compile(list, chartType, bpm, startTime, timing, visualTiming);
         for(Event e : new_list) {
             switch(e.getChannel()) {
                 case NOTE_1:case NOTE_2:
@@ -1573,8 +1592,10 @@ public class Render implements GameWindowCallback
                 case NOTE_SC2:
                 case AUTO_PLAY:
                 case BGA:
-                    if (!last_sound.containsKey(e.getChannel()) && e.getSample() != null) {
-                        last_sound.put(e.getChannel(), createSampleEntity(e, false));
+                    if (!lastSound.containsKey(e.getChannel()) && e.getSample() != null) {
+                        SampleEntity sampleEntity = new SampleEntity(render, e.getSample(), 0);
+                        sampleEntity.setTime(e.getTime());
+                        lastSound.put(e.getChannel(), sampleEntity);
                     }
                     break;
                 default:

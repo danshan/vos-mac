@@ -2,25 +2,38 @@ extends Node
 
 var _assets_by_sample_id: Dictionary = {}
 var _preloaded_streams: Dictionary = {}
+var _preload_sample_ids: Array[int] = []
 var _play_events: Array[Dictionary] = []
 var _registered_players: Dictionary = {}
 var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
 var _pitch_scale: float = 1.0
+var _paused: bool = false
+var _manifest_signature: String = ""
+var _preload_thread: Thread = null
 const JAVA_PAN_DISTANCE_SCALE: float = 1.0
 const JAVA_PANNING_STRENGTH: float = 1.0
+const MAX_EAGER_PRELOAD_ASSETS: int = 32
+
+
+func _exit_tree() -> void:
+	_wait_for_preload_thread()
 
 
 func load_manifest(manifest: Dictionary) -> bool:
+	_wait_for_preload_thread()
 	var assets: Variant = manifest.get("assets")
 	if not assets is Array:
 		return false
 
 	_assets_by_sample_id.clear()
 	_preloaded_streams.clear()
+	_preload_sample_ids.clear()
 	_play_events.clear()
 	_registered_players.clear()
+	_manifest_signature = _manifest_signature_for(manifest)
+	var allow_eager_preload: bool = assets.size() <= MAX_EAGER_PRELOAD_ASSETS
 	for asset: Variant in assets:
 		if not asset is Dictionary:
 			return false
@@ -30,12 +43,16 @@ func load_manifest(manifest: Dictionary) -> bool:
 		var normalized_asset: Dictionary = asset.duplicate(true)
 		_assets_by_sample_id[sample_id] = normalized_asset
 		if bool(normalized_asset.get("preload", false)):
-			var stream := _load_stream_for_asset(normalized_asset)
-			if stream == null:
+			_preload_sample_ids.append(sample_id)
+		if allow_eager_preload and _preload_sample_ids.has(sample_id):
+			if not _preload_sample(sample_id):
 				return false
-			_preloaded_streams[sample_id] = stream
 
 	return true
+
+
+func has_loaded_manifest(manifest: Dictionary) -> bool:
+	return not _manifest_signature.is_empty() and _manifest_signature == _manifest_signature_for(manifest)
 
 
 func asset_count() -> int:
@@ -50,6 +67,63 @@ func preloaded_sample_count() -> int:
 	return _preloaded_streams.size()
 
 
+func reset_playback_state() -> void:
+	stop_all()
+	_paused = false
+	_play_events.clear()
+	_registered_players.clear()
+
+
+func preload_sample_count() -> int:
+	return _preload_sample_ids.size()
+
+
+func preload_pending_sample_count() -> int:
+	if not _collect_preload_thread_if_done():
+		return _preload_sample_ids.size()
+	var count := 0
+	for sample_id: int in _preload_sample_ids:
+		if not _preloaded_streams.has(sample_id):
+			count += 1
+	return count
+
+
+func preload_next_sample() -> bool:
+	if not _wait_for_preload_thread():
+		return false
+	for sample_id: int in _preload_sample_ids:
+		if _preloaded_streams.has(sample_id):
+			continue
+		return _preload_sample(sample_id)
+	return true
+
+
+func preload_next_sample_async() -> bool:
+	var had_active_thread := _preload_thread != null
+	if not _collect_preload_thread_if_done():
+		return false
+	if _preload_thread != null:
+		return true
+	if had_active_thread:
+		return true
+
+	var sample_id := _next_pending_preload_sample_id()
+	if sample_id <= 0:
+		return true
+
+	var asset: Dictionary = _assets_by_sample_id[sample_id].duplicate(true)
+	_preload_thread = Thread.new()
+	var error := _preload_thread.start(_load_stream_for_asset_on_thread.bind(sample_id, asset))
+	if error != OK:
+		_preload_thread = null
+		return false
+	return true
+
+
+func preload_in_progress() -> bool:
+	return _preload_thread != null and _preload_thread.is_alive()
+
+
 func set_volume_state(master_volume: float, key_volume: float, bgm_volume: float) -> void:
 	_master_volume = _clamped_volume(master_volume)
 	_key_volume = _clamped_volume(key_volume)
@@ -60,6 +134,17 @@ func set_volume_state(master_volume: float, key_volume: float, bgm_volume: float
 func set_pitch_scale(pitch_scale: float) -> void:
 	_pitch_scale = _clamped_pitch_scale(pitch_scale)
 	_update_active_player_pitch_scale()
+
+
+func set_paused(paused: bool) -> void:
+	_paused = paused
+	for child in get_children():
+		if child is AudioStreamPlayer2D:
+			(child as AudioStreamPlayer2D).stream_paused = paused
+
+
+func is_paused() -> bool:
+	return _paused
 
 
 func apply_audio_commands(commands: Array) -> Array[Dictionary]:
@@ -105,7 +190,9 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	var path := str(asset.get("path", ""))
 	var stream: AudioStream = _preloaded_streams.get(sample_id, null)
 	if stream == null:
-		stream = _load_stream_for_asset(asset)
+		if not _preload_sample(sample_id):
+			return {"played": false, "sampleId": sample_id, "reason": "missing_stream", "path": path}
+		stream = _preloaded_streams.get(sample_id, null)
 	if stream == null:
 		return {"played": false, "sampleId": sample_id, "reason": "missing_stream", "path": path}
 
@@ -113,8 +200,8 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	player.name = "Sample_%d_%d" % [sample_id, _play_events.size() + 1]
 	player.stream = stream
 	var sample_volume := 1.0
-	var pan := _clamped_pan(float(command.get("pan", 0.0)))
-	var uses_bgm_channel := _command_uses_bgm_channel(command) or _asset_uses_bgm_channel(asset)
+	var pan := float(command.get("pan", 0.0))
+	var uses_bgm_channel := _command_uses_bgm_channel(command)
 	var channel_volume := _channel_volume(uses_bgm_channel)
 	var effective_volume := _clamped_volume(_master_volume * channel_volume * sample_volume)
 	player.position = Vector2(pan * JAVA_PAN_DISTANCE_SCALE, 0.0)
@@ -122,6 +209,7 @@ func _play_sample_with_command(sample_id: int, command: Dictionary) -> Dictionar
 	player.attenuation = 0.0
 	player.volume_db = _volume_db_for_linear(effective_volume)
 	player.pitch_scale = _pitch_scale
+	player.stream_paused = _paused
 	player.set_meta("sample_volume", sample_volume)
 	player.set_meta("uses_bgm_channel", uses_bgm_channel)
 	player.set_meta("pan", pan)
@@ -174,6 +262,7 @@ func stop_all() -> int:
 			child.stop()
 			stopped += 1
 	_registered_players.clear()
+	_paused = false
 	return stopped
 
 
@@ -209,9 +298,91 @@ func _load_stream_for_asset(asset: Dictionary) -> AudioStream:
 	return AudioStreamWAV.load_from_file(path)
 
 
-func _asset_uses_bgm_channel(asset: Dictionary) -> bool:
-	var role := str(asset.get("role", "")).to_lower()
-	return role == "background" or role == "bgm"
+func _preload_sample(sample_id: int) -> bool:
+	if _preloaded_streams.has(sample_id):
+		return true
+	if not _assets_by_sample_id.has(sample_id):
+		return false
+	var stream := _load_stream_for_asset(_assets_by_sample_id[sample_id])
+	if stream == null:
+		return false
+	_preloaded_streams[sample_id] = stream
+	return true
+
+
+func _next_pending_preload_sample_id() -> int:
+	for sample_id: int in _preload_sample_ids:
+		if not _preloaded_streams.has(sample_id):
+			return sample_id
+	return 0
+
+
+func _load_stream_for_asset_on_thread(sample_id: int, asset: Dictionary) -> Dictionary:
+	var stream := _load_stream_for_asset(asset)
+	if stream == null:
+		return {
+			"ok": false,
+			"sampleId": sample_id,
+			"path": str(asset.get("path", "")),
+		}
+	return {
+		"ok": true,
+		"sampleId": sample_id,
+		"path": str(asset.get("path", "")),
+		"stream": stream,
+	}
+
+
+func _collect_preload_thread_if_done() -> bool:
+	if _preload_thread == null:
+		return true
+	if _preload_thread.is_alive():
+		return true
+	var result: Variant = _preload_thread.wait_to_finish()
+	_preload_thread = null
+	return _store_preload_thread_result(result)
+
+
+func _wait_for_preload_thread() -> bool:
+	if _preload_thread == null:
+		return true
+	var result: Variant = _preload_thread.wait_to_finish()
+	_preload_thread = null
+	return _store_preload_thread_result(result)
+
+
+func _store_preload_thread_result(result: Variant) -> bool:
+	if not result is Dictionary:
+		return false
+	var sample_id := int(result.get("sampleId", 0))
+	if not bool(result.get("ok", false)):
+		return false
+	if sample_id <= 0 or not _assets_by_sample_id.has(sample_id):
+		return false
+	var stream: Variant = result.get("stream", null)
+	if not stream is AudioStream:
+		return false
+	_preloaded_streams[sample_id] = stream
+	return true
+
+
+func _manifest_signature_for(manifest: Dictionary) -> String:
+	var assets: Variant = manifest.get("assets")
+	if not assets is Array:
+		return ""
+	var parts: Array[String] = [
+		str(manifest.get("sourcePath", "")),
+		str(manifest.get("assetDir", "")),
+		str(assets.size()),
+	]
+	for asset: Variant in assets:
+		if asset is Dictionary:
+			parts.append("%s:%s:%s" % [
+				str(asset.get("sampleId", "")),
+				str(asset.get("path", "")),
+				str(asset.get("preload", false)),
+			])
+	return "|".join(parts)
 
 
 func _command_uses_bgm_channel(command: Dictionary) -> bool:
@@ -245,10 +416,6 @@ func _clamped_volume(volume: float) -> float:
 
 func _clamped_pitch_scale(pitch_scale: float) -> float:
 	return clampf(pitch_scale, 0.25, 4.0)
-
-
-func _clamped_pan(pan: float) -> float:
-	return clampf(pan, -1.0, 1.0)
 
 
 func _volume_db_for_linear(volume: float) -> float:

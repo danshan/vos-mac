@@ -1,0 +1,53 @@
+min_version = "2024.9.5"
+
+[tools]
+java = "zulu-17.66.19.0"
+maven = "3.9.9"
+
+[env]
+MAVEN_SETTINGS = ".mvn/settings.xml"
+
+[tasks.build]
+description = "Build and test the project"
+run = "mvn -s $MAVEN_SETTINGS verify"
+
+[tasks.package]
+description = "Build the shaded jar"
+run = "mvn -s $MAVEN_SETTINGS clean package"
+
+[tasks.godot]
+description = "Build the shaded jar and run the Godot rewrite"
+depends = ["package"]
+run = "godot --path rewrite/godot"
+
+[tasks.run]
+description = "Run from source"
+run = "mvn -s $MAVEN_SETTINGS exec:exec"
+
+[tasks.app]
+description = "Build the local macOS app image"
+depends = ["package"]
+run = '''
+set -euo pipefail
+
+rm -rf target/package-input target/jpackage
+mkdir -p target/package-input
+
+jar_file="$(find target -maxdepth 1 -type f -name 'open2jam-*.jar' ! -name 'original-*' | sort | head -n 1)"
+if [ -z "$jar_file" ]; then
+  echo "Packaged jar not found." >&2
+  exit 1
+fi
+
+cp "$jar_file" target/package-input/open2jam.jar
+jpackage \
+  --type app-image \
+  --name VosMac \
+  --input target/package-input \
+  --main-jar open2jam.jar \
+  --main-class org.open2jam.Main \
+  --icon src/resources/macos/VosMac.icns \
+  --mac-package-identifier com.danshan.vosmac \
+  --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
+  --dest target/jpackage
+'''

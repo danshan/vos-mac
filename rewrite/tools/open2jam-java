@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$ROOT_DIR"
+
+export PATH="/opt/homebrew/bin:/opt/homebrew/opt/mise/bin:/usr/local/bin:$PATH"
+
+java_tool_version="$(awk -F '=' '
+    $1 ~ /^[[:space:]]*java[[:space:]]*$/ {
+        value = $2
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        gsub(/^"|"$/, "", value)
+        print value
+        exit
+    }
+' mise.toml)"
+
+if command -v mise >/dev/null 2>&1; then
+    export MISE_TRUSTED_CONFIG_PATHS="${ROOT_DIR}${MISE_TRUSTED_CONFIG_PATHS:+:${MISE_TRUSTED_CONFIG_PATHS}}"
+    host_mise_global_config="${MISE_GLOBAL_CONFIG_FILE:-${HOME}/.config/mise/config.toml}"
+    if [[ -f "$host_mise_global_config" ]]; then
+        export MISE_IGNORED_CONFIG_PATHS="${host_mise_global_config}${MISE_IGNORED_CONFIG_PATHS:+:${MISE_IGNORED_CONFIG_PATHS}}"
+    fi
+    if [[ -n "$java_tool_version" ]]; then
+        exec mise exec "java@$java_tool_version" -- java "$@"
+    fi
+    exec mise exec -- java "$@"
+fi
+
+exec java "$@"

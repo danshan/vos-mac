@@ -1,0 +1,92 @@
+extends SceneTree
+
+const AudioManifestLoader = preload("res://scripts/audio_manifest_loader.gd")
+const AudioPlayerPool = preload("res://scripts/audio_player_pool.gd")
+const ExporterClient = preload("res://scripts/exporter_client.gd")
+const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
+
+const DEMO_CHART := "/Users/honghao.shan/Music/demo/1187083 Jay Chou - Nocturne.osz"
+
+
+func _init() -> void:
+	if not FileAccess.file_exists(DEMO_CHART):
+		print("Skipping real OSU selected bundle loader test; demo OSZ file is not available.")
+		quit(0)
+		return
+
+	var repo_root := ProjectSettings.globalize_path("res://../..")
+	var jar_path := _join_path(repo_root, "target/open2jam-0.1.2.jar")
+	if not FileAccess.file_exists(jar_path):
+		print("Skipping real OSU selected bundle loader test; packaged jar is not available.")
+		quit(0)
+		return
+
+	var out_dir := ProjectSettings.globalize_path("user://real-osu-selected-export-%d" % Time.get_unix_time_from_system())
+	var exporter = ExporterClient.new()
+	if not _expect_bool(exporter.configure_default(repo_root), true, "default exporter configuration"):
+		return
+
+	var export_result: Dictionary = exporter.export_selected(DEMO_CHART, out_dir)
+	if not _expect_bool(bool(export_result.get("ok", false)), true, "selected OSU export"):
+		return
+
+	var gameplay_loader = GameplayLoader.new()
+	var chart: Dictionary = gameplay_loader.load_from_file(_join_path(out_dir, "gameplay.json"))
+	if not _expect_bool(chart.is_empty(), false, "OSU gameplay load"):
+		return
+	if not _expect_string(str(chart.get("format", "")), "OSU", "OSU gameplay format"):
+		return
+	if not _expect_int(int(chart.get("keys", 0)), 7, "OSU key count"):
+		return
+	var notes: Array = chart.get("notes", [])
+	if not _expect_bool(notes.size() > 1000, true, "OSU gameplay note volume"):
+		return
+	if not _expect_bool(int(notes[0].get("sampleId", -1)) >= 0, true, "OSU note sample id"):
+		return
+
+	var audio_loader = AudioManifestLoader.new()
+	var manifest: Dictionary = audio_loader.load_from_file(_join_path(out_dir, "audio-manifest.json"))
+	if not _expect_bool(manifest.is_empty(), false, "OSU audio manifest load"):
+		return
+	if not _expect_string(str(manifest.get("format", "")), "OSU", "OSU audio format"):
+		return
+
+	var pool = AudioPlayerPool.new()
+	get_root().add_child(pool)
+	if not _expect_bool(pool.load_manifest(manifest), true, "OSU audio pool load"):
+		return
+	if not _expect_bool(pool.has_sample(1), true, "OSU sample asset"):
+		return
+
+	pool.free()
+	quit(0)
+
+
+func _join_path(directory: String, file_name: String) -> String:
+	if directory.ends_with("/") or directory.ends_with("\\"):
+		return "%s%s" % [directory, file_name]
+	return "%s/%s" % [directory, file_name]
+
+
+func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_int(actual: int, expected: int, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_string(actual: String, expected: String, label: String) -> bool:
+	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true

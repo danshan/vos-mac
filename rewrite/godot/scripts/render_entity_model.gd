@@ -44,17 +44,24 @@ func normalize(metadata: Dictionary) -> Dictionary:
 		normalized_lanes.append(normalized_lane)
 
 	var normalized := metadata.duplicate(true)
-	normalized["baseWidth"] = _number(metadata.get("baseWidth"), 0.0)
-	normalized["baseHeight"] = _number(metadata.get("baseHeight"), 0.0)
-	normalized["judgmentLine"] = int(_number(metadata.get("judgmentLine"), 0.0))
+	if not _is_positive_number(metadata.get("baseWidth")):
+		return {}
+	if not _is_positive_number(metadata.get("baseHeight")):
+		return {}
+	if not _is_non_negative_number(metadata.get("judgmentLine")):
+		return {}
+	if not _is_positive_number(metadata.get("measureSize")):
+		return {}
+	normalized["baseWidth"] = float(metadata.get("baseWidth"))
+	normalized["baseHeight"] = float(metadata.get("baseHeight"))
+	normalized["judgmentLine"] = int(metadata.get("judgmentLine"))
 	if metadata.has("visibilityLayer"):
-		normalized["visibilityLayer"] = int(_number(metadata.get("visibilityLayer"), 0.0))
-	normalized["measureSize"] = _number(metadata.get("measureSize"), 0.0)
+		if not _is_non_negative_integer_like(metadata.get("visibilityLayer")):
+			return {}
+		normalized["visibilityLayer"] = int(metadata.get("visibilityLayer"))
+	normalized["measureSize"] = float(metadata.get("measureSize"))
 	normalized["entities"] = normalized_entities
 	normalized["lanes"] = normalized_lanes
-
-	if normalized["baseWidth"] <= 0.0 or normalized["baseHeight"] <= 0.0 or normalized["measureSize"] <= 0.0:
-		return {}
 
 	return normalized
 
@@ -97,30 +104,162 @@ func _normalized_entity(entity: Dictionary) -> Dictionary:
 			return {}
 		normalized_sprites.append(sprite)
 
+	if not _is_non_negative_integer_like(entity.get("layer")):
+		return {}
+	if not _is_number(entity.get("x")) or not _is_number(entity.get("y")):
+		return {}
+	if not _is_positive_number(entity.get("width")) or not _is_positive_number(entity.get("height")):
+		return {}
+
 	var normalized := entity.duplicate(true)
-	normalized["layer"] = int(_number(entity.get("layer"), 0.0))
-	normalized["x"] = _number(entity.get("x"), 0.0)
-	normalized["y"] = _number(entity.get("y"), 0.0)
-	normalized["width"] = _number(entity.get("width"), 0.0)
-	normalized["height"] = _number(entity.get("height"), 0.0)
+	normalized["layer"] = int(entity.get("layer"))
+	normalized["x"] = float(entity.get("x"))
+	normalized["y"] = float(entity.get("y"))
+	normalized["width"] = float(entity.get("width"))
+	normalized["height"] = float(entity.get("height"))
 	normalized["named"] = bool(entity.get("named", false))
 	normalized["sprites"] = normalized_sprites
+	if not _normalize_optional_entity_render_fields(normalized):
+		return {}
 	return normalized
 
 
 func _normalized_lane(lane: Dictionary) -> Dictionary:
 	if not lane.get("channel") is String:
 		return {}
-	var normalized := lane.duplicate(true)
-	normalized["lane"] = int(_number(lane.get("lane"), -1.0))
-	normalized["x"] = _number(lane.get("x"), 0.0)
-	normalized["width"] = _number(lane.get("width"), 0.0)
-	if normalized["lane"] < 0 or normalized["width"] <= 0.0:
+	if not _is_non_negative_integer_like(lane.get("lane")):
 		return {}
+	if not _is_number(lane.get("x")):
+		return {}
+	if not _is_positive_number(lane.get("width")):
+		return {}
+	var normalized := lane.duplicate(true)
+	normalized["lane"] = int(lane.get("lane"))
+	normalized["x"] = float(lane.get("x"))
+	normalized["width"] = float(lane.get("width"))
 	return normalized
 
 
-func _number(value: Variant, fallback: float) -> float:
-	if value is int or value is float:
-		return float(value)
-	return fallback
+func _is_number(value: Variant) -> bool:
+	return value is int or value is float
+
+
+func _is_positive_number(value: Variant) -> bool:
+	return _is_number(value) and float(value) > 0.0
+
+
+func _is_non_negative_number(value: Variant) -> bool:
+	return _is_number(value) and float(value) >= 0.0
+
+
+func _is_non_negative_integer_like(value: Variant) -> bool:
+	if value is int:
+		return int(value) >= 0
+	if value is float:
+		return float(value) >= 0.0 and is_equal_approx(float(value), floor(float(value)))
+	return false
+
+
+func _normalize_optional_entity_render_fields(entity: Dictionary) -> bool:
+	if not _normalize_optional_texture_fields(entity, "textureX", "textureY", "textureWidth", "textureHeight"):
+		return false
+	if not _normalize_optional_positive_number(entity, "frameSpeed"):
+		return false
+	if not _normalize_optional_sprite_frames(entity, "spriteFrames"):
+		return false
+
+	for prefix in ["body", "tail", "title"]:
+		if not _normalize_optional_texture_fields(entity,
+				"%sTextureX" % prefix,
+				"%sTextureY" % prefix,
+				"%sTextureWidth" % prefix,
+				"%sTextureHeight" % prefix):
+			return false
+		if not _normalize_optional_positive_number(entity, "%sFrameSpeed" % prefix):
+			return false
+		if not _normalize_optional_sprite_frames(entity, "%sSpriteFrames" % prefix):
+			return false
+
+	if not _normalize_optional_positive_number(entity, "normalHeight"):
+		return false
+	if not _normalize_optional_positive_integer(entity, "countThreshold"):
+		return false
+	if not _normalize_optional_non_negative_number(entity, "showTimeMs"):
+		return false
+	if not _normalize_optional_non_negative_number(entity, "wobblePixels"):
+		return false
+	if not _normalize_optional_non_negative_number(entity, "wobbleSpeed"):
+		return false
+	if not _normalize_optional_non_negative_number(entity, "scaleRampMs"):
+		return false
+	if not _normalize_optional_non_negative_number(entity, "initialScale"):
+		return false
+	return true
+
+
+func _normalize_optional_texture_fields(
+		entry: Dictionary,
+		x_field: String,
+		y_field: String,
+		width_field: String,
+		height_field: String) -> bool:
+	if not _normalize_optional_non_negative_number(entry, x_field):
+		return false
+	if not _normalize_optional_non_negative_number(entry, y_field):
+		return false
+	if not _normalize_optional_positive_number(entry, width_field):
+		return false
+	return _normalize_optional_positive_number(entry, height_field)
+
+
+func _normalize_optional_sprite_frames(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	var raw_frames: Variant = entry.get(field)
+	if not raw_frames is Array:
+		return false
+	var frames: Array[Dictionary] = []
+	for raw_frame: Variant in raw_frames:
+		if not raw_frame is Dictionary:
+			return false
+		var frame: Dictionary = raw_frame.duplicate(true)
+		if frame.has("id") and not frame.get("id") is String:
+			return false
+		if frame.has("texturePath") and not frame.get("texturePath") is String:
+			return false
+		if not _normalize_optional_texture_fields(frame, "textureX", "textureY", "textureWidth", "textureHeight"):
+			return false
+		frames.append(frame)
+	entry[field] = frames
+	return true
+
+
+func _normalize_optional_non_negative_number(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	if not _is_non_negative_number(entry.get(field)):
+		return false
+	entry[field] = float(entry.get(field))
+	return true
+
+
+func _normalize_optional_positive_number(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	if not _is_positive_number(entry.get(field)):
+		return false
+	entry[field] = float(entry.get(field))
+	return true
+
+
+func _normalize_optional_positive_integer(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	var value: Variant = entry.get(field)
+	if value is int and int(value) > 0:
+		entry[field] = int(value)
+		return true
+	if value is float and float(value) > 0.0 and is_equal_approx(float(value), floor(float(value))):
+		entry[field] = int(value)
+		return true
+	return false

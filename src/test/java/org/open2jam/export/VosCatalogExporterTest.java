@@ -3,6 +3,8 @@ package org.open2jam.export;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
@@ -41,6 +43,27 @@ class VosCatalogExporterTest {
                 expectedEntry(second, "Second Song", 8)), json);
     }
 
+    @Test
+    void exportsOsuManiaSevenKeyCatalogEntryFromDirectory() throws Exception {
+        File chartFile = writeOsuManiaSevenKeyFixture("seven-key.osu");
+
+        String json = new VosCatalogExporter().exportCatalog(tempDir);
+
+        assertEquals(catalogJson(expectedOsuEntry(chartFile)), json);
+    }
+
+    @Test
+    void exportsOjnCatalogEntriesForEachDifficulty() throws Exception {
+        File chartFile = writeOjnFixture("o2jam.ojn");
+
+        String json = new VosCatalogExporter().exportCatalog(tempDir);
+
+        assertEquals(catalogJson(
+                expectedOjnEntry(chartFile, 0, 3, 10),
+                expectedOjnEntry(chartFile, 1, 5, 20),
+                expectedOjnEntry(chartFile, 2, 8, 30)), json);
+    }
+
     private static String catalogJson(String... entries) {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
@@ -67,13 +90,141 @@ class VosCatalogExporterTest {
                 JsonWriter.field("exportStatus", "ready"));
     }
 
+    private static String expectedOsuEntry(File source) throws Exception {
+        String sourcePath = source.getCanonicalPath();
+        return JsonWriter.object(
+                JsonWriter.field("id", idFor("osu", sourcePath)),
+                JsonWriter.field("format", "OSU"),
+                JsonWriter.field("sourcePath", sourcePath),
+                JsonWriter.field("title", "Seven Key Fixture"),
+                JsonWriter.field("artist", "Fixture Artist"),
+                JsonWriter.field("noter", "Fixture Creator"),
+                JsonWriter.field("genre", "osu!mania"),
+                JsonWriter.field("keys", 7),
+                JsonWriter.field("level", 8),
+                JsonWriter.field("levelKnown", true),
+                JsonWriter.field("bpm", 120.0),
+                JsonWriter.field("durationMs", 2000),
+                JsonWriter.field("noteCount", 2),
+                JsonWriter.field("coverAsset", ""),
+                JsonWriter.field("exportStatus", "ready"));
+    }
+
+    private static String expectedOjnEntry(File source, int chartIndex, int level, int noteCount) throws Exception {
+        String sourcePath = source.getCanonicalPath();
+        return JsonWriter.object(
+                JsonWriter.field("id", idFor("ojn", sourcePath + "#chart=" + chartIndex)),
+                JsonWriter.field("format", "OJN"),
+                JsonWriter.field("sourcePath", sourcePath),
+                JsonWriter.field("chartIndex", chartIndex),
+                JsonWriter.field("title", "O2Jam Fixture"),
+                JsonWriter.field("artist", "O2 Artist"),
+                JsonWriter.field("noter", "O2 Noter"),
+                JsonWriter.field("genre", "Dance"),
+                JsonWriter.field("keys", 7),
+                JsonWriter.field("level", level),
+                JsonWriter.field("levelKnown", true),
+                JsonWriter.field("bpm", 130.0),
+                JsonWriter.field("durationMs", 91000),
+                JsonWriter.field("noteCount", noteCount),
+                JsonWriter.field("coverAsset", ""),
+                JsonWriter.field("exportStatus", "ready"));
+    }
+
     private static String idFor(String sourcePath) throws Exception {
+        return idFor("vos", sourcePath);
+    }
+
+    private static String idFor(String prefix, String sourcePath) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(sourcePath.getBytes(StandardCharsets.UTF_8));
-        StringBuilder id = new StringBuilder("vos:sha256:");
+        StringBuilder id = new StringBuilder(prefix + ":sha256:");
         for (int i = 0; i < 8; i++) {
             id.append(String.format("%02x", hash[i] & 0xFF));
         }
         return id.toString();
+    }
+
+    private File writeOsuManiaSevenKeyFixture(String name) throws Exception {
+        File chartFile = new File(tempDir, name);
+        String content = ""
+                + "osu file format v14\n"
+                + "\n"
+                + "[General]\n"
+                + "AudioFilename: audio.ogg\n"
+                + "Mode: 3\n"
+                + "\n"
+                + "[Metadata]\n"
+                + "Title:Seven Key Fixture\n"
+                + "Artist:Fixture Artist\n"
+                + "Creator:Fixture Creator\n"
+                + "Version:Test 7K\n"
+                + "\n"
+                + "[Difficulty]\n"
+                + "CircleSize:7\n"
+                + "OverallDifficulty:8\n"
+                + "\n"
+                + "[TimingPoints]\n"
+                + "0,500,4,2,1,60,1,0\n"
+                + "\n"
+                + "[HitObjects]\n"
+                + "36,192,0,1,0,0:0:0:75:kick.wav\n"
+                + "256,192,1000,128,0,2000:0:0:0:65:hold.wav\n";
+        Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
+        return chartFile;
+    }
+
+    private File writeOjnFixture(String name) throws Exception {
+        File chartFile = new File(tempDir, name);
+        ByteBuffer buffer = ByteBuffer.allocate(300).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(100);
+        buffer.putInt(0x006E6A6F);
+        buffer.putFloat(2.0f);
+        buffer.putInt(2);
+        buffer.putFloat(130.0f);
+        buffer.putShort((short) 3);
+        buffer.putShort((short) 5);
+        buffer.putShort((short) 8);
+        buffer.putShort((short) 0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(10);
+        buffer.putInt(20);
+        buffer.putInt(30);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putShort((short) 0);
+        buffer.putShort((short) 0);
+        putFixedString(buffer, "", 20);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        putFixedString(buffer, "O2Jam Fixture", 64);
+        putFixedString(buffer, "O2 Artist", 32);
+        putFixedString(buffer, "O2 Noter", 32);
+        putFixedString(buffer, "o2jam.ojm", 32);
+        buffer.putInt(0);
+        buffer.putInt(91);
+        buffer.putInt(91);
+        buffer.putInt(91);
+        buffer.putInt(300);
+        buffer.putInt(300);
+        buffer.putInt(300);
+        buffer.putInt(300);
+        Files.write(chartFile.toPath(), buffer.array());
+        return chartFile;
+    }
+
+    private static void putFixedString(ByteBuffer buffer, String value, int length) {
+        byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
+        int written = Math.min(bytes.length, length);
+        buffer.put(bytes, 0, written);
+        for (int i = written; i < length; i++) {
+            buffer.put((byte) 0);
+        }
     }
 }

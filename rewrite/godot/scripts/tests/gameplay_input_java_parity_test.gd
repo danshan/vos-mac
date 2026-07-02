@@ -10,6 +10,8 @@ func _init() -> void:
 		return
 	if not _test_explicit_time_judgment():
 		return
+	if not _test_java_autosync_latency_state():
+		return
 	if not _test_release_without_prior_press_is_noop():
 		return
 	if not _test_late_accepted_miss_plays_then_stops_keysound():
@@ -159,6 +161,73 @@ func _test_explicit_time_judgment() -> bool:
 	var time_hit: Dictionary = controller.press_action("vos_lane_1", 780.0)
 	if not _expect_bool(time_hit.get("accepted", true), false, "time rejects wide early hit"):
 		return false
+	return true
+
+
+func _test_java_autosync_latency_state() -> bool:
+	var audio_controller = GameplayController.new()
+	var audio_chart := _single_note_chart({
+		"judgmentType": "time",
+		"autosyncMode": "audio",
+		"audioLatencyMs": 50.0,
+		"displayLatencyMs": 25.0,
+	})
+	if not _expect_bool(audio_controller.load_chart(audio_chart), true, "audio autosync chart load"):
+		return false
+	var initial_audio_state: Dictionary = audio_controller.audio_state()
+	if not _expect_float(float(initial_audio_state.get("audioLatencyMs", 0.0)), 50.0, "initial audio autosync latency"):
+		return false
+	if not _expect_float(float(initial_audio_state.get("displayLatencyMs", 0.0)), 25.0, "initial display latency"):
+		return false
+	var audio_hit: Dictionary = audio_controller.press_action("vos_lane_1", 990.0)
+	if not _expect_bool(audio_hit.get("accepted", false), true, "audio autosync hit accepted"):
+		return false
+	var audio_state: Dictionary = audio_controller.audio_state()
+	if not _expect_float(float(audio_state.get("audioLatencyMs", 0.0)), 49.84375, "audio autosync latency"):
+		return false
+	if not _expect_float(float(audio_state.get("displayLatencyMs", 0.0)), 25.0, "display latency unchanged"):
+		return false
+
+	var display_controller = GameplayController.new()
+	var display_chart := _single_note_chart({
+		"judgmentType": "time",
+		"autosyncMode": "display",
+		"audioLatencyMs": 50.0,
+		"displayLatencyMs": 25.0,
+	})
+	if not _expect_bool(display_controller.load_chart(display_chart), true, "display autosync chart load"):
+		return false
+	var display_hit: Dictionary = display_controller.press_action("vos_lane_1", 1010.0)
+	if not _expect_bool(display_hit.get("accepted", false), true, "display autosync hit accepted"):
+		return false
+	var display_state: Dictionary = display_controller.audio_state()
+	if not _expect_float(float(display_state.get("displayLatencyMs", 0.0)), 25.15625, "display autosync latency"):
+		return false
+	if not _expect_float(float(display_state.get("audioLatencyMs", 0.0)), 50.0, "audio latency unchanged"):
+		return false
+
+	var hold_controller = GameplayController.new()
+	var hold_chart := _single_note_chart({
+		"judgmentType": "time",
+		"autosyncMode": "audio",
+		"audioLatencyMs": 50.0,
+	})
+	hold_chart["notes"] = [
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "endMs": 1200.0, "endMeasure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+	]
+	if not _expect_bool(hold_controller.load_chart(hold_chart), true, "hold autosync chart load"):
+		return false
+	var hold_head: Dictionary = hold_controller.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(hold_head.get("accepted", false), true, "hold autosync head accepted"):
+		return false
+	if not _expect_float(float(hold_controller.audio_state().get("audioLatencyMs", 0.0)), 50.0, "hold head skips autosync"):
+		return false
+	var hold_tail: Dictionary = hold_controller.release_action("vos_lane_1", 1200.0)
+	if not _expect_bool(hold_tail.get("accepted", false), true, "hold autosync tail accepted"):
+		return false
+	if not _expect_float(float(hold_controller.audio_state().get("audioLatencyMs", 0.0)), 50.0, "hold tail skips autosync"):
+		return false
+
 	return true
 
 
@@ -556,6 +625,14 @@ func _expect_int(actual: int, expected: int, label: String) -> bool:
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_float(actual: float, expected: float, label: String) -> bool:
+	if absf(actual - expected) > 0.0001:
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

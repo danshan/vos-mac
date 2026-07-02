@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -34,8 +36,8 @@ class VosGameplayExporterTest {
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
         assertEquals(gameplayJson(chartFile, JsonWriter.array(
-                note(0, "tap", JAVA_RENDER_DELAY_MS, 1),
-                holdNote(0, 2000.0, 2250.0, 2)), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                note(0, "tap", JAVA_RENDER_DELAY_MS, 1, 0),
+                holdNote(0, 2000.0, 2250.0, 2, 1, 2)), JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
@@ -48,7 +50,7 @@ class VosGameplayExporterTest {
 
         String json = new VosGameplayExporter().exportGameplay(chartFile);
 
-        assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", JAVA_RENDER_DELAY_MS, 2)),
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(note(2, "tap", JAVA_RENDER_DELAY_MS, 2, 0)),
                 JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
@@ -116,8 +118,34 @@ class VosGameplayExporterTest {
 
         String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
 
-        assertEquals(gameplayJson(chartFile, JsonWriter.array(holdNote(0, 2000.0, 2500.0, 5)),
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(holdNote(0, 2000.0, 2500.0, 5, 0, 1)),
                 JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
+    }
+
+    @Test
+    void exportsPlayableEventOrderForRandomChannelReleaseParity() throws Exception {
+        File chartFile = new File(tempDir, "random-release-order.vos");
+        Files.write(chartFile.toPath(), new byte[0]);
+        VOSChart chart = new VOSChart();
+        chart.setTitle("Canon in D");
+        chart.setLevel(0);
+        chart.setBPM(120.0);
+        chart.setDuration(123);
+        EventList events = new EventList();
+        events.add(new Event(Event.Channel.NOTE_1, 0, 0.25, 2, Event.Flag.HOLD));
+        events.add(new Event(Event.Channel.NOTE_1, 1, 0.50, 2, Event.Flag.RELEASE));
+        events.add(new Event(Event.Channel.NOTE_1, 1, 0.50, 3, Event.Flag.NONE));
+        chart.setEvents(events);
+
+        String json = new VosGameplayExporter().exportGameplay(chart, chartFile);
+
+        assertEquals(gameplayJson(chartFile, JsonWriter.array(
+                holdNote(0, 2000.0, 4500.0, 0, 1, 2, 0, 1),
+                note(0, "tap", 4500.0, 1, 3, 2)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS), measure(3500.0)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
                 JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
@@ -169,6 +197,50 @@ class VosGameplayExporterTest {
     }
 
     @Test
+    void exportsOsuManiaSevenKeyGameplayTimeline() throws Exception {
+        File chartFile = writeOsuManiaSevenKeyFixture("seven-key.osu");
+
+        String json = new VosGameplayExporter().exportGameplay(chartFile);
+
+        assertEquals(gameplayJson(chartFile, "OSU", "Seven Key Fixture", 2000, JsonWriter.array(
+                note(0, "tap", JAVA_RENDER_DELAY_MS, 0, 2, 0, 0.75f),
+                holdNote(3, 2500.0, 3500.0, 0, 1, 3, 1, 2, 0.65f)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS), measure(3500.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 120.0)),
+                JsonWriter.array(autoPlayEvent(JAVA_RENDER_DELAY_MS, 1)), JsonWriter.array(),
+                JsonWriter.array()), json);
+    }
+
+    @Test
+    void exportsOjnGameplayTimeline() throws Exception {
+        File chartFile = writeOjnGameplayFixture("o2jam.ojn");
+
+        String json = new VosGameplayExporter().exportGameplay(chartFile);
+
+        assertEquals(gameplayJson(chartFile, "OJN", "Ojn Fixture", 130.0, 91000,
+                JsonWriter.array(note(0, "tap", JAVA_RENDER_DELAY_MS, 1, 0)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 130.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 130.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
+    }
+
+    @Test
+    void exportsOjnGameplayByPlayableChartIndex() throws Exception {
+        File chartFile = writeOjnMultiDifficultyGameplayFixture("multi.ojn");
+
+        String json = new VosGameplayExporter().exportGameplay(chartFile, 2);
+
+        assertEquals(gameplayJson(chartFile, "OJN", "Ojn Fixture", 130.0, 93000,
+                JsonWriter.array(note(0, "tap", JAVA_RENDER_DELAY_MS, 3, 0)),
+                JsonWriter.array(measure(JAVA_RENDER_DELAY_MS)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 130.0)),
+                JsonWriter.array(visualTiming(JAVA_RENDER_DELAY_MS, 130.0)),
+                JsonWriter.array(), JsonWriter.array(), JsonWriter.array()), json);
+    }
+
+    @Test
     void rejectsInputWithoutVosChart() throws Exception {
         File textFile = new File(tempDir, "notes.txt");
         Files.write(textFile.toPath(), "not a chart".getBytes(StandardCharsets.UTF_8));
@@ -178,17 +250,38 @@ class VosGameplayExporterTest {
 
     private static String gameplayJson(File source, String notes, String measures, String visualTiming,
             String judgmentTiming, String autoPlayEvents, String bgaEvents, String bgaSprites) throws Exception {
+        return gameplayJson(source, "VOS", "Canon in D", notes, measures, visualTiming, judgmentTiming,
+                autoPlayEvents, bgaEvents, bgaSprites);
+    }
+
+    private static String gameplayJson(File source, String format, String title, String notes, String measures,
+            String visualTiming, String judgmentTiming, String autoPlayEvents, String bgaEvents, String bgaSprites)
+            throws Exception {
+        return gameplayJson(source, format, title, 123000, notes, measures, visualTiming, judgmentTiming,
+                autoPlayEvents, bgaEvents, bgaSprites);
+    }
+
+    private static String gameplayJson(File source, String format, String title, int durationMs, String notes,
+            String measures, String visualTiming, String judgmentTiming, String autoPlayEvents, String bgaEvents,
+            String bgaSprites) throws Exception {
+        return gameplayJson(source, format, title, 120.0, durationMs, notes, measures, visualTiming, judgmentTiming,
+                autoPlayEvents, bgaEvents, bgaSprites);
+    }
+
+    private static String gameplayJson(File source, String format, String title, double bpm, int durationMs,
+            String notes, String measures, String visualTiming, String judgmentTiming, String autoPlayEvents,
+            String bgaEvents, String bgaSprites) throws Exception {
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
-                JsonWriter.field("format", "VOS"),
+                JsonWriter.field("format", format),
                 JsonWriter.field("sourcePath", source.getCanonicalPath()),
-                JsonWriter.field("title", "Canon in D"),
+                JsonWriter.field("title", title),
                 JsonWriter.field("rank", 0),
                 JsonWriter.field("speedMultiplier", 1.0),
                 JsonWriter.field("speedType", "HiSpeed"),
                 JsonWriter.field("keys", 7),
-                JsonWriter.field("bpm", 120.0),
-                JsonWriter.field("durationMs", 123000),
+                JsonWriter.field("bpm", bpm),
+                JsonWriter.field("durationMs", durationMs),
                 JsonWriter.rawField("notes", notes),
                 JsonWriter.rawField("measures", measures),
                 JsonWriter.rawField("visualTiming", visualTiming),
@@ -222,27 +315,55 @@ class VosGameplayExporterTest {
                 JsonWriter.rawField("bgaSprites", bgaSprites));
     }
 
-    private static String note(int lane, String kind, double startMs, int sampleId) {
+    private static String note(int lane, String kind, double startMs, int sampleId, int eventOrder) {
+        return note(lane, kind, startMs, 0, sampleId, eventOrder);
+    }
+
+    private static String note(int lane, String kind, double startMs, int measure, int sampleId, int eventOrder) {
+        return note(lane, kind, startMs, measure, sampleId, eventOrder, 1.0f);
+    }
+
+    private static String note(int lane, String kind, double startMs, int measure, int sampleId, int eventOrder,
+            float volume) {
         return JsonWriter.object(
                 JsonWriter.field("lane", lane),
                 JsonWriter.field("kind", kind),
                 JsonWriter.field("startMs", startMs),
-                JsonWriter.field("measure", 0),
+                JsonWriter.field("measure", measure),
+                JsonWriter.field("eventOrder", eventOrder),
                 JsonWriter.field("sampleId", sampleId),
-                JsonWriter.field("volume", 1.0),
+                JsonWriter.field("volume", volume),
                 JsonWriter.field("pan", 0.0));
     }
 
-    private static String holdNote(int lane, double startMs, double endMs, int sampleId) {
+    private static String holdNote(int lane, double startMs, double endMs, int sampleId, int eventOrder,
+            int releaseEventOrder) {
+        return holdNote(lane, startMs, endMs, 0, 0, sampleId, eventOrder, releaseEventOrder);
+    }
+
+    private static String holdNote(int lane, double startMs, double endMs, int measure, int endMeasure, int sampleId,
+            int eventOrder, int releaseEventOrder) {
+        return holdNote(lane, startMs, endMs, measure, endMeasure, sampleId, eventOrder, releaseEventOrder, 1.0f);
+    }
+
+    private static String holdNote(int lane, double startMs, double endMs, int sampleId, int eventOrder,
+            int releaseEventOrder, float volume) {
+        return holdNote(lane, startMs, endMs, 0, 0, sampleId, eventOrder, releaseEventOrder, volume);
+    }
+
+    private static String holdNote(int lane, double startMs, double endMs, int measure, int endMeasure, int sampleId,
+            int eventOrder, int releaseEventOrder, float volume) {
         return JsonWriter.object(
                 JsonWriter.field("lane", lane),
                 JsonWriter.field("kind", "holdStart"),
                 JsonWriter.field("startMs", startMs),
-                JsonWriter.field("measure", 0),
+                JsonWriter.field("measure", measure),
                 JsonWriter.field("endMs", endMs),
-                JsonWriter.field("endMeasure", 0),
+                JsonWriter.field("endMeasure", endMeasure),
+                JsonWriter.field("eventOrder", eventOrder),
+                JsonWriter.field("releaseEventOrder", releaseEventOrder),
                 JsonWriter.field("sampleId", sampleId),
-                JsonWriter.field("volume", 1.0),
+                JsonWriter.field("volume", volume),
                 JsonWriter.field("pan", 0.0));
     }
 
@@ -274,6 +395,152 @@ class VosGameplayExporterTest {
         return JsonWriter.object(
                 JsonWriter.field("timeMs", timeMs),
                 JsonWriter.field("bpm", bpm));
+    }
+
+    private File writeOsuManiaSevenKeyFixture(String name) throws Exception {
+        File chartFile = new File(tempDir, name);
+        String content = ""
+                + "osu file format v14\n"
+                + "\n"
+                + "[General]\n"
+                + "AudioFilename: audio.ogg\n"
+                + "Mode: 3\n"
+                + "\n"
+                + "[Metadata]\n"
+                + "Title:Seven Key Fixture\n"
+                + "Artist:Fixture Artist\n"
+                + "Creator:Fixture Creator\n"
+                + "Version:Test 7K\n"
+                + "\n"
+                + "[Difficulty]\n"
+                + "CircleSize:7\n"
+                + "OverallDifficulty:8\n"
+                + "\n"
+                + "[TimingPoints]\n"
+                + "0,500,4,2,1,60,1,0\n"
+                + "\n"
+                + "[HitObjects]\n"
+                + "36,192,0,1,0,0:0:0:75:kick.wav\n"
+                + "256,192,1000,128,0,2000:0:0:0:65:hold.wav\n";
+        Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
+        return chartFile;
+    }
+
+    private File writeOjnGameplayFixture(String name) throws Exception {
+        File chartFile = new File(tempDir, name);
+        ByteBuffer buffer = ByteBuffer.allocate(312).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(100);
+        buffer.putInt(0x006E6A6F);
+        buffer.putFloat(2.0f);
+        buffer.putInt(2);
+        buffer.putFloat(130.0f);
+        buffer.putShort((short) 4);
+        buffer.putShort((short) 6);
+        buffer.putShort((short) 8);
+        buffer.putShort((short) 0);
+        buffer.putInt(1);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        buffer.putInt(0);
+        buffer.putInt(0);
+        buffer.putShort((short) 0);
+        buffer.putShort((short) 0);
+        putFixedString(buffer, "", 20);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        putFixedString(buffer, "Ojn Fixture", 64);
+        putFixedString(buffer, "Ojn Artist", 32);
+        putFixedString(buffer, "Ojn Noter", 32);
+        putFixedString(buffer, "o2jam.ojm", 32);
+        buffer.putInt(0);
+        buffer.putInt(91);
+        buffer.putInt(91);
+        buffer.putInt(91);
+        buffer.putInt(300);
+        buffer.putInt(312);
+        buffer.putInt(312);
+        buffer.putInt(312);
+        buffer.putInt(0);
+        buffer.putShort((short) 2);
+        buffer.putShort((short) 1);
+        buffer.putShort((short) 1);
+        buffer.put((byte) 0);
+        buffer.put((byte) 0);
+        Files.write(chartFile.toPath(), buffer.array());
+        return chartFile;
+    }
+
+    private File writeOjnMultiDifficultyGameplayFixture(String name) throws Exception {
+        File chartFile = new File(tempDir, name);
+        ByteBuffer buffer = ByteBuffer.allocate(336).order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(100);
+        buffer.putInt(0x006E6A6F);
+        buffer.putFloat(2.0f);
+        buffer.putInt(2);
+        buffer.putFloat(130.0f);
+        buffer.putShort((short) 4);
+        buffer.putShort((short) 6);
+        buffer.putShort((short) 8);
+        buffer.putShort((short) 0);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putInt(1);
+        buffer.putShort((short) 0);
+        buffer.putShort((short) 0);
+        putFixedString(buffer, "", 20);
+        buffer.putInt(0);
+        buffer.putInt(1);
+        putFixedString(buffer, "Ojn Fixture", 64);
+        putFixedString(buffer, "Ojn Artist", 32);
+        putFixedString(buffer, "Ojn Noter", 32);
+        putFixedString(buffer, "o2jam.ojm", 32);
+        buffer.putInt(0);
+        buffer.putInt(91);
+        buffer.putInt(92);
+        buffer.putInt(93);
+        buffer.putInt(300);
+        buffer.putInt(312);
+        buffer.putInt(324);
+        buffer.putInt(336);
+        putOjnNoteBlock(buffer, (short) 1);
+        putOjnNoteBlock(buffer, (short) 2);
+        putOjnNoteBlock(buffer, (short) 3);
+        Files.write(chartFile.toPath(), buffer.array());
+        return chartFile;
+    }
+
+    private static void putOjnNoteBlock(ByteBuffer buffer, short sampleValue) {
+        buffer.putInt(0);
+        buffer.putShort((short) 2);
+        buffer.putShort((short) 1);
+        buffer.putShort(sampleValue);
+        buffer.put((byte) 0);
+        buffer.put((byte) 0);
+    }
+
+    private static void putFixedString(ByteBuffer buffer, String value, int length) {
+        byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
+        int written = Math.min(bytes.length, length);
+        buffer.put(bytes, 0, written);
+        for (int i = written; i < length; i++) {
+            buffer.put((byte) 0);
+        }
     }
 
     private static final class BgaImageChart extends VOSChart {

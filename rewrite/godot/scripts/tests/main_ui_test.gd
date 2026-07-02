@@ -36,6 +36,24 @@ class RecordingGameplayView:
 		render_speed_seen_by_update_time = current_render_speed
 
 
+class DefaultConfigExporter:
+	extends RefCounted
+
+	var configured: bool = false
+	var default_roots: Array[String] = []
+
+	func configure(_java_path: String, _jar_path: String) -> void:
+		configured = true
+
+	func configure_default(repo_root: String) -> bool:
+		default_roots.append(repo_root)
+		configured = true
+		return true
+
+	func is_configured() -> bool:
+		return configured
+
+
 func _init() -> void:
 	if not _expect_int(int(ProjectSettings.get_setting("display/window/size/viewport_width", 0)), 1280, "viewport width"):
 		return
@@ -49,6 +67,9 @@ func _init() -> void:
 	var ui = MainUi.new()
 	OS.set_environment("OPEN2JAM_JAVA", "java")
 	OS.set_environment("OPEN2JAM_JAR", "target/open2jam.jar")
+	var settings_path := "user://main-ui-test.cfg"
+	_remove_settings_file(settings_path)
+	ui.set_settings_path(settings_path)
 	ui.build()
 	if not _expect_bool(ui.is_exporter_configured(), true, "exporter configured from environment"):
 		return
@@ -71,7 +92,7 @@ func _init() -> void:
 		return
 
 	var title: Label = ui.get_node("Content/Title")
-	if not _expect_string(title.text, "Open2Jam VOS", "title text"):
+	if not _expect_string(title.text, "Open2Jam", "title text"):
 		return
 
 	var background: ColorRect = ui.get_node("Background")
@@ -120,8 +141,26 @@ func _init() -> void:
 
 	if not _test_gameplay_view_uses_current_hud_state():
 		return
+	if not _test_main_ui_uses_default_exporter_configuration():
+		return
 
 	quit(0)
+
+
+func _test_main_ui_uses_default_exporter_configuration() -> bool:
+	var exporter = DefaultConfigExporter.new()
+	var ui = MainUi.new()
+	var settings_path := "user://main-ui-default-exporter-test.cfg"
+	_remove_settings_file(settings_path)
+	ui.set_settings_path(settings_path)
+	ui.set_exporter_client(exporter)
+	ui.build()
+	var expected_root := ProjectSettings.globalize_path("res://../..")
+	var result := _expect_int(exporter.default_roots.size(), 1, "default exporter configuration call count")
+	result = result and _expect_string(exporter.default_roots[0], expected_root, "default exporter repo root")
+	result = result and _expect_bool(ui.is_exporter_configured(), true, "default exporter configured")
+	ui.free()
+	return result
 
 
 func _test_gameplay_view_uses_current_hud_state() -> bool:
@@ -150,6 +189,12 @@ func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
 		quit(1)
 		return false
 	return true
+
+
+func _remove_settings_file(path: String) -> void:
+	var absolute_path := ProjectSettings.globalize_path(path)
+	if FileAccess.file_exists(absolute_path):
+		DirAccess.remove_absolute(absolute_path)
 
 
 func _expect_int(actual: int, expected: int, label: String) -> bool:

@@ -37,6 +37,24 @@ func _init() -> void:
 	if not _expect_current(state, AppState.SONG_SELECT):
 		return
 
+	var gameplay_settings_state = AppState.new()
+	if not _expect_transition(gameplay_settings_state, AppState.MAIN_MENU, true):
+		return
+	if not _expect_transition(gameplay_settings_state, AppState.SONG_SELECT, true):
+		return
+	if not _expect_transition(gameplay_settings_state, AppState.LOADING, true):
+		return
+	if not _expect_transition(gameplay_settings_state, AppState.GAMEPLAY, true):
+		return
+	if not _expect_transition(gameplay_settings_state, AppState.SETTINGS, true):
+		return
+	if not _expect_current(gameplay_settings_state, AppState.SETTINGS):
+		return
+	if not _expect_transition(gameplay_settings_state, AppState.MAIN_MENU, true):
+		return
+	if not _expect_current(gameplay_settings_state, AppState.MAIN_MENU):
+		return
+
 	quit(0)
 
 

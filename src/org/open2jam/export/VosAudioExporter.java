@@ -11,15 +11,18 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.open2jam.parsers.Chart;
-import org.open2jam.parsers.ChartList;
-import org.open2jam.parsers.ChartParser;
-import org.open2jam.parsers.VOSChart;
 import org.open2jam.parsers.utils.SampleData;
+import org.open2jam.sound.JavaSoundPcmDecoder;
 import org.open2jam.sound.MidiSampleRenderer;
+import org.open2jam.sound.OggPcmDecoder;
 
 public final class VosAudioExporter {
     public String exportAudio(File input, File assetDir) throws Exception {
-        VOSChart chart = firstVosChart(input);
+        return exportAudio(input, assetDir, 0);
+    }
+
+    public String exportAudio(File input, File assetDir, int chartIndex) throws Exception {
+        Chart chart = PlayableChartSelector.select(input, chartIndex);
         File outputDir = ExportPaths.ensureDirectory(assetDir);
         Map<Integer, SampleData> samples = chart.getSamples();
         List<Integer> sampleIds = new ArrayList<Integer>(samples.keySet());
@@ -29,52 +32,65 @@ public final class VosAudioExporter {
         MidiSampleRenderer renderer = new MidiSampleRenderer();
         for (Integer sampleId : sampleIds) {
             SampleData sample = samples.get(sampleId);
-            String fileName = "sample-" + sampleId + ".wav";
+            int exportedSampleId = exportedSampleId(sampleId.intValue(), chart);
+            String fileName = "sample-" + exportedSampleId + ".wav";
             File output = ExportPaths.child(outputDir, fileName);
             exportSample(renderer, sample, output);
-            assets.add(asset(sampleId, fileName, output));
+            assets.add(asset(exportedSampleId, fileName, output));
         }
 
         return JsonWriter.object(
                 JsonWriter.field("schemaVersion", 1),
-                JsonWriter.field("format", "VOS"),
+                JsonWriter.field("format", formatFor(chart)),
                 JsonWriter.field("sourcePath", input.getCanonicalPath()),
                 JsonWriter.field("assetDir", outputDir.getCanonicalPath()),
                 JsonWriter.rawField("assets", JsonWriter.array(assets.toArray(new String[0]))));
     }
 
-    private static VOSChart firstVosChart(File input) {
-        ChartList charts = ChartParser.parseFile(input);
-        if (charts != null) {
-            for (Chart chart : charts) {
-                if (chart instanceof VOSChart) {
-                    return (VOSChart) chart;
-                }
-            }
+    private static String formatFor(Chart chart) {
+        if (chart.type == Chart.TYPE.OSU) {
+            return "OSU";
         }
-        throw new IllegalArgumentException("No VOS chart found: " + input);
+        if (chart.type == Chart.TYPE.OJN) {
+            return "OJN";
+        }
+        return "VOS";
+    }
+
+    private static int exportedSampleId(int sampleId, Chart chart) {
+        if (chart.type == Chart.TYPE.OJN) {
+            return sampleId + 1;
+        }
+        return sampleId;
     }
 
     private static void exportSample(MidiSampleRenderer renderer, SampleData sample, File output) throws Exception {
         try {
-            if (sample.getType() != SampleData.Type.MIDI) {
-                throw new IllegalArgumentException("Expected VOS MIDI sample: " + sample.getName());
+            if (sample.getType() == SampleData.Type.MIDI) {
+                ByteArrayOutputStream midi = new ByteArrayOutputStream();
+                sample.copyTo(midi);
+                MidiSampleRenderer.RenderedAudio audio = renderer.render(midi.toByteArray());
+                writeWav(output, audio.pcm(), audio.channels(), audio.sampleRate(), audio.bitsPerSample());
+                return;
             }
-            ByteArrayOutputStream midi = new ByteArrayOutputStream();
-            sample.copyTo(midi);
-            MidiSampleRenderer.RenderedAudio audio = renderer.render(midi.toByteArray());
-            writeWav(output, audio);
+
+            ByteArrayOutputStream encoded = new ByteArrayOutputStream();
+            sample.copyTo(encoded);
+            JavaSoundPcmDecoder.DecodedPcm audio = sample.getType() == SampleData.Type.OGG
+                    ? OggPcmDecoder.decode(encoded.toByteArray())
+                    : JavaSoundPcmDecoder.decode(encoded.toByteArray());
+            writeWav(output, audio.pcm, audio.channels, audio.sampleRate, audio.bitsPerSample);
         } finally {
             sample.dispose();
         }
     }
 
-    private static void writeWav(File output, MidiSampleRenderer.RenderedAudio audio) throws IOException {
+    private static void writeWav(File output, byte[] pcm, int channels, int sampleRate, int bitsPerSample)
+            throws IOException {
         FileOutputStream out = new FileOutputStream(output);
         try {
-            byte[] pcm = audio.pcm();
-            int blockAlign = audio.channels() * audio.bitsPerSample() / 8;
-            int byteRate = audio.sampleRate() * blockAlign;
+            int blockAlign = channels * bitsPerSample / 8;
+            int byteRate = sampleRate * blockAlign;
 
             writeAscii(out, "RIFF");
             writeLittleEndianInt(out, 36 + pcm.length);
@@ -82,11 +98,11 @@ public final class VosAudioExporter {
             writeAscii(out, "fmt ");
             writeLittleEndianInt(out, 16);
             writeLittleEndianShort(out, 1);
-            writeLittleEndianShort(out, audio.channels());
-            writeLittleEndianInt(out, audio.sampleRate());
+            writeLittleEndianShort(out, channels);
+            writeLittleEndianInt(out, sampleRate);
             writeLittleEndianInt(out, byteRate);
             writeLittleEndianShort(out, blockAlign);
-            writeLittleEndianShort(out, audio.bitsPerSample());
+            writeLittleEndianShort(out, bitsPerSample);
             writeAscii(out, "data");
             writeLittleEndianInt(out, pcm.length);
             out.write(pcm);

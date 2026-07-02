@@ -58,6 +58,8 @@ func _handle_judgment(result: String) -> String:
 	var score_value := 0
 
 	match result:
+		"perfect":
+			score_value = 0
 		"cool":
 			jam_bar = _add_with_limit(jam_bar, 2, jam_bar_limit)
 			consecutive_cools += 1
@@ -110,7 +112,10 @@ func _should_increase_combo(result: String) -> bool:
 
 
 func _normalize_judgment(name: String) -> String:
-	return name.to_lower()
+	var normalized := name.to_lower()
+	if normalized.begins_with("judgment_"):
+		return normalized.substr("judgment_".length())
+	return normalized
 
 
 func _life_multiplier_for_rank(value: int) -> int:

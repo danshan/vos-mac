@@ -23,6 +23,39 @@ func _init() -> void:
 		return
 	if not _expect_int(metadata.get("visibilityLayer", 0), 7, "visibility layer"):
 		return
+	var status_layout: Dictionary = metadata.get("statusTextLayout", {})
+	if not _expect_float(status_layout.get("rightX", 0.0), 780.0, "status text Java right x"):
+		return
+	if not _expect_float(status_layout.get("startY", 0.0), 300.0, "status text Java start y"):
+		return
+	if not _expect_float(status_layout.get("lineHeight", 0.0), 30.0, "status text Java line height"):
+		return
+	if not _expect_float(status_layout.get("labelWidth", 0.0), 260.0, "status text label width"):
+		return
+	if not _expect_int(int(status_layout.get("fontSize", 0)), 14, "status text Java font size"):
+		return
+	if not _expect_float(status_layout.get("glyphHeight", 0.0), 20.0, "status text Java glyph height"):
+		return
+	if not _expect_string(status_layout.get("horizontalAlignment", ""), "right", "status text Java alignment"):
+		return
+	if not _expect_float(status_layout.get("scaleY", 0.0), -1.0, "status text Java scale y"):
+		return
+	var status_font: Dictionary = metadata.get("statusFont", {})
+	if not _expect_string(str(status_font.get("source", "")), "TrueTypeFont", "status font source"):
+		return
+	if not _expect_int(int(status_font.get("textureWidth", 0)), 512, "status font texture width"):
+		return
+	if not _expect_int(int(status_font.get("textureHeight", 0)), 512, "status font texture height"):
+		return
+	if not _expect_int(int(status_font.get("correctL", 0)), 9, "status font left correction"):
+		return
+	if not _expect_int(int(status_font.get("correctR", 0)), 8, "status font right correction"):
+		return
+	if not _expect_bool(str(status_font.get("pngBase64", "")).is_empty(), false, "status font atlas png"):
+		return
+	var status_font_glyphs: Array = status_font.get("glyphs", [])
+	if not _expect_int(status_font_glyphs.size(), 256, "status font glyph count"):
+		return
 
 	var entities: Array = metadata.get("entities", [])
 	if not _expect_int(entities.size(), 66, "full Java skin entity count"):
@@ -31,14 +64,57 @@ func _init() -> void:
 		return
 	if not _expect_bool(_entity_by_id(entities, "JUDGMENT_LINE").is_empty(), false, "judgment line entity exists"):
 		return
+	var timebar_decoration: Dictionary = _entity_by_sprite(entities, "timebar")
+	if not _expect_bool(timebar_decoration.is_empty(), false, "static timebar decoration entity exists"):
+		return
+	if not _expect_string(str(timebar_decoration.get("id", "")), "", "static timebar decoration id"):
+		return
+	if not _expect_string(str(timebar_decoration.get("type", "")), "entity", "static timebar decoration type"):
+		return
+	if not _expect_bool(bool(timebar_decoration.get("named", true)), false, "static timebar decoration named flag"):
+		return
+	if not _expect_bool(timebar_decoration.has("fillDirection"), false, "static timebar ignores bar fill direction"):
+		return
 	if not _expect_bool(_entity_by_id(entities, "LONG_NOTE_1").is_empty(), false, "long note entity exists"):
 		return
 	if not _expect_bool(_entity_by_id(entities, "SCORE_COUNTER").is_empty(), false, "score counter entity exists"):
+		return
+	var second_counter: Dictionary = _entity_by_id(entities, "SECOND_COUNTER")
+	if not _expect_int(int(second_counter.get("showDigits", 0)), 2, "second counter Java show digits"):
 		return
 	if not _expect_bool(_entity_by_id(entities, "EFFECT_JUDGMENT_COOL").is_empty(), false, "cool judgment entity exists"):
 		return
 	var cool_effect: Dictionary = _entity_by_id(entities, "EFFECT_JUDGMENT_COOL")
 	if not _expect_float(cool_effect.get("x", 0.0), -34.0, "cool judgment Java anchored x"):
+		return
+	if not _expect_float(cool_effect.get("showTimeMs", 0.0), 3000.0, "cool judgment Java show time"):
+		return
+	if not _expect_float(cool_effect.get("scaleRampMs", 0.0), 100.0, "cool judgment Java scale ramp"):
+		return
+	if not _expect_float(cool_effect.get("initialScale", 0.0), 0.5, "cool judgment Java initial scale"):
+		return
+	var click_effect: Dictionary = _entity_by_id(entities, "EFFECT_CLICK")
+	if not _expect_bool(bool(click_effect.get("animationLoop", true)), false, "click effect Java one-shot animation"):
+		return
+	var longflare_effect: Dictionary = _entity_by_id(entities, "EFFECT_LONGFLARE")
+	if not _expect_bool(bool(longflare_effect.get("animationLoop", false)), true, "longflare effect Java looping animation"):
+		return
+
+	if not _test_combo_counter_uses_metadata_behavior():
+		return
+	if not _test_judgment_effect_uses_metadata_behavior():
+		return
+	if not _test_status_text_uses_metadata_layout():
+		return
+	if not _test_bar_fill_directions_match_java_slice_geometry():
+		return
+	if not _test_timebar_decoration_matches_java_static_entity_lifecycle():
+		return
+	if not _test_click_effect_uses_animation_loop_metadata():
+		return
+	if not _test_longflare_uses_note_entity_center():
+		return
+	if not _test_render_metadata_rejects_invalid_numeric_contract(model):
 		return
 
 	var lane: Dictionary = model.lane_for_channel(metadata, "NOTE_1")
@@ -315,7 +391,9 @@ func _init() -> void:
 			]
 	if not _expect_bool(view.load_metadata(metadata), true, "view metadata load"):
 		return
-	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 21, "Java initial entity node count"):
+	if not _expect_int(_count_children_with_prefix(view, "Entity_"), 9, "Java static initial entity node count"):
+		return
+	if not _expect_int(_count_children_with_prefix(view, "HudSprite_"), 12, "Java HUD counter renderer count"):
 		return
 	if not _expect_bool(view.has_node("Entity_BGA"), true, "bga node"):
 		return
@@ -323,6 +401,8 @@ func _init() -> void:
 		return
 	var bga_texture_node: TextureRect = view.get_node("Entity_BGA")
 	if not _expect_int(bga_texture_node.z_index, 0, "bga Java layer"):
+		return
+	if not _expect_int(bga_texture_node.texture_filter, CanvasItem.TEXTURE_FILTER_LINEAR, "bga Java texture filter"):
 		return
 	if not _expect_bool(bga_texture_node.texture != null, true, "bga texture loaded"):
 		return
@@ -452,9 +532,9 @@ func _init() -> void:
 	var judgment_line_node: Control = view.get_node("Entity_JUDGMENT_LINE")
 	if not _expect_int(judgment_line_node.z_index, 2, "judgment line Java layer"):
 		return
-	if not _expect_bool(view.has_node("Entity_SCORE_COUNTER"), true, "score counter node"):
+	if not _expect_bool(view.has_node("Entity_SCORE_COUNTER"), false, "score counter is not static"):
 		return
-	if not _expect_bool(view.has_node("Entity_COMBO_COUNTER"), true, "combo counter node"):
+	if not _expect_bool(view.has_node("Entity_COMBO_COUNTER"), false, "combo counter is not static"):
 		return
 	if not _expect_bool(view.has_node("Entity_LIFE_BAR"), true, "life bar node"):
 		return
@@ -482,6 +562,22 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("Hud_SECOND_COUNTER"), true, "second hud label"):
 		return
+	view._set_hud_text("SECOND_COUNTER", "5")
+	if not _expect_string(view.get_node("Hud_SECOND_COUNTER").text, "05", "second counter metadata-padded text"):
+		return
+	if not _expect_bool(view.has_node("HudSprite_SECOND_COUNTER"), true, "second sprite hud node"):
+		return
+	var second_sprite_hud: Control = view.get_node("HudSprite_SECOND_COUNTER")
+	if not _expect_int(second_sprite_hud.get_child_count(), 2, "second sprite metadata-padded digit count"):
+		return
+	var second_digit_5: TextureRect = second_sprite_hud.get_child(0)
+	var second_digit_0: TextureRect = second_sprite_hud.get_child(1)
+	if not _expect_float(second_digit_5.position.x, 383.0, "second rightmost digit x"):
+		return
+	if not _expect_float(second_digit_0.position.x, 356.0, "second padded zero digit x"):
+		return
+	if not _expect_bool(view.has_node("Hud_COUNTER_JUDGMENT_PERFECT"), true, "perfect counter hud label"):
+		return
 	if not _expect_bool(view.has_node("Hud_COUNTER_JUDGMENT_COOL"), true, "cool counter hud label"):
 		return
 
@@ -499,6 +595,7 @@ func _init() -> void:
 		"minute": 2,
 		"second": 5,
 		"judgments": {
+			"perfect": 11,
 			"cool": 7,
 			"good": 3,
 			"bad": 1,
@@ -519,6 +616,8 @@ func _init() -> void:
 		return
 	var score_digit_0: TextureRect = score_sprite_hud.get_child(0)
 	var score_digit_4: TextureRect = score_sprite_hud.get_child(4)
+	if not _expect_int(score_digit_0.texture_filter, CanvasItem.TEXTURE_FILTER_LINEAR, "score digit Java texture filter"):
+		return
 	if not _expect_float(score_digit_0.position.x, 168.0, "score rightmost digit x"):
 		return
 	if not _expect_float(score_digit_4.position.x, 72.0, "score leftmost digit x"):
@@ -538,6 +637,10 @@ func _init() -> void:
 		return
 	if not _expect_string(view.get_node("Hud_SECOND_COUNTER").text, "05", "second hud text"):
 		return
+	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_PERFECT").text, "11", "perfect counter hud text"):
+		return
+	if not _expect_bool(view.has_node("HudSprite_COUNTER_JUDGMENT_PERFECT"), true, "perfect sprite hud node"):
+		return
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_COOL").text, "7", "cool counter hud text"):
 		return
 	if not _expect_string(view.get_node("Hud_COUNTER_JUDGMENT_GOOD").text, "3", "good counter hud text"):
@@ -548,30 +651,63 @@ func _init() -> void:
 		return
 	if not _expect_bool(view.has_node("StatusText_000"), true, "status text first label"):
 		return
-	if not _expect_string(view.get_node("StatusText_000").text, "HI-SPEED: x1.0", "status speed text"):
+	if not _expect_string(_status_node_text(view.get_node("StatusText_000")), "HI-SPEED: x1.0", "status speed text"):
 		return
-	if not _expect_string(view.get_node("StatusText_001").text, "Current Measure: 2", "status measure text"):
+	if not _expect_string(_status_node_text(view.get_node("StatusText_001")), "Current Measure: 2", "status measure text"):
 		return
-	if not _expect_string(view.get_node("StatusText_002").text, "Game Speed: +0", "status game speed text"):
+	if not _expect_string(_status_node_text(view.get_node("StatusText_002")), "Game Speed: +0", "status game speed text"):
 		return
-	var status_label: Label = view.get_node("StatusText_000")
-	if not _expect_int(status_label.horizontal_alignment, HORIZONTAL_ALIGNMENT_RIGHT, "status Java right alignment"):
+	var gameplay_status_font: Dictionary = metadata.get("statusFont", {})
+	var status_label: Control = view.get_node("StatusText_000")
+	if not _expect_string(str(status_label.get_meta("statusTextRenderer", "")), "TrueTypeFont",
+			"status Java renderer"):
 		return
-	if not _expect_float(status_label.position.x, 520.0, "status Java x"):
+	if not _expect_float(status_label.position.x + status_label.size.x,
+			780.0 + float(gameplay_status_font.get("correctR", 8.0)),
+			"status Java corrected right edge"):
 		return
-	if not _expect_float(status_label.position.y, 300.0, "status Java y"):
+	if not _expect_float(status_label.position.y, 280.0, "status Java y"):
 		return
-	if not _expect_float(view.get_node("StatusText_001").position.y, 330.0, "status Java next y"):
+	if not _expect_float(view.get_node("StatusText_001").position.y, 310.0, "status Java next y"):
+		return
+	if not _expect_bool(status_label.get_child_count() > 0, true, "status Java glyph children"):
+		return
+	var status_glyph: CanvasItem = status_label.get_child(0)
+	if not _expect_bool(status_glyph.material is CanvasItemMaterial, true, "status glyph Java blend material"):
+		return
+	var status_glyph_material: CanvasItemMaterial = status_glyph.material
+	if not _expect_int(status_glyph_material.blend_mode, CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA,
+			"status glyph Java premultiplied blend mode"):
+		return
+
+	var timebar_texture_node := _timebar_decoration_node(view)
+	if not _expect_bool(timebar_texture_node != null, true, "timebar Java texture node"):
 		return
 
 	var life_bar: Control = view.get_node("Entity_LIFE_BAR")
-	if not _expect_float(life_bar.size.y, 150.5, "life bar half fill height"):
+	if not _expect_float(life_bar.size.y, 150.0, "life bar Java slice half fill height"):
 		return
-	if not _expect_float(life_bar.position.y, 397.5, "life bar half fill y"):
+	if not _expect_float(life_bar.position.y, 398.0, "life bar Java slice half fill y"):
+		return
+	if not _expect_bool(life_bar is TextureRect, true, "life bar texture rect"):
+		return
+	var life_bar_texture_node: TextureRect = life_bar
+	var life_texture: AtlasTexture = life_bar_texture_node.texture
+	if not _expect_float(life_texture.region.position.y, 152.0, "life bar Java slice texture y"):
+		return
+	if not _expect_float(life_texture.region.size.y, 150.0, "life bar Java slice texture height"):
 		return
 
 	var jam_bar: Control = view.get_node("Entity_JAM_BAR")
-	if not _expect_float(jam_bar.size.x, 95.5, "jam bar half fill width"):
+	if not _expect_float(jam_bar.size.x, 96.0, "jam bar Java slice half fill width"):
+		return
+	if not _expect_bool(jam_bar is TextureRect, true, "jam bar texture rect"):
+		return
+	var jam_bar_texture_node: TextureRect = jam_bar
+	var jam_texture: AtlasTexture = jam_bar_texture_node.texture
+	if not _expect_float(jam_texture.region.position.x, 1.0, "jam bar Java slice texture x"):
+		return
+	if not _expect_float(jam_texture.region.size.x, 96.0, "jam bar Java slice texture width"):
 		return
 
 	var combo_sprite_hud: Control = view.get_node("HudSprite_COMBO_COUNTER")
@@ -639,6 +775,14 @@ func _init() -> void:
 		return
 	combo_digit_0 = combo_sprite_hud.get_child(0)
 	if not _expect_float(combo_digit_0.position.y, 220.0, "combo wobble restarts after increment"):
+		return
+	view.update_hud_state({
+		"combo": 13,
+		"jamCombo": 2,
+		"elapsedMs": 87105.0,
+	})
+	combo_digit_0 = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit_0.position.y, 209.5, "combo wobble Java overshoot y"):
 		return
 	view.update_time(0.0)
 
@@ -793,6 +937,28 @@ func _init() -> void:
 		return
 	pill_node = view.get_node("Pill_PILL_1")
 	if not _expect_int(pill_node.get_instance_id(), pill_instance_id, "pill keeps Java entity instance during state sync"):
+		return
+	view.update_hud_state({
+		"elapsedMs": 4000.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+	})
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), true, "judgment effect remains at Java show-time boundary"):
+		return
+	view.update_hud_state({
+		"elapsedMs": 4001.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+	})
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), false, "judgment effect clears after Java show time"):
 		return
 	view.update_hud_state({
 		"elapsedMs": 1400.0,
@@ -978,6 +1144,24 @@ func _init() -> void:
 	if not _expect_float(w_note_node.position.y, 322.609375, "dynamic note node y with updated w speed"):
 		return
 	w_view.free()
+	var w_target_chart: Dictionary = chart.duplicate(true)
+	w_target_chart["speedMultiplier"] = 10.0
+	w_target_chart["speedType"] = "WSpeed"
+	w_target_chart["visualTiming"] = [{"timeMs": 0.0, "bpm": 120.0}]
+	var w_target_view = GameplayView.new()
+	if not _expect_bool(w_target_view.load_metadata(metadata), true, "w speed target view metadata load"):
+		return
+	if not _expect_bool(w_target_view.load_chart(w_target_chart), true, "w speed target view chart load"):
+		return
+	var w_target_note_node: Control = w_target_view.get_node("Note_000")
+	w_target_view.update_hud_state({
+		"renderSpeed": 10.0,
+		"targetSpeed": 0.5,
+	})
+	w_target_view.update_time(1600.0)
+	if not _expect_float(w_target_note_node.position.y, 530.75, "w speed view cycle uses target speed"):
+		return
+	w_target_view.free()
 	var xr_chart: Dictionary = chart.duplicate(true)
 	xr_chart["speedMultiplier"] = 2.0
 	xr_chart["speedType"] = "xRSpeed"
@@ -998,22 +1182,11 @@ func _init() -> void:
 		return
 	if not _expect_bool(hidden_view.load_chart(hidden_chart), true, "hidden visibility view chart load"):
 		return
-	if not _expect_int(_count_children_with_prefix(hidden_view, "Visibility_Hidden_"), 7, "hidden visibility lane overlay count"):
+	if not _expect_int(_count_children_with_prefix(hidden_view, "Visibility_Hidden_"), 0,
+			"hidden visibility overlay removed by Java composite lifecycle"):
 		return
-	if not _expect_bool(hidden_view.has_node("Visibility_Hidden_000"), true, "hidden visibility first lane overlay"):
-		return
-	var hidden_overlay: Control = hidden_view.get_node("Visibility_Hidden_000")
-	if not _expect_bool(hidden_overlay is TextureRect, true, "hidden visibility texture node"):
-		return
-	if not _expect_float(hidden_overlay.position.x, 5.0, "hidden visibility x"):
-		return
-	if not _expect_float(hidden_overlay.position.y, 0.0, "hidden visibility y"):
-		return
-	if not _expect_float(hidden_overlay.size.x, 28.0, "hidden visibility width"):
-		return
-	if not _expect_float(hidden_overlay.size.y, 480.0, "hidden visibility height"):
-		return
-	if not _expect_int(hidden_overlay.z_index, 7, "hidden visibility Java layer"):
+	if not _expect_bool(hidden_view.has_node("Visibility_Hidden_000"), false,
+			"hidden visibility first lane overlay absent"):
 		return
 	var hidden_judgment_line: Control = hidden_view.get_node("Entity_JUDGMENT_LINE")
 	if not _expect_int(hidden_judgment_line.z_index, 7, "hidden judgment line Java layer"):
@@ -1032,8 +1205,8 @@ func _init() -> void:
 		return
 	if not _expect_bool(metadata_layer_view.load_chart(hidden_chart), true, "metadata visibility layer view chart load"):
 		return
-	var metadata_layer_overlay: Control = metadata_layer_view.get_node("Visibility_Hidden_000")
-	if not _expect_int(metadata_layer_overlay.z_index, 12, "visibility layer comes from Java metadata"):
+	if not _expect_int(_count_children_with_prefix(metadata_layer_view, "Visibility_Hidden_"), 0,
+			"metadata visibility overlay removed by Java composite lifecycle"):
 		return
 	var metadata_layer_judgment_line: Control = metadata_layer_view.get_node("Entity_JUDGMENT_LINE")
 	if not _expect_int(metadata_layer_judgment_line.z_index, 12, "judgment line uses Java visibility layer metadata"):
@@ -1042,6 +1215,27 @@ func _init() -> void:
 	if not _expect_int(metadata_layer_measure.z_index, 12, "measure mark uses Java visibility layer metadata"):
 		return
 	metadata_layer_view.free()
+	var metadata_visibility_mask: Dictionary = metadata.duplicate(true)
+	metadata_visibility_mask["visibilityMasks"] = {
+		"Hidden": [
+			{"at": 0.0, "alpha": 0.0},
+			{"at": 1.0, "alpha": 0.0},
+			{"at": 2.0, "alpha": 1.0},
+			{"at": 4.0, "alpha": 1.0},
+		],
+	}
+	var metadata_mask_view = GameplayView.new()
+	if not _expect_bool(metadata_mask_view.load_metadata(metadata_visibility_mask), true, "metadata visibility mask view metadata load"):
+		return
+	if not _expect_bool(metadata_mask_view.load_chart(hidden_chart), true, "metadata visibility mask view chart load"):
+		return
+	if not _expect_int(_count_children_with_prefix(metadata_mask_view, "Visibility_Hidden_"), 0,
+			"metadata visibility mask overlay removed by Java composite lifecycle"):
+		return
+	if not _expect_float(metadata_mask_view._visibility_alpha("Hidden", 180.0, 480.0), 0.5,
+			"visibility mask math still uses Java metadata"):
+		return
+	metadata_mask_view.free()
 	var mirror_chart: Dictionary = chart.duplicate(true)
 	mirror_chart["channelModifier"] = "Mirror"
 	var mirror_path := _chart_path("mirror_modifier_render")
@@ -1213,11 +1407,670 @@ func _init() -> void:
 	if not _expect_bool(view.has_node("Longflare_EFFECT_LONGFLARE_000"), true, "longflare with note index node"):
 		return
 	var note_longflare_node: TextureRect = view.get_node("Longflare_EFFECT_LONGFLARE_000")
-	if not _expect_float(note_longflare_node.position.y, longflare_y + long_note_head.size.y, "longflare follows long note y"):
+	if not _expect_float(note_longflare_node.position.y, longflare_y, "longflare follows Java long note y"):
 		return
 
 	view.free()
 	quit(0)
+
+
+func _test_combo_counter_uses_metadata_behavior() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_combo_behavior_metadata()), true, "combo behavior metadata load"):
+		return false
+
+	view.update_hud_state({
+		"combo": 2,
+		"elapsedMs": 1000.0,
+	})
+	var combo_sprite_hud: Control = view.get_node("HudSprite_COMBO_COUNTER")
+	if not _expect_int(combo_sprite_hud.get_child_count(), 0, "metadata combo threshold hides low count"):
+		return false
+
+	view.update_hud_state({
+		"combo": 3,
+		"elapsedMs": 1000.0,
+	})
+	if not _expect_int(combo_sprite_hud.get_child_count(), 1, "metadata combo threshold shows count"):
+		return false
+	var combo_digit: TextureRect = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit.position.y, 70.0, "metadata combo wobble start y"):
+		return false
+
+	view.update_hud_state({
+		"combo": 3,
+		"elapsedMs": 1005.0,
+	})
+	combo_digit = combo_sprite_hud.get_child(0)
+	if not _expect_float(combo_digit.position.y, 60.0, "metadata combo wobble speed"):
+		return false
+
+	view.update_hud_state({
+		"combo": 3,
+		"elapsedMs": 1101.0,
+	})
+	if not _expect_int(combo_sprite_hud.get_child_count(), 0, "metadata combo show time"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_judgment_effect_uses_metadata_behavior() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_judgment_behavior_metadata()), true, "judgment behavior metadata load"):
+		return false
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"notes": [],
+		"measures": [],
+	}), true, "judgment behavior empty chart load"):
+		return false
+
+	view.update_hud_state({
+		"elapsedMs": 1000.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+	})
+	var judgment_node: TextureRect = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
+	if not _expect_float(judgment_node.scale.x, 0.25, "metadata judgment initial scale"):
+		return false
+
+	view.update_hud_state({
+		"elapsedMs": 1010.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+	})
+	judgment_node = view.get_node("Judgment_EFFECT_JUDGMENT_COOL")
+	if not _expect_float(judgment_node.scale.x, 0.625, "metadata judgment scale ramp"):
+		return false
+
+	view.update_hud_state({
+		"elapsedMs": 1051.0,
+		"judgmentEvent": {
+			"sequence": 1,
+			"result": "cool",
+			"lane": 0,
+			"startMs": 1000.0,
+		},
+	})
+	if not _expect_bool(view.has_node("Judgment_EFFECT_JUDGMENT_COOL"), false, "metadata judgment show time"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_status_text_uses_metadata_layout() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_status_text_layout_metadata()), true, "status layout metadata load"):
+		return false
+
+	view.update_hud_state({
+		"statusTexts": [
+			"One",
+			"Two",
+		],
+	})
+	var first_label: Label = view.get_node("StatusText_000")
+	var second_label: Label = view.get_node("StatusText_001")
+	if not _expect_float(first_label.position.x, 50.0, "metadata status layout x"):
+		return false
+	if not _expect_float(first_label.position.y, 40.0, "metadata status layout y"):
+		return false
+	if not _expect_float(second_label.position.y, 52.0, "metadata status layout line height"):
+		return false
+	if not _expect_float(first_label.size.x, 50.0, "metadata status label width"):
+		return false
+	if not _expect_int(first_label.get_theme_font_size("font_size"), 9, "metadata status font size"):
+		return false
+	if not _expect_bool(bool(first_label.get_meta("statusTextBold", false)), true, "metadata status bold"):
+		return false
+	if not _expect_bool(bool(first_label.get_meta("statusTextAntiAlias", true)), false, "metadata status antialias"):
+		return false
+	if not _expect_bool(first_label.has_theme_color_override("font_color"), true, "metadata status font color override"):
+		return false
+	if not _expect_color(first_label.get_theme_color("font_color"), Color(1.0, 1.0, 1.0, 1.0), "metadata status font color"):
+		return false
+	if not _expect_string(str(first_label.get_meta("statusTextFontFamily", "")), "sans-serif", "metadata status font family"):
+		return false
+	if not _expect_int(int(first_label.get_meta("statusTextFontWeight", 0)), 700, "metadata status font weight"):
+		return false
+	if not OS.get_system_font_path("sans-serif", 700, 100, false).is_empty():
+		if not _expect_bool(first_label.has_theme_font_override("font"), true, "metadata status font override"):
+			return false
+		var font := first_label.get_theme_font("font")
+		if font is FontFile:
+			if not _expect_int(int(font.antialiasing), TextServer.FONT_ANTIALIASING_NONE, "metadata status font antialiasing"):
+				return false
+
+	view.free()
+	return true
+
+
+func _test_click_effect_uses_animation_loop_metadata() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_click_loop_metadata()), true, "click loop metadata load"):
+		return false
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"notes": [],
+		"measures": [],
+	}), true, "click loop empty chart load"):
+		return false
+
+	view.update_hud_state({
+		"elapsedMs": 1000.0,
+		"clickEvents": [
+			{
+				"sequence": 1,
+				"lane": 0,
+				"startMs": 1000.0,
+			},
+		],
+	})
+	if not _expect_bool(view.has_node("Click_EFFECT_CLICK_001"), true, "metadata looping click starts"):
+		return false
+
+	view.update_hud_state({
+		"elapsedMs": 1003.0,
+		"clickEvents": [
+			{
+				"sequence": 1,
+				"lane": 0,
+				"startMs": 1000.0,
+			},
+		],
+	})
+	if not _expect_bool(view.has_node("Click_EFFECT_CLICK_001"), true, "metadata looping click remains after animation cycle"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_longflare_uses_note_entity_center() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_longflare_position_metadata()), true, "longflare position metadata load"):
+		return false
+
+	var note_node := Control.new()
+	note_node.name = "SyntheticNote"
+	note_node.position = Vector2(123.0, 45.0)
+	note_node.size = Vector2(20.0, 10.0)
+	view.add_child(note_node)
+	view._note_entries.append({
+		"node": note_node,
+	})
+
+	view.update_hud_state({
+		"elapsedMs": 1000.0,
+		"longFlares": [
+			{
+				"lane": 0,
+				"noteIndex": 0,
+				"startMs": 1000.0,
+			},
+		],
+	})
+
+	var longflare_node: TextureRect = view.get_node("Longflare_EFFECT_LONGFLARE_000")
+	if not _expect_float(longflare_node.position.x, 108.0, "longflare follows Java note center x"):
+		return false
+	if not _expect_float(longflare_node.position.y, 45.0, "longflare follows Java note y"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_bar_fill_directions_match_java_slice_geometry() -> bool:
+	var view = GameplayView.new()
+	if not _expect_bool(view.load_metadata(_bar_direction_metadata()), true, "bar direction metadata load"):
+		return false
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"notes": [],
+		"measures": [],
+	}), true, "bar direction chart load"):
+		return false
+
+	view._set_bar_fill("LIFE_BAR", 25.0, 100.0)
+	var left_bar: TextureRect = view.get_node("Entity_LIFE_BAR")
+	var left_texture: AtlasTexture = left_bar.texture
+	if not _expect_float(left_bar.position.x, 10.0, "left bar x"):
+		return false
+	if not _expect_float(left_bar.size.x, 25.0, "left bar width"):
+		return false
+	if not _expect_float(left_texture.region.position.x, 20.0, "left bar texture x"):
+		return false
+	if not _expect_float(left_texture.region.size.x, 25.0, "left bar texture width"):
+		return false
+
+	view._set_bar_fill("JAM_BAR", 25.0, 100.0)
+	var right_bar: TextureRect = view.get_node("Entity_JAM_BAR")
+	var right_texture: AtlasTexture = right_bar.texture
+	if not _expect_float(right_bar.position.x, 185.0, "right bar x"):
+		return false
+	if not _expect_float(right_bar.size.x, 25.0, "right bar width"):
+		return false
+	if not _expect_float(right_texture.region.position.x, 95.0, "right bar texture x"):
+		return false
+	if not _expect_float(right_texture.region.size.x, 25.0, "right bar texture width"):
+		return false
+
+	view._set_bar_fill("SCORE_COUNTER", 25.0, 100.0)
+	var up_bar: TextureRect = view.get_node("Entity_SCORE_COUNTER")
+	var up_texture: AtlasTexture = up_bar.texture
+	if not _expect_float(up_bar.position.y, 120.0, "up bar y"):
+		return false
+	if not _expect_float(up_bar.size.y, 20.0, "up bar height"):
+		return false
+	if not _expect_float(up_texture.region.position.y, 80.0, "up bar texture y"):
+		return false
+	if not _expect_float(up_texture.region.size.y, 20.0, "up bar texture height"):
+		return false
+
+	view._set_bar_fill("FPS_COUNTER", 25.0, 100.0)
+	var down_bar: TextureRect = view.get_node("Entity_FPS_COUNTER")
+	var down_texture: AtlasTexture = down_bar.texture
+	if not _expect_float(down_bar.position.y, 170.0, "down bar y"):
+		return false
+	if not _expect_float(down_bar.size.y, 20.0, "down bar height"):
+		return false
+	if not _expect_float(down_texture.region.position.y, 20.0, "down bar texture y"):
+		return false
+	if not _expect_float(down_texture.region.size.y, 20.0, "down bar texture height"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_timebar_decoration_matches_java_static_entity_lifecycle() -> bool:
+	var view = GameplayView.new()
+	var model = RenderEntityModel.new()
+	var metadata: Dictionary = model.load_from_file("res://test/fixtures/render-metadata.json")
+	if not _expect_bool(view.load_metadata(metadata), true, "static timebar metadata load"):
+		return false
+	if not _expect_bool(view.load_chart({
+		"bpm": 120.0,
+		"durationMs": 1000,
+		"notes": [],
+		"measures": [],
+	}), true, "static timebar chart load"):
+		return false
+
+	var timebar := _timebar_decoration_node(view)
+	if not _expect_bool(timebar != null, true, "static timebar decoration node"):
+		return false
+	var instance_id := timebar.get_instance_id()
+	if not _expect_bool(str(timebar.name).begins_with("Entity_"), true, "static timebar decoration node name"):
+		return false
+	if not _expect_float(timebar.position.x, 226.0, "static timebar x"):
+		return false
+	if not _expect_float(timebar.position.y, 515.0, "static timebar y"):
+		return false
+	if not _expect_float(timebar.size.x, 226.0, "static timebar width"):
+		return false
+	if not _expect_float(timebar.size.y, 72.0, "static timebar height"):
+		return false
+	if not _expect_bool(timebar.visible, true, "static timebar initial visibility"):
+		return false
+
+	view.update_hud_state({
+		"gameTimeMs": 0.0,
+		"durationMs": 1000.0,
+	})
+	timebar = _timebar_decoration_node(view)
+	if not _expect_int(timebar.get_instance_id(), instance_id, "static timebar keeps entity instance after hud update"):
+		return false
+	if not _expect_float(timebar.size.x, 226.0, "static timebar keeps full width at start"):
+		return false
+	if not _expect_bool(timebar.visible, true, "static timebar remains visible at start"):
+		return false
+
+	view.update_hud_state({
+		"gameTimeMs": 500.0,
+		"durationMs": 1000.0,
+	})
+	timebar = _timebar_decoration_node(view)
+	if not _expect_float(timebar.size.x, 226.0, "static timebar ignores runtime game time"):
+		return false
+	if not _expect_bool(timebar.visible, true, "static timebar remains visible after runtime game time"):
+		return false
+
+	view.free()
+	return true
+
+
+func _test_render_metadata_rejects_invalid_numeric_contract(model: RefCounted) -> bool:
+	if not _expect_bool(model.normalize(_render_metadata_with("visibilityLayer", "7")).is_empty(), true,
+			"string visibility layer rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_entity("x", "5")).is_empty(), true,
+			"string entity x rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_entity("width", -1.0)).is_empty(), true,
+			"negative entity width rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_entity("textureWidth", "16")).is_empty(), true,
+			"string entity texture width rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_entity("frameSpeed", 0.0)).is_empty(), true,
+			"zero entity frame speed rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_sprite_frame("textureHeight", 0.0)).is_empty(), true,
+			"zero sprite frame texture height rejected"):
+		return false
+	if not _expect_bool(model.normalize(_render_metadata_with_lane("x", "5")).is_empty(), true,
+			"string lane x rejected"):
+		return false
+	return true
+
+
+func _render_metadata_with(field: String, value: Variant) -> Dictionary:
+	var metadata := _minimal_render_metadata()
+	metadata[field] = value
+	return metadata
+
+
+func _render_metadata_with_entity(field: String, value: Variant) -> Dictionary:
+	var metadata := _minimal_render_metadata()
+	metadata["entities"][0][field] = value
+	return metadata
+
+
+func _render_metadata_with_lane(field: String, value: Variant) -> Dictionary:
+	var metadata := _minimal_render_metadata()
+	metadata["lanes"][0][field] = value
+	return metadata
+
+
+func _render_metadata_with_sprite_frame(field: String, value: Variant) -> Dictionary:
+	var metadata := _minimal_render_metadata()
+	metadata["entities"][0]["spriteFrames"] = [{
+		"id": "frame_0",
+		"texturePath": "res://test/fixtures/bga.png",
+		"textureX": 0.0,
+		"textureY": 0.0,
+		"textureWidth": 16.0,
+		"textureHeight": 16.0,
+	}]
+	metadata["entities"][0]["spriteFrames"][0][field] = value
+	return metadata
+
+
+func _minimal_render_metadata() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"visibilityLayer": 7,
+		"entities": [
+			{
+				"id": "BGA",
+				"type": "static",
+				"layer": 0,
+				"x": 0.0,
+				"y": 0.0,
+				"width": 800.0,
+				"height": 600.0,
+				"named": true,
+				"sprites": [],
+			},
+		],
+		"lanes": [
+			{
+				"channel": "NOTE_1",
+				"lane": 0,
+				"x": 5.0,
+				"width": 28.0,
+			},
+		],
+	}
+
+
+func _combo_behavior_metadata() -> Dictionary:
+	var digit_frames: Array[Dictionary] = []
+	for digit in range(10):
+		digit_frames.append({
+			"id": "metadata_combo_%d" % digit,
+			"textureWidth": 10.0,
+			"textureHeight": 10.0,
+		})
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"entities": [
+			{
+				"id": "COMBO_COUNTER",
+				"type": "comboCounter",
+				"layer": 0,
+				"x": 100.0,
+				"y": 50.0,
+				"width": 10.0,
+				"height": 10.0,
+				"named": true,
+				"countThreshold": 3,
+				"showTimeMs": 100.0,
+				"wobblePixels": 20.0,
+				"wobbleSpeed": 2.0,
+				"sprites": [],
+				"spriteFrames": digit_frames,
+			},
+		],
+		"lanes": [],
+	}
+
+
+func _bar_direction_metadata() -> Dictionary:
+	var resource_root := ProjectSettings.globalize_path("res://../../src/resources")
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"entities": [
+			_bar_direction_entity("LIFE_BAR", 10.0, 10.0, "left_to_right", resource_root),
+			_bar_direction_entity("JAM_BAR", 110.0, 10.0, "right_to_left", resource_root),
+			_bar_direction_entity("SCORE_COUNTER", 10.0, 60.0, "up_to_down", resource_root),
+			_bar_direction_entity("FPS_COUNTER", 110.0, 170.0, "down_to_up", resource_root),
+		],
+		"lanes": [],
+	}
+
+
+func _bar_direction_entity(id: String, x: float, y: float, fill_direction: String, resource_root: String) -> Dictionary:
+	return {
+		"id": id,
+		"type": "bar",
+		"layer": 0,
+		"x": x,
+		"y": y,
+		"width": 100.0,
+		"height": 80.0,
+		"named": true,
+		"fillDirection": fill_direction,
+		"texturePath": "%s/main.png" % resource_root,
+		"textureX": 20.0,
+		"textureY": 20.0,
+		"textureWidth": 100.0,
+		"textureHeight": 80.0,
+		"sprites": [],
+		"spriteFrames": [
+			{
+				"id": "%s_frame" % id,
+				"texturePath": "%s/main.png" % resource_root,
+				"textureX": 20.0,
+				"textureY": 20.0,
+				"textureWidth": 100.0,
+				"textureHeight": 80.0,
+			},
+		],
+	}
+
+
+func _click_loop_metadata() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"entities": [
+			{
+				"id": "EFFECT_CLICK",
+				"type": "entity",
+				"layer": 0,
+				"x": 0.0,
+				"y": 0.0,
+				"width": 10.0,
+				"height": 10.0,
+				"named": true,
+				"frameSpeed": 1.0,
+				"animationLoop": true,
+				"sprites": [],
+				"spriteFrames": [
+					{
+						"id": "metadata_click_0",
+						"textureWidth": 10.0,
+						"textureHeight": 10.0,
+					},
+					{
+						"id": "metadata_click_1",
+						"textureWidth": 10.0,
+						"textureHeight": 10.0,
+					},
+				],
+			},
+		],
+		"lanes": [
+			{
+				"channel": "NOTE_1",
+				"lane": 0,
+				"x": 0.0,
+				"width": 20.0,
+			},
+		],
+	}
+
+
+func _longflare_position_metadata() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"entities": [
+			{
+				"id": "EFFECT_LONGFLARE",
+				"type": "entity",
+				"layer": 0,
+				"x": 0.0,
+				"y": 0.0,
+				"width": 50.0,
+				"height": 20.0,
+				"named": true,
+				"sprites": [],
+				"spriteFrames": [
+					{
+						"id": "metadata_longflare",
+						"textureWidth": 50.0,
+						"textureHeight": 20.0,
+					},
+				],
+			},
+		],
+		"lanes": [
+			{
+				"channel": "NOTE_1",
+				"lane": 0,
+				"x": 0.0,
+				"width": 200.0,
+			},
+		],
+	}
+
+
+func _status_text_layout_metadata() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"statusTextLayout": {
+			"rightX": 100.0,
+			"startY": 40.0,
+			"lineHeight": 12.0,
+			"labelWidth": 50.0,
+			"fontFamily": "sans-serif",
+			"fontSize": 9,
+			"bold": true,
+			"antiAlias": false,
+			"fontColor": "#ffffffff",
+			"horizontalAlignment": "right",
+		},
+		"entities": [],
+		"lanes": [],
+	}
+
+
+func _judgment_behavior_metadata() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"format": "VOS_RENDER_METADATA",
+		"baseWidth": 800.0,
+		"baseHeight": 600.0,
+		"judgmentLine": 480,
+		"measureSize": 385.0,
+		"entities": [
+			{
+				"id": "EFFECT_JUDGMENT_COOL",
+				"type": "judgmentEffect",
+				"layer": 0,
+				"x": 10.0,
+				"y": 20.0,
+				"width": 20.0,
+				"height": 10.0,
+				"named": true,
+				"showTimeMs": 50.0,
+				"scaleRampMs": 20.0,
+				"initialScale": 0.25,
+				"sprites": [],
+				"spriteFrames": [
+					{
+						"id": "metadata_judgment_cool",
+						"textureWidth": 20.0,
+						"textureHeight": 10.0,
+					},
+				],
+			},
+		],
+		"lanes": [],
+	}
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:
@@ -1235,12 +2088,55 @@ func _entity_by_id(entities: Array, id: String) -> Dictionary:
 	return {}
 
 
+func _entity_by_sprite(entities: Array, sprite_id: String) -> Dictionary:
+	for entity: Variant in entities:
+		if not entity is Dictionary:
+			continue
+		var sprites: Variant = entity.get("sprites", [])
+		if not sprites is Array:
+			continue
+		for sprite: Variant in sprites:
+			if str(sprite) == sprite_id:
+				return entity
+	return {}
+
+
+func _timebar_decoration_node(view: Node) -> TextureRect:
+	for child: Node in view.get_children():
+		if not child is TextureRect:
+			continue
+		var node: TextureRect = child
+		if is_equal_approx(node.position.x, 226.0) \
+				and is_equal_approx(node.position.y, 515.0) \
+				and is_equal_approx(node.size.x, 226.0) \
+				and is_equal_approx(node.size.y, 72.0):
+			return node
+	return null
+
+
+func _status_node_text(node: Node) -> String:
+	if node is Label:
+		return node.text
+	return str(node.get_meta("statusText", ""))
+
+
 func _count_children_with_prefix(node: Node, prefix: String) -> int:
 	var count := 0
 	for child: Node in node.get_children():
 		if child.name.begins_with(prefix):
 			count += 1
 	return count
+
+
+func _texture_alpha_at(node: TextureRect, x: int, y: int) -> float:
+	if node.texture == null:
+		return -1.0
+	var image: Image = node.texture.get_image()
+	if image == null:
+		return -1.0
+	var clamped_x := int(clamp(x, 0, image.get_width() - 1))
+	var clamped_y := int(clamp(y, 0, image.get_height() - 1))
+	return image.get_pixel(clamped_x, clamped_y).a
 
 
 func _chart_path(label: String) -> String:
@@ -1276,6 +2172,17 @@ func _expect_int(actual: int, expected: int, label: String) -> bool:
 
 func _expect_string(actual: String, expected: String, label: String) -> bool:
 	if actual != expected:
+		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
+		quit(1)
+		return false
+	return true
+
+
+func _expect_color(actual: Color, expected: Color, label: String) -> bool:
+	if not is_equal_approx(actual.r, expected.r) \
+			or not is_equal_approx(actual.g, expected.g) \
+			or not is_equal_approx(actual.b, expected.b) \
+			or not is_equal_approx(actual.a, expected.a):
 		push_error("Expected %s '%s', got '%s'." % [label, expected, actual])
 		quit(1)
 		return false

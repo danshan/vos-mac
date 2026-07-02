@@ -30,6 +30,25 @@ class LWJGLGameWindowTest {
         assertTrue(closed(window));
     }
 
+    @Test
+    void captureCompletionStillCompletesWhenCallbackThrows() throws Exception {
+        LWJGLGameWindow window = new LWJGLGameWindow();
+        window.setGameWindowCallback(new ThrowingCloseCallback());
+
+        Method completeCapture = LWJGLGameWindow.class.getDeclaredMethod("completeFrameCapture");
+        completeCapture.setAccessible(true);
+
+        Logger logger = Logger.getLogger(LWJGLGameWindow.class.getName());
+        Level previousLevel = logger.getLevel();
+        logger.setLevel(Level.OFF);
+        try {
+            assertDoesNotThrow(() -> completeCapture.invoke(window));
+        } finally {
+            logger.setLevel(previousLevel);
+        }
+        assertTrue(closed(window));
+    }
+
     private static boolean closed(LWJGLGameWindow window) throws Exception {
         Field closed = LWJGLGameWindow.class.getDeclaredField("closed");
         closed.setAccessible(true);

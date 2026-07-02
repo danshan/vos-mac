@@ -26,11 +26,17 @@ func _init() -> void:
 		return
 	if not _test_java_speed_misc_hotkeys(chart, audio_manifest):
 		return
+	if not _test_java_w_speed_cycle_uses_target_speed(chart, audio_manifest):
+		return
 	if not _test_java_speed_status_preserves_multiplier_text(chart, audio_manifest):
+		return
+	if not _test_java_status_text_metadata_templates(chart, audio_manifest):
 		return
 	if not _test_java_volume_misc_hotkeys(chart, audio_manifest):
 		return
 	if not _test_custom_misc_key_bindings(chart, audio_manifest):
+		return
+	if not _test_custom_lane_key_bindings_reach_gameplay(chart, audio_manifest):
 		return
 	if not _test_java_initial_volume_options(chart, audio_manifest):
 		return
@@ -42,7 +48,13 @@ func _init() -> void:
 		return
 	if not _test_java_manual_start_gates_game_time(audio_manifest):
 		return
+	if not _test_java_local_matching_gates_game_time(audio_manifest):
+		return
+	if not _test_java_partytime_server_status_and_return_start(audio_manifest):
+		return
 	if not _test_java_latency_splits_judgment_display_and_autosound(audio_manifest):
+		return
+	if not _test_java_autosync_updates_runtime_latency(audio_manifest):
 		return
 	if not _test_java_buffered_visual_entities_match_render_window(audio_manifest):
 		return
@@ -231,6 +243,41 @@ func _test_java_speed_misc_hotkeys(chart: Dictionary, audio_manifest: Dictionary
 	return true
 
 
+func _test_java_w_speed_cycle_uses_target_speed(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var w_chart := chart.duplicate(true)
+	w_chart["speedMultiplier"] = 10.0
+	w_chart["speedType"] = "WSpeed"
+	w_chart["visualTiming"] = [{"timeMs": 0.0, "bpm": 120.0}]
+	w_chart["judgmentTiming"] = [{"timeMs": 0.0, "bpm": 120.0}]
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(w_chart, audio_manifest), true, "w speed target runtime start"):
+		return false
+
+	var speed_down := InputEventAction.new()
+	speed_down.action = "speed_down"
+	var speed_down_release := InputEventAction.new()
+	speed_down_release.action = "speed_down"
+	speed_down_release.pressed = false
+	for _i in range(19):
+		speed_down.pressed = true
+		runtime._unhandled_input(speed_down)
+		runtime._unhandled_input(speed_down_release)
+
+	var target_state: Dictionary = runtime.hud_state()
+	if not _expect_float(float(target_state.get("targetSpeed", -1.0)), 0.5, "w speed target speed"):
+		return false
+	if not _expect_float(float(target_state.get("renderSpeed", -1.0)), 10.0, "w speed current speed before smoothing"):
+		return false
+
+	runtime.advance_to(1600.0)
+	if not _expect_float(float(runtime._controller._distance.w_speed), 0.5, "w speed cycle uses target speed"):
+		return false
+
+	runtime.free()
+	return true
+
+
 func _test_java_speed_status_preserves_multiplier_text(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	var speed_chart := chart.duplicate(true)
 	speed_chart["speedMultiplier"] = 1.25
@@ -242,6 +289,39 @@ func _test_java_speed_status_preserves_multiplier_text(chart: Dictionary, audio_
 	var state: Dictionary = runtime.hud_state()
 	var status_texts: Array = state.get("statusTexts", [])
 	if not _expect_string(str(status_texts[0]), "HI-SPEED: x1.25", "speed multiplier Java text"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_status_text_metadata_templates(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var templated_chart := chart.duplicate(true)
+	templated_chart["speedMultiplier"] = 1.25
+	templated_chart["statusTextTemplates"] = {
+		"speed": "Speed {speedType} multiplier {speedMultiplier}",
+		"measure": "Measure #{measure}",
+		"gameSpeed": "Pitch {gameSpeedPitch}",
+		"speedTypes": {
+			"HiSpeed": "HI",
+			"xRSpeed": "XR",
+			"RegulSpeed": "REGUL",
+			"WSpeed": "W",
+		},
+	}
+
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(templated_chart, audio_manifest), true, "status template runtime start"):
+		return false
+
+	var state: Dictionary = runtime.hud_state()
+	var status_texts: Array = state.get("statusTexts", [])
+	if not _expect_string(str(status_texts[0]), "Speed HI multiplier 1.25", "metadata speed status"):
+		return false
+	if not _expect_string(str(status_texts[1]), "Measure #0", "metadata measure status"):
+		return false
+	if not _expect_string(str(status_texts[2]), "Pitch +0", "metadata game speed status"):
 		return false
 
 	runtime.free()
@@ -312,6 +392,38 @@ func _test_custom_misc_key_bindings(chart: Dictionary, audio_manifest: Dictionar
 	if not _expect_int(_keycode_for_action("speed_up"), OS.find_keycode_from_string("PageUp"), "runtime speed up keycode"):
 		return false
 	if not _expect_int(_keycode_for_action("main_volume_down"), OS.find_keycode_from_string("Minus"), "runtime main volume down keycode"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_custom_lane_key_bindings_reach_gameplay(chart: Dictionary, audio_manifest: Dictionary) -> bool:
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.set_key_bindings(["A", "S", "D", "F", "G", "H", "J"]), true, "runtime set lane key bindings"):
+		return false
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "custom lane runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	_send_input_key(runtime, "A", true, false)
+	if not _expect_int(runtime.result().get("score", 0), 200, "custom lane key hit score"):
+		return false
+	var pressed_state: Dictionary = runtime.hud_state()
+	var pressed_lanes: Array = pressed_state.get("pressedLanes", [])
+	if not _expect_int(pressed_lanes.size(), 1, "custom lane key pressed count"):
+		return false
+	if not _expect_int(int(pressed_lanes[0]), 0, "custom lane key pressed lane"):
+		return false
+
+	_send_input_key(runtime, "A", true, true)
+	if not _expect_int(runtime.result().get("score", 0), 200, "custom lane key echo ignored"):
+		return false
+
+	_send_input_key(runtime, "A", false, false)
+	var released_state: Dictionary = runtime.hud_state()
+	if not _expect_int(released_state.get("pressedLanes", []).size(), 0, "custom lane key released count"):
 		return false
 
 	runtime.free()
@@ -542,6 +654,9 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 		"notes": [
 			{"lane": 0, "startMs": 0.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
 		],
+		"measures": [
+			{"startMs": 0.0},
+		],
 		"autoPlayEvents": [],
 	}
 	var runtime = GameplayRuntime.new()
@@ -558,6 +673,8 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	if not _expect_bool(bool(waiting_state.get("gameStarted", true)), false, "manual start game started state waits"):
 		return false
 	var waiting_status: Array = waiting_state.get("statusTexts", [])
+	if not _expect_string(str(waiting_status[1]), "Current Measure: 0", "manual start measure waits for Java judgment"):
+		return false
 	if not _expect_string(str(waiting_status[3]), "Press any note button to start the game.", "manual start status"):
 		return false
 
@@ -570,6 +687,8 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	var started_status: Array = started_state.get("statusTexts", [])
 	if not _expect_int(started_status.size(), 3, "manual start prompt clears"):
 		return false
+	if not _expect_string(str(started_status[1]), "Current Measure: 0", "manual start input does not judge measure in same Java frame"):
+		return false
 	if not _expect_bool(bool(started_state.get("gameStarted", false)), true, "manual start game started state begins"):
 		return false
 	if not _expect_int(started_state.get("gameTimeMs", -1), 0, "manual start input begins at zero"):
@@ -578,6 +697,129 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 	runtime.advance_to(1500.0)
 	var running_state: Dictionary = runtime.hud_state()
 	if not _expect_int(running_state.get("gameTimeMs", -1), 500, "manual start game time after input"):
+		return false
+	var running_status: Array = running_state.get("statusTexts", [])
+	if not _expect_string(str(running_status[1]), "Current Measure: 1", "manual start next frame judges measure"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_local_matching_gates_game_time(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:local-matching",
+		"format": "VOS",
+		"localMatchingServer": "localhost:1234",
+		"localMatchingClientEnabled": false,
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"measures": [
+			{"startMs": 0.0},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "local matching runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	var waiting_state: Dictionary = runtime.hud_state()
+	if not _expect_int(waiting_state.get("elapsedMs", -1), 1000, "local matching elapsed advances"):
+		return false
+	if not _expect_int(waiting_state.get("gameTimeMs", -1), 0, "local matching game time waits"):
+		return false
+	if not _expect_bool(bool(waiting_state.get("gameStarted", true)), false, "local matching game started state waits"):
+		return false
+	var waiting_status: Array = waiting_state.get("statusTexts", [])
+	if not _expect_string(str(waiting_status[3]), "Connecting...", "local matching status"):
+		return false
+
+	var blocked_hit: Dictionary = runtime.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(blocked_hit.get("accepted", true), false, "local matching input rejected while waiting"):
+		return false
+	if not _expect_string(str(blocked_hit.get("reason", "")), "local_matching_wait", "local matching input wait reason"):
+		return false
+	var blocked_state: Dictionary = runtime.hud_state()
+	if not _expect_bool(bool(blocked_state.get("gameStarted", true)), false, "local matching input does not start"):
+		return false
+	if not _expect_int(blocked_state.get("gameTimeMs", -1), 0, "local matching input keeps game time"):
+		return false
+
+	if not _expect_bool(runtime.has_method("set_local_matching_ready"), true, "local matching ready setter"):
+		return false
+	runtime.set_local_matching_ready(true)
+	runtime.advance_to(1500.0)
+	var started_state: Dictionary = runtime.hud_state()
+	if not _expect_bool(bool(started_state.get("gameStarted", false)), true, "local matching ready starts"):
+		return false
+	if not _expect_int(started_state.get("gameTimeMs", -1), 500, "local matching game time after ready"):
+		return false
+	var started_status: Array = started_state.get("statusTexts", [])
+	if not _expect_string(str(started_status[3]), "Game start!", "local matching ready status"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_partytime_server_status_and_return_start(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:partytime-server",
+		"format": "VOS",
+		"judgmentType": "time",
+		"partytimeServerStatus": "Listening on port1234",
+		"partytimeServerConnections": [
+			{"host": "127.0.0.1", "status": "Client synchronized. Offset:12"},
+			{"host": "192.168.0.2", "status": "Syncing:1 / 50"},
+		],
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"measures": [
+			{"startMs": 0.0},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "partytime server runtime start"):
+		return false
+
+	var waiting_state: Dictionary = runtime.hud_state()
+	var network_status: Array = waiting_state.get("networkStatusTexts", [])
+	if not _expect_int(network_status.size(), 3, "partytime server network status count"):
+		return false
+	if not _expect_string(str(network_status[0]), "Server: Listening on port1234", "partytime server status text"):
+		return false
+	if not _expect_string(str(network_status[1]), "127.0.0.1: Client synchronized. Offset:12", "partytime first connection status text"):
+		return false
+	if not _expect_string(str(network_status[2]), "192.168.0.2: Syncing:1 / 50", "partytime second connection status text"):
+		return false
+	if not _expect_int(runtime.partytime_server_start_game_count(), 0, "partytime server initial start count"):
+		return false
+
+	_send_input_key(runtime, "Enter", true, false)
+	var started_state: Dictionary = runtime.hud_state()
+	var cleared_network_status: Array = started_state.get("networkStatusTexts", [])
+	if not _expect_int(cleared_network_status.size(), 0, "partytime server status clears after return"):
+		return false
+	if not _expect_int(runtime.partytime_server_start_game_count(), 1, "partytime server return start count"):
+		return false
+
+	_send_input_key(runtime, "Enter", true, false)
+	if not _expect_int(runtime.partytime_server_start_game_count(), 1, "partytime server return ignored after clear"):
 		return false
 
 	runtime.free()
@@ -650,6 +892,66 @@ func _test_java_latency_splits_judgment_display_and_autosound(audio_manifest: Di
 		return false
 	var caught_up_bga: Dictionary = caught_up_state.get("currentBgaEvent", {})
 	if not _expect_int(caught_up_bga.get("spriteId", -1), 7, "latency caught up bga"):
+		return false
+
+	runtime.free()
+	return true
+
+
+func _test_java_autosync_updates_runtime_latency(audio_manifest: Dictionary) -> bool:
+	var chart := {
+		"schemaVersion": 1,
+		"chartId": "vos:runtime-autosync",
+		"format": "VOS",
+		"autosound": true,
+		"autosyncMode": "audio",
+		"judgmentType": "time",
+		"audioLatencyMs": 50.0,
+		"displayLatencyMs": 20.0,
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+	var runtime = GameplayRuntime.new()
+	get_root().add_child(runtime)
+	if not _expect_bool(runtime.start(chart, audio_manifest), true, "autosync runtime start"):
+		return false
+
+	runtime.advance_to(1000.0)
+	if not _expect_float(runtime.judgment_time_ms(), 950.0, "autosync initial judgment time"):
+		return false
+	var hit: Dictionary = runtime.press_action("vos_lane_1")
+	if not _expect_bool(hit.get("accepted", false), true, "autosync runtime hit accepted"):
+		return false
+	if not _expect_float(float(hit.get("hitTime", -1.0)), 50.0, "autosync runtime hit uses old latency"):
+		return false
+	if not _expect_float(runtime.judgment_time_ms(), 950.78125, "autosync runtime uses updated latency"):
+		return false
+	if not _expect_int(runtime.hud_state().get("judgmentTimeMs", -1), 951, "autosync rounded hud judgment time"):
+		return false
+
+	runtime.advance_to(1100.0)
+	if not _expect_float(runtime.judgment_time_ms(), 1050.78125, "autosync next frame judgment time"):
+		return false
+	var running_result: Dictionary = runtime.result()
+	if not _expect_float(float(running_result.get("audioLatencyMs", 0.0)), 49.21875, "autosync running result audio latency"):
+		return false
+	if not _expect_string(str(running_result.get("autosyncMode", "")), "audio", "autosync running result mode"):
+		return false
+
+	runtime.advance_to(11101.0)
+	if not _expect_bool(runtime.is_running(), false, "autosync runtime finishes"):
+		return false
+	var final_result: Dictionary = runtime.result()
+	if not _expect_float(float(final_result.get("audioLatencyMs", 0.0)), 49.21875, "autosync final result audio latency"):
+		return false
+	if not _expect_float(float(final_result.get("displayLatencyMs", 0.0)), 20.0, "autosync final result display latency"):
+		return false
+	if not _expect_string(str(final_result.get("autosyncMode", "")), "audio", "autosync final result mode"):
 		return false
 
 	runtime.free()
@@ -824,6 +1126,14 @@ func _send_input_action(runtime: GameplayRuntime, action: String, pressed: bool)
 	var input_event := InputEventAction.new()
 	input_event.action = action
 	input_event.pressed = pressed
+	runtime._unhandled_input(input_event)
+
+
+func _send_input_key(runtime: GameplayRuntime, key: String, pressed: bool, echo: bool) -> void:
+	var input_event := InputEventKey.new()
+	input_event.keycode = OS.find_keycode_from_string(key)
+	input_event.pressed = pressed
+	input_event.echo = echo
 	runtime._unhandled_input(input_event)
 
 

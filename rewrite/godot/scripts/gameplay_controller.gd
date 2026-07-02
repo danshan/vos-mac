@@ -2,6 +2,7 @@ extends RefCounted
 
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 const JudgmentStrategy = preload("res://scripts/judgment_strategy.gd")
+const LatencyModel = preload("res://scripts/latency_model.gd")
 const NoteDistanceCalculator = preload("res://scripts/note_distance_calculator.gd")
 const ResultModel = preload("res://scripts/result_model.gd")
 const ScoreState = preload("res://scripts/score_state.gd")
@@ -34,7 +35,21 @@ const SPEED_TYPE_HI_SPEED: String = "HiSpeed"
 const SPEED_TYPE_XR_SPEED: String = "xRSpeed"
 const SPEED_TYPE_REGUL_SPEED: String = "RegulSpeed"
 const SPEED_TYPE_W_SPEED: String = "WSpeed"
+const AUTOSYNC_NONE: String = ""
+const AUTOSYNC_DISPLAY: String = "display"
+const AUTOSYNC_AUDIO: String = "audio"
 const JAVA_GAME_SPEED_PITCH: int = 0
+const DEFAULT_STATUS_TEXT_TEMPLATES: Dictionary = {
+	"speed": "{speedType}: x{speedMultiplier}",
+	"measure": "Current Measure: {measure}",
+	"gameSpeed": "Game Speed: {gameSpeedPitch}",
+	"speedTypes": {
+		"HiSpeed": "HI-SPEED",
+		"xRSpeed": "xR-SPEED",
+		"RegulSpeed": "REGUL-SPEED",
+		"WSpeed": "W-SPEED",
+	},
+}
 const SPEED_ACTION_UP: String = "speed_up"
 const SPEED_ACTION_DOWN: String = "speed_down"
 const SPEED_STEP: float = 0.5
@@ -64,6 +79,8 @@ var _buffer_event_index: int = 0
 var _buffer_timer_ms: float = 0.0
 var _buffered_note_indices: Dictionary = {}
 var _buffered_measure_indices: Dictionary = {}
+var _judged_measure_indices: Dictionary = {}
+var _current_measure_count: int = 0
 var _audio_commands: Array[Dictionary] = []
 var _last_sound_by_lane: Dictionary = {}
 var _render_sequence: int = 0
@@ -100,6 +117,10 @@ var _game_speed_pitch: int = 0
 var _last_game_speed_change_measure: int = 0
 var _last_game_speed_update_measure: int = 0
 var _last_game_speed_change_time_ms: float = 0.0
+var _status_text_templates: Dictionary = DEFAULT_STATUS_TEXT_TEMPLATES.duplicate(true)
+var _display_latency = LatencyModel.new(0.0)
+var _audio_latency = LatencyModel.new(0.0)
+var _autosync_mode: String = AUTOSYNC_NONE
 
 
 func load_chart(chart: Dictionary) -> bool:
@@ -121,7 +142,10 @@ func load_chart(chart: Dictionary) -> bool:
 	_buffer_timer_ms = 0.0
 	_buffered_note_indices.clear()
 	_buffered_measure_indices.clear()
+	_judged_measure_indices.clear()
+	_current_measure_count = 0
 	_last_sound_by_lane.clear()
+	_initialize_last_sound_by_lane()
 	_autosound_enabled = _normalized_bool(_chart.get("autosound", false))
 	_disable_autosound = false
 	_autoplay_enabled = _normalized_bool(_chart.get("autoplay", false))
@@ -129,6 +153,10 @@ func load_chart(chart: Dictionary) -> bool:
 	_render_speed = _normalized_speed_multiplier(_chart.get("speedMultiplier", JAVA_RENDER_SPEED))
 	_target_render_speed = _render_speed
 	_speed_type = _normalized_speed_type(_chart.get("speedType", SPEED_TYPE_HI_SPEED))
+	_status_text_templates = _normalized_status_text_templates(_chart.get("statusTextTemplates", {}))
+	_display_latency = LatencyModel.new(_normalized_latency(_chart.get("displayLatencyMs", 0.0)))
+	_audio_latency = LatencyModel.new(_normalized_latency(_chart.get("audioLatencyMs", 0.0)))
+	_autosync_mode = _normalized_autosync_mode(_chart.get("autosyncMode", AUTOSYNC_NONE))
 	_configure_distance()
 	_audio_commands.clear()
 	_render_sequence = 0
@@ -234,10 +262,19 @@ func volume_state() -> Dictionary:
 	}
 
 
+func set_volume_state(master_volume: float, key_volume: float, bgm_volume: float) -> void:
+	_master_volume = _normalized_volume(master_volume)
+	_key_volume = _normalized_volume(key_volume)
+	_bgm_volume = _normalized_volume(bgm_volume)
+
+
 func audio_state() -> Dictionary:
 	return {
 		"pitchScale": _audio_pitch_scale,
 		"gameSpeedPitch": _game_speed_pitch,
+		"displayLatencyMs": _display_latency.latency_ms(),
+		"audioLatencyMs": _audio_latency.latency_ms(),
+		"autosyncMode": _autosync_mode,
 	}
 
 
@@ -262,6 +299,7 @@ func render_state(now_ms: float, status_now_ms: float = -1.0) -> Dictionary:
 		"statusTexts": _status_texts(status_time_ms),
 		"renderSpeed": _render_speed,
 		"targetSpeed": _target_render_speed,
+		"distanceSpeedFactor": _distance.speed_factor if _distance != null else 1.0,
 		"masterVolume": _master_volume,
 		"keyVolume": _key_volume,
 		"bgmVolume": _bgm_volume,
@@ -318,7 +356,7 @@ func press_lane(lane: int, now_ms: float) -> Dictionary:
 
 	_disable_autosound = false
 	_emit_note_play_command(note_index, AUDIO_TRIGGER_KEYSOUND, true)
-	var result := _apply_note_judgment(note_index, hit_time, now_ms)
+	var result := _apply_note_judgment(note_index, hit_time, now_ms, false, _autosyncs_for_note(note))
 	if str(note.get("kind", "")) == "holdStart" and result != "miss":
 		note = _notes[note_index]
 		note["state"] = STATE_HOLDING
@@ -379,9 +417,10 @@ func advance_to(now_ms: float, display_now_ms: float = -1.0,
 	var sound_now_ms := autosound_now_ms if autosound_now_ms >= 0.0 else now_ms
 	var speed_now_ms := game_now_ms if game_now_ms >= 0.0 else now_ms
 	var judged := 0
+	_advance_event_buffer(render_now_ms)
+	_advance_measure_judgments(speed_now_ms)
 	_update_game_speed_state(speed_now_ms)
 	_update_render_speed_state(speed_now_ms, frame_delta_ms)
-	_advance_event_buffer(render_now_ms)
 	_update_distance_state(render_now_ms, frame_delta_ms)
 	_advance_bga_event(now_ms)
 	_advance_auto_play(sound_now_ms)
@@ -445,6 +484,14 @@ func _normalized_notes(raw_notes: Variant) -> Array[Dictionary]:
 
 	normalized.sort_custom(_compare_notes)
 	return normalized
+
+
+func _initialize_last_sound_by_lane() -> void:
+	for note: Dictionary in _notes:
+		var lane := int(note.get("lane", -1))
+		if lane < 0 or _last_sound_by_lane.has(lane) or not _has_playable_sample(note):
+			continue
+		_last_sound_by_lane[lane] = note.duplicate(true)
 
 
 func _notes_match_java_contract(raw_notes: Variant) -> bool:
@@ -654,11 +701,13 @@ func _effective_judgment_factor() -> float:
 
 
 func _apply_note_judgment(note_index: int, hit_time: float, now_ms: float,
-		disable_autosound_on_miss: bool = false) -> String:
+		disable_autosound_on_miss: bool = false, autosync_allowed: bool = false) -> String:
 	var note := _notes[note_index]
 	var result := _score_state.apply_judgment(_judge_note(note, hit_time, now_ms).to_lower())
 	if result == "miss" and disable_autosound_on_miss:
 		_disable_autosound = true
+	if autosync_allowed:
+		_apply_autosync(hit_time)
 	if result == "miss" and bool(note.get("samplePlayed", false)):
 		_emit_note_stop_command(note)
 	_emit_judgment_render_event(note, result, now_ms)
@@ -672,6 +721,17 @@ func _state_after_judgment(note: Dictionary, result: String) -> String:
 	if result == "miss" or str(note.get("kind", "")) == "holdStart":
 		return STATE_TO_KILL
 	return STATE_DEAD
+
+
+func _autosyncs_for_note(note: Dictionary) -> bool:
+	return str(note.get("kind", "")) != "holdStart"
+
+
+func _apply_autosync(hit_time: float) -> void:
+	if _autosync_mode == AUTOSYNC_DISPLAY:
+		_display_latency.autosync(hit_time)
+	elif _autosync_mode == AUTOSYNC_AUDIO:
+		_audio_latency.autosync(hit_time)
 
 
 func _emit_judgment_render_event(note: Dictionary, result: String, now_ms: float) -> void:
@@ -789,6 +849,8 @@ func _emit_last_sound_for_lane(lane: int) -> bool:
 	var note: Dictionary = raw_note
 	if note.is_empty():
 		return false
+	if not _has_playable_sample(note):
+		return false
 	_emit_audio_command(_sample_command(
 			AUDIO_ACTION_PLAY_SAMPLE,
 			AUDIO_SOURCE_NOTE,
@@ -854,12 +916,80 @@ func _normalized_speed_type(value: Variant) -> String:
 	return SPEED_TYPE_HI_SPEED
 
 
+func _normalized_autosync_mode(value: Variant) -> String:
+	var mode := str(value).to_lower()
+	if mode == AUTOSYNC_DISPLAY:
+		return AUTOSYNC_DISPLAY
+	if mode == AUTOSYNC_AUDIO:
+		return AUTOSYNC_AUDIO
+	return AUTOSYNC_NONE
+
+
+func _normalized_latency(value: Variant) -> float:
+	if value is int or value is float:
+		return float(value)
+	return 0.0
+
+
 func _status_texts(now_ms: float) -> Array[String]:
+	var values := {
+		"speedType": _status_speed_type_name(),
+		"speedMultiplier": _java_double_text(_target_render_speed),
+		"measure": str(_current_measure(now_ms)),
+		"gameSpeedPitch": "%+d" % _game_speed_pitch,
+	}
 	return [
-		"%s: x%s" % [_java_speed_type_name(), _java_double_text(_target_render_speed)],
-		"Current Measure: %d" % _current_measure(now_ms),
-		"Game Speed: %+d" % _game_speed_pitch,
+		_format_status_text(_status_text_template("speed"), values),
+		_format_status_text(_status_text_template("measure"), values),
+		_format_status_text(_status_text_template("gameSpeed"), values),
 	]
+
+
+func _normalized_status_text_templates(value: Variant) -> Dictionary:
+	var templates: Dictionary = DEFAULT_STATUS_TEXT_TEMPLATES.duplicate(true)
+	templates["speedTypes"] = DEFAULT_STATUS_TEXT_TEMPLATES.get("speedTypes", {}).duplicate(true)
+	if not value is Dictionary:
+		return templates
+
+	var raw_templates: Dictionary = value
+	for key in ["speed", "measure", "gameSpeed"]:
+		var template := str(raw_templates.get(key, "")).strip_edges()
+		if not template.is_empty():
+			templates[key] = template
+
+	var raw_speed_types: Variant = raw_templates.get("speedTypes", {})
+	if raw_speed_types is Dictionary:
+		var speed_types: Dictionary = templates.get("speedTypes", {}).duplicate(true)
+		for speed_type in [SPEED_TYPE_HI_SPEED, SPEED_TYPE_XR_SPEED, SPEED_TYPE_REGUL_SPEED, SPEED_TYPE_W_SPEED]:
+			var label := str(raw_speed_types.get(speed_type, "")).strip_edges()
+			if not label.is_empty():
+				speed_types[speed_type] = label
+		templates["speedTypes"] = speed_types
+
+	return templates
+
+
+func _status_text_template(key: String) -> String:
+	var template := str(_status_text_templates.get(key, "")).strip_edges()
+	if not template.is_empty():
+		return template
+	return str(DEFAULT_STATUS_TEXT_TEMPLATES.get(key, ""))
+
+
+func _format_status_text(template: String, values: Dictionary) -> String:
+	var text := template
+	for key in values.keys():
+		text = text.replace("{%s}" % str(key), str(values.get(key, "")))
+	return text
+
+
+func _status_speed_type_name() -> String:
+	var speed_types: Variant = _status_text_templates.get("speedTypes", {})
+	if speed_types is Dictionary:
+		var label := str(speed_types.get(_speed_type, "")).strip_edges()
+		if not label.is_empty():
+			return label
+	return _java_speed_type_name()
 
 
 func _java_double_text(value: float) -> String:
@@ -879,17 +1009,25 @@ func _java_speed_type_name() -> String:
 	return "HI-SPEED"
 
 
-func _current_measure(now_ms: float) -> int:
+func _current_measure(_now_ms: float) -> int:
+	return _current_measure_count
+
+
+func _advance_measure_judgments(now_ms: float) -> void:
 	var measures: Variant = _chart.get("measures", [])
 	if not measures is Array:
-		return 0
-	var count := 0
-	for raw_measure: Variant in measures:
+		return
+	for index in range(measures.size()):
+		if bool(_judged_measure_indices.get(index, false)):
+			continue
+		if not _measure_is_buffered(index):
+			continue
+		var raw_measure: Variant = measures[index]
 		if not raw_measure is Dictionary:
 			continue
 		if float(raw_measure.get("startMs", raw_measure.get("timeMs", 0.0))) <= now_ms:
-			count += 1
-	return count
+			_judged_measure_indices[index] = true
+			_current_measure_count += 1
 
 
 func _advance_bga_event(now_ms: float) -> void:
@@ -976,7 +1114,7 @@ func _update_distance_state(now_ms: float, frame_delta_ms: float = -1.0) -> void
 		delta_ms = frame_delta_ms
 	elif _has_distance_update_ms:
 		delta_ms = max(now_ms - _last_distance_update_ms, 0.0)
-	_distance.update_w_speed(delta_ms, _render_speed)
+	_distance.update_w_speed(delta_ms, _target_render_speed)
 	_last_distance_update_ms = now_ms
 	_has_distance_update_ms = true
 
@@ -1061,7 +1199,7 @@ func _advance_note_autoplay(now_ms: float) -> int:
 				continue
 			_disable_autosound = false
 			_emit_note_play_command(i, AUDIO_TRIGGER_KEYSOUND, true)
-			var result := _apply_note_judgment(i, hit_time, now_ms)
+			var result := _apply_note_judgment(i, hit_time, now_ms, false, _autosyncs_for_note(note))
 			if str(note.get("kind", "")) == "holdStart" and result != "miss":
 				_begin_autoplay_hold(i, now_ms)
 			judged += 1
@@ -1131,6 +1269,11 @@ func _emit_note_play_command(note_index: int, trigger: String, mark_played: bool
 	var note := _notes[note_index]
 	if mark_played and bool(note.get("samplePlayed", false)):
 		return {}
+	if not _has_playable_sample(note):
+		if mark_played and trigger == AUDIO_TRIGGER_AUTOSOUND:
+			note["autosoundConsumed"] = true
+			_notes[note_index] = note
+		return {}
 	if mark_played:
 		note["samplePlayed"] = true
 		_notes[note_index] = note
@@ -1142,6 +1285,8 @@ func _emit_note_play_command(note_index: int, trigger: String, mark_played: bool
 
 
 func _emit_note_stop_command(note: Dictionary) -> Dictionary:
+	if not _has_playable_sample(note):
+		return {}
 	return _emit_audio_command(_sample_command(
 			AUDIO_ACTION_STOP_SAMPLE,
 			AUDIO_SOURCE_NOTE,
@@ -1150,6 +1295,8 @@ func _emit_note_stop_command(note: Dictionary) -> Dictionary:
 
 
 func _emit_auto_play_command(event: Dictionary) -> Dictionary:
+	if not _has_playable_sample(event):
+		return {}
 	return _emit_audio_command(_sample_command(
 			AUDIO_ACTION_PLAY_SAMPLE,
 			AUDIO_SOURCE_AUTO_PLAY,
@@ -1173,6 +1320,10 @@ func _sample_command(action: String, source: String, trigger: String, sample: Di
 	if sample.has("startMs"):
 		command["startMs"] = float(sample.get("startMs", 0.0))
 	return command
+
+
+func _has_playable_sample(sample: Dictionary) -> bool:
+	return int(sample.get("sampleId", 0)) > 0
 
 
 func _emit_audio_command(command: Dictionary) -> Dictionary:

@@ -1,12 +1,20 @@
 package org.open2jam.export;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import javax.imageio.ImageIO;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -19,6 +27,27 @@ public final class VosRenderMetadataExporter {
     private static final double DEFAULT_BASE_WIDTH = 800.0;
     private static final double DEFAULT_BASE_HEIGHT = 600.0;
     private static final double JAVA_MEASURE_SIZE = 385.0;
+    private static final double COMBO_SHOW_TIME_MS = 4000.0;
+    private static final double COMBO_WOBBLE_PIXELS = 10.0;
+    private static final double COMBO_WOBBLE_SPEED = 0.5;
+    private static final double JUDGMENT_SHOW_TIME_MS = 3000.0;
+    private static final double JUDGMENT_SCALE_RAMP_MS = 100.0;
+    private static final double JUDGMENT_INITIAL_SCALE = 0.5;
+    private static final double STATUS_TEXT_RIGHT_X = 780.0;
+    private static final double STATUS_TEXT_START_Y = 300.0;
+    private static final double STATUS_TEXT_LINE_HEIGHT = 30.0;
+    private static final double STATUS_TEXT_LABEL_WIDTH = 260.0;
+    private static final int STATUS_TEXT_FONT_SIZE = 14;
+    private static final double STATUS_TEXT_GLYPH_HEIGHT = 20.0;
+    private static final double STATUS_TEXT_SCALE_X = 1.0;
+    private static final double STATUS_TEXT_SCALE_Y = -1.0;
+    private static final double NETWORK_STATUS_TEXT_START_Y = 64.0;
+    private static final double NETWORK_STATUS_SERVER_LINE_HEIGHT = 24.0;
+    private static final double NETWORK_STATUS_CONNECTION_LINE_HEIGHT = 18.0;
+    private static final int STATUS_FONT_TEXTURE_WIDTH = 512;
+    private static final int STATUS_FONT_TEXTURE_HEIGHT = 512;
+    private static final int STATUS_FONT_CORRECT_LEFT = 9;
+    private static final int STATUS_FONT_CORRECT_RIGHT = 8;
 
     public String exportDefaultMetadata() throws Exception {
         Document document = readResourcesDocument();
@@ -48,7 +77,12 @@ public final class VosRenderMetadataExporter {
                 JsonWriter.field("baseHeight", baseHeight),
                 JsonWriter.field("judgmentLine", judgmentLine),
                 JsonWriter.field("visibilityLayer", visibilityLayer),
+                JsonWriter.rawField("visibilityMasks", visibilityMasksJson()),
                 JsonWriter.field("measureSize", JAVA_MEASURE_SIZE),
+                JsonWriter.rawField("statusTextLayout", statusTextLayoutJson()),
+                JsonWriter.rawField("networkStatusTextLayout", networkStatusTextLayoutJson()),
+                JsonWriter.rawField("statusTextTemplates", statusTextTemplatesJson()),
+                JsonWriter.rawField("statusFont", statusFontJson()),
                 JsonWriter.rawField("entities", JsonWriter.array(entities.toArray(new String[0]))),
                 JsonWriter.rawField("lanes", JsonWriter.array(lanes.toArray(new String[0]))));
     }
@@ -185,28 +219,32 @@ public final class VosRenderMetadataExporter {
             x -= sprite.width / 2.0;
         }
         if (id != null && id.startsWith("NOTE_")) {
+            SpriteMetadata headSprite = spriteForReference(sprites, entity.getAttribute("head"), sprite);
             SpriteMetadata bodySprite = spriteForReference(sprites, entity.getAttribute("body"), sprite);
             SpriteMetadata tailSprite = spriteForReference(sprites, entity.getAttribute("tail"), sprite);
+            String[] headRefs = new String[] { headSprite.id };
+            String headSpriteFrames = spriteFramesJson(headRefs, sprites);
             String bodySpriteFrames = spriteFramesJson(new String[] { bodySprite.id }, sprites);
             String tailSpriteFrames = spriteFramesJson(new String[] { tailSprite.id }, sprites);
-            entities.add(entityJson("LONG_" + id, "longNote", layer, x, y, sprite.width, sprite.height, spriteRefs,
-                    entity, true, id, sprite, bodySprite, tailSprite, titleSprite, spriteFrames, bodySpriteFrames,
-                    tailSpriteFrames, titleSpriteFrames));
+            entities.add(entityJson("LONG_" + id, "longNote", layer, x, y, headSprite.width, headSprite.height,
+                    headRefs, entity, true, id, headSprite, bodySprite, tailSprite, sprite, titleSprite,
+                    headSpriteFrames, bodySpriteFrames, tailSpriteFrames, titleSpriteFrames));
             entities.add(entityJson(id, "note", layer, x, y, sprite.width, sprite.height, spriteRefs, entity, true,
-                    id, sprite, null, null, titleSprite, spriteFrames, "", "", titleSpriteFrames));
+                    id, sprite, null, null, null, titleSprite, spriteFrames, "", "", titleSpriteFrames));
             lanes.add(laneJson(id, laneForNoteId(id), x, sprite.width));
             return;
         }
 
         entities.add(entityJson(id == null ? "" : id, type, layer, x, y, sprite.width, sprite.height,
-                spriteRefs, entity, id != null, id, sprite, null, null, titleSprite, spriteFrames,
+                spriteRefs, entity, id != null, id, sprite, null, null, null, titleSprite, spriteFrames,
                 "", "", titleSpriteFrames));
     }
 
     private static String entityJson(String id, String type, int layer, double x, double y, double width, double height,
             String[] spriteRefs, Element source, boolean named, String channel, SpriteMetadata sprite,
-            SpriteMetadata bodySprite, SpriteMetadata tailSprite, SpriteMetadata titleSprite, String spriteFrames,
-            String bodySpriteFrames, String tailSpriteFrames, String titleSpriteFrames) {
+            SpriteMetadata bodySprite, SpriteMetadata tailSprite, SpriteMetadata normalSprite,
+            SpriteMetadata titleSprite, String spriteFrames, String bodySpriteFrames, String tailSpriteFrames,
+            String titleSpriteFrames) {
         List<String> fields = new ArrayList<String>();
         fields.add(JsonWriter.field("id", id));
         fields.add(JsonWriter.field("type", type));
@@ -216,6 +254,13 @@ public final class VosRenderMetadataExporter {
         fields.add(JsonWriter.field("width", width));
         fields.add(JsonWriter.field("height", height));
         fields.add(JsonWriter.field("named", named));
+        int showDigits = showDigitsFor(id);
+        if (showDigits > 1) {
+            fields.add(JsonWriter.field("showDigits", showDigits));
+        }
+        addComboCounterBehaviorFields(fields, id);
+        addJudgmentEffectBehaviorFields(fields, id);
+        addAnimationBehaviorFields(fields, id, sprite);
         if (channel != null && channel.startsWith("NOTE_")) {
             fields.add(JsonWriter.field("channel", channel));
         }
@@ -225,6 +270,9 @@ public final class VosRenderMetadataExporter {
             fields.add(JsonWriter.field("textureY", sprite.textureY));
             fields.add(JsonWriter.field("textureWidth", sprite.textureWidth));
             fields.add(JsonWriter.field("textureHeight", sprite.textureHeight));
+        }
+        if (normalSprite != null && !normalSprite.texturePath.isEmpty()) {
+            fields.add(JsonWriter.field("normalHeight", normalSprite.height));
         }
         addSpriteFields(fields, "body", bodySprite);
         addSpriteFields(fields, "tail", tailSprite);
@@ -244,11 +292,255 @@ public final class VosRenderMetadataExporter {
             fields.add(JsonWriter.rawField("titleSpriteFrames", titleSpriteFrames));
         }
         String fillDirection = source.getAttribute("fill_direction");
-        if (fillDirection != null && !fillDirection.trim().isEmpty()) {
+        if ("bar".equals(type) && fillDirection != null && !fillDirection.trim().isEmpty()) {
             fields.add(JsonWriter.field("fillDirection", fillDirection));
         }
         fields.add(JsonWriter.rawField("sprites", JsonWriter.array(quoted(spriteRefs))));
         return JsonWriter.object(fields.toArray(new String[0]));
+    }
+
+    private static void addComboCounterBehaviorFields(List<String> fields, String id) {
+        int threshold = comboCounterThresholdFor(id);
+        if (threshold <= 0) {
+            return;
+        }
+        fields.add(JsonWriter.field("countThreshold", threshold));
+        fields.add(JsonWriter.field("showTimeMs", COMBO_SHOW_TIME_MS));
+        fields.add(JsonWriter.field("wobblePixels", COMBO_WOBBLE_PIXELS));
+        fields.add(JsonWriter.field("wobbleSpeed", COMBO_WOBBLE_SPEED));
+    }
+
+    private static int comboCounterThresholdFor(String id) {
+        if ("COMBO_COUNTER".equals(id)) {
+            return 2;
+        }
+        if ("JAM_COUNTER".equals(id)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    private static void addJudgmentEffectBehaviorFields(List<String> fields, String id) {
+        if (id == null || !id.startsWith("EFFECT_JUDGMENT_")) {
+            return;
+        }
+        fields.add(JsonWriter.field("showTimeMs", JUDGMENT_SHOW_TIME_MS));
+        fields.add(JsonWriter.field("scaleRampMs", JUDGMENT_SCALE_RAMP_MS));
+        fields.add(JsonWriter.field("initialScale", JUDGMENT_INITIAL_SCALE));
+    }
+
+    private static String statusTextLayoutJson() {
+        return JsonWriter.object(
+                JsonWriter.field("rightX", STATUS_TEXT_RIGHT_X),
+                JsonWriter.field("startY", STATUS_TEXT_START_Y),
+                JsonWriter.field("lineHeight", STATUS_TEXT_LINE_HEIGHT),
+                JsonWriter.field("labelWidth", STATUS_TEXT_LABEL_WIDTH),
+                JsonWriter.field("fontFamily", "Tahoma"),
+                JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
+                JsonWriter.field("glyphHeight", STATUS_TEXT_GLYPH_HEIGHT),
+                JsonWriter.field("bold", true),
+                JsonWriter.field("antiAlias", false),
+                JsonWriter.field("fontColor", "#ffffffff"),
+                JsonWriter.field("horizontalAlignment", "right"),
+                JsonWriter.field("scaleX", STATUS_TEXT_SCALE_X),
+                JsonWriter.field("scaleY", STATUS_TEXT_SCALE_Y));
+    }
+
+    private static String networkStatusTextLayoutJson() {
+        return JsonWriter.object(
+                JsonWriter.field("rightX", STATUS_TEXT_RIGHT_X),
+                JsonWriter.field("startY", NETWORK_STATUS_TEXT_START_Y),
+                JsonWriter.field("serverLineHeight", NETWORK_STATUS_SERVER_LINE_HEIGHT),
+                JsonWriter.field("connectionLineHeight", NETWORK_STATUS_CONNECTION_LINE_HEIGHT),
+                JsonWriter.field("labelWidth", STATUS_TEXT_LABEL_WIDTH),
+                JsonWriter.field("fontFamily", "Tahoma"),
+                JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
+                JsonWriter.field("glyphHeight", STATUS_TEXT_GLYPH_HEIGHT),
+                JsonWriter.field("bold", true),
+                JsonWriter.field("antiAlias", false),
+                JsonWriter.field("fontColor", "#ffffffff"),
+                JsonWriter.field("horizontalAlignment", "right"),
+                JsonWriter.field("scaleX", STATUS_TEXT_SCALE_X),
+                JsonWriter.field("scaleY", STATUS_TEXT_SCALE_Y));
+    }
+
+    private static String statusTextTemplatesJson() {
+        return JsonWriter.object(
+                JsonWriter.field("speed", "{speedType}: x{speedMultiplier}"),
+                JsonWriter.field("measure", "Current Measure: {measure}"),
+                JsonWriter.field("gameSpeed", "Game Speed: {gameSpeedPitch}"),
+                JsonWriter.rawField("speedTypes", JsonWriter.object(
+                        JsonWriter.field("HiSpeed", "HI-SPEED"),
+                        JsonWriter.field("xRSpeed", "xR-SPEED"),
+                        JsonWriter.field("RegulSpeed", "REGUL-SPEED"),
+                        JsonWriter.field("WSpeed", "W-SPEED"))));
+    }
+
+    static String statusFontJson() throws Exception {
+        FontAtlasMetadata font = createStatusFontAtlas();
+        List<String> glyphs = new ArrayList<String>();
+        for (GlyphMetadata glyph : font.glyphs) {
+            glyphs.add(JsonWriter.object(
+                    JsonWriter.field("code", glyph.code),
+                    JsonWriter.field("x", glyph.x),
+                    JsonWriter.field("y", glyph.y),
+                    JsonWriter.field("width", glyph.width),
+                    JsonWriter.field("height", glyph.height)));
+        }
+        return JsonWriter.object(
+                JsonWriter.field("source", "TrueTypeFont"),
+                JsonWriter.field("fontFamily", "Tahoma"),
+                JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
+                JsonWriter.field("bold", true),
+                JsonWriter.field("antiAlias", false),
+                JsonWriter.field("textureWidth", STATUS_FONT_TEXTURE_WIDTH),
+                JsonWriter.field("textureHeight", STATUS_FONT_TEXTURE_HEIGHT),
+                JsonWriter.field("fontHeight", font.fontHeight),
+                JsonWriter.field("correctL", STATUS_FONT_CORRECT_LEFT),
+                JsonWriter.field("correctR", STATUS_FONT_CORRECT_RIGHT),
+                JsonWriter.field("pngBase64", font.pngBase64),
+                JsonWriter.rawField("glyphs", JsonWriter.array(glyphs.toArray(new String[0]))));
+    }
+
+    private static FontAtlasMetadata createStatusFontAtlas() throws Exception {
+        ensureHeadlessAwtForFontAtlas();
+        Font font = new Font("Tahoma", Font.BOLD, STATUS_TEXT_FONT_SIZE);
+        BufferedImage atlas = new BufferedImage(
+                STATUS_FONT_TEXTURE_WIDTH,
+                STATUS_FONT_TEXTURE_HEIGHT,
+                BufferedImage.TYPE_INT_ARGB);
+        Graphics2D atlasGraphics = (Graphics2D) atlas.getGraphics();
+        atlasGraphics.setColor(new Color(0, 0, 0, 1));
+        atlasGraphics.fillRect(0, 0, STATUS_FONT_TEXTURE_WIDTH, STATUS_FONT_TEXTURE_HEIGHT);
+
+        int rowHeight = 0;
+        int positionX = 0;
+        int positionY = 0;
+        int fontHeight = 0;
+        List<GlyphMetadata> glyphs = new ArrayList<GlyphMetadata>();
+
+        for (int code = 0; code < 256; code++) {
+            BufferedImage glyphImage = createStatusGlyphImage(font, (char) code);
+            int width = glyphImage.getWidth();
+            int height = glyphImage.getHeight();
+            if (positionX + width >= STATUS_FONT_TEXTURE_WIDTH) {
+                positionX = 0;
+                positionY += rowHeight;
+                rowHeight = 0;
+            }
+            if (height > fontHeight) {
+                fontHeight = height;
+            }
+            if (height > rowHeight) {
+                rowHeight = height;
+            }
+            atlasGraphics.drawImage(glyphImage, positionX, positionY, null);
+            glyphs.add(new GlyphMetadata(code, positionX, positionY, width, height));
+            positionX += width;
+        }
+
+        fontHeight -= 1;
+        if (fontHeight <= 0) {
+            fontHeight = 1;
+        }
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(atlas, "png", out);
+        return new FontAtlasMetadata(Base64.getEncoder().encodeToString(out.toByteArray()), fontHeight, glyphs);
+    }
+
+    private static void ensureHeadlessAwtForFontAtlas() {
+        if (System.getProperty("java.awt.headless") == null) {
+            System.setProperty("java.awt.headless", "true");
+        }
+    }
+
+    private static BufferedImage createStatusGlyphImage(Font font, char ch) {
+        BufferedImage temp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D metricsGraphics = (Graphics2D) temp.getGraphics();
+        metricsGraphics.setFont(font);
+        FontMetrics fontMetrics = metricsGraphics.getFontMetrics();
+        int charWidth = fontMetrics.charWidth(ch) + 8;
+        if (charWidth <= 0) {
+            charWidth = 7;
+        }
+        int charHeight = fontMetrics.getHeight() + 3;
+        if (charHeight <= 0) {
+            charHeight = font.getSize() + 3;
+        }
+
+        BufferedImage glyphImage = new BufferedImage(charWidth, charHeight, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D glyphGraphics = (Graphics2D) glyphImage.getGraphics();
+        glyphGraphics.setFont(font);
+        glyphGraphics.setColor(Color.WHITE);
+        glyphGraphics.drawString(String.valueOf(ch), 3, 1 + fontMetrics.getAscent());
+        return glyphImage;
+    }
+
+    private static final class FontAtlasMetadata {
+        private final String pngBase64;
+        private final int fontHeight;
+        private final List<GlyphMetadata> glyphs;
+
+        private FontAtlasMetadata(String pngBase64, int fontHeight, List<GlyphMetadata> glyphs) {
+            this.pngBase64 = pngBase64;
+            this.fontHeight = fontHeight;
+            this.glyphs = glyphs;
+        }
+    }
+
+    private static final class GlyphMetadata {
+        private final int code;
+        private final int x;
+        private final int y;
+        private final int width;
+        private final int height;
+
+        private GlyphMetadata(int code, int x, int y, int width, int height) {
+            this.code = code;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+    }
+
+    private static String visibilityMasksJson() {
+        return JsonWriter.object(
+                JsonWriter.rawField("Hidden", JsonWriter.array(
+                        visibilityMaskPointJson(0.0, 0.0),
+                        visibilityMaskPointJson(1.9, 0.0),
+                        visibilityMaskPointJson(2.0, 1.0),
+                        visibilityMaskPointJson(4.0, 1.0))),
+                JsonWriter.rawField("Sudden", JsonWriter.array(
+                        visibilityMaskPointJson(0.0, 1.0),
+                        visibilityMaskPointJson(1.9, 1.0),
+                        visibilityMaskPointJson(2.0, 0.0),
+                        visibilityMaskPointJson(4.0, 0.0))),
+                JsonWriter.rawField("Dark", JsonWriter.array(
+                        visibilityMaskPointJson(0.0, 1.0),
+                        visibilityMaskPointJson(1.3, 1.0),
+                        visibilityMaskPointJson(1.5, 0.0),
+                        visibilityMaskPointJson(2.5, 0.0),
+                        visibilityMaskPointJson(2.7, 1.0),
+                        visibilityMaskPointJson(4.0, 1.0))));
+    }
+
+    private static String visibilityMaskPointJson(double at, double alpha) {
+        return JsonWriter.object(
+                JsonWriter.field("at", at),
+                JsonWriter.field("alpha", alpha));
+    }
+
+    private static void addAnimationBehaviorFields(List<String> fields, String id, SpriteMetadata sprite) {
+        if (sprite == null || sprite.frameSpeed <= 0.0) {
+            return;
+        }
+        fields.add(JsonWriter.field("animationLoop", animationLoopsFor(id)));
+    }
+
+    private static boolean animationLoopsFor(String id) {
+        return !"EFFECT_CLICK".equals(id);
     }
 
     private static void addPartSpriteFrames(List<String> fields, String prefix, SpriteMetadata sprite,
@@ -347,6 +639,13 @@ public final class VosRenderMetadataExporter {
 
     private static int laneForNoteId(String id) {
         return Integer.parseInt(id.substring("NOTE_".length())) - 1;
+    }
+
+    private static int showDigitsFor(String id) {
+        if ("SECOND_COUNTER".equals(id)) {
+            return 2;
+        }
+        return 1;
     }
 
     private static String[] spriteRefs(String spriteAttribute) {

@@ -10,31 +10,36 @@ import java.util.List;
 import java.util.Map;
 import org.open2jam.game.TimingData;
 import org.open2jam.parsers.Chart;
-import org.open2jam.parsers.ChartList;
-import org.open2jam.parsers.ChartParser;
 import org.open2jam.parsers.Event;
 import org.open2jam.parsers.EventList;
-import org.open2jam.parsers.VOSChart;
 import org.open2jam.render.RenderTimingCompiler;
 
 public final class VosGameplayExporter {
     private static final double JAVA_RENDER_DELAY_MS = 1500.0;
 
     public String exportGameplay(File input) throws Exception {
-        VOSChart chart = firstVosChart(input);
+        return exportGameplay(input, 0);
+    }
+
+    public String exportGameplay(File input, int chartIndex) throws Exception {
+        Chart chart = PlayableChartSelector.select(input, chartIndex);
         return exportGameplay(chart, input, null);
     }
 
     public String exportGameplay(File input, File bgaAssetDir) throws Exception {
-        VOSChart chart = firstVosChart(input);
+        return exportGameplay(input, bgaAssetDir, 0);
+    }
+
+    public String exportGameplay(File input, File bgaAssetDir, int chartIndex) throws Exception {
+        Chart chart = PlayableChartSelector.select(input, chartIndex);
         return exportGameplay(chart, input, bgaAssetDir);
     }
 
-    String exportGameplay(VOSChart chart, File input) throws Exception {
+    String exportGameplay(Chart chart, File input) throws Exception {
         return exportGameplay(chart, input, null);
     }
 
-    String exportGameplay(VOSChart chart, File input, File bgaAssetDir) throws Exception {
+    String exportGameplay(Chart chart, File input, File bgaAssetDir) throws Exception {
         TimingData judgmentTiming = new TimingData();
         TimingData visualTiming = new TimingData();
         EventList timedEvents = RenderTimingCompiler.compile(chart.getEvents(), chart.type, chart.getBPM(),
@@ -47,22 +52,24 @@ public final class VosGameplayExporter {
         List<String> measures = new ArrayList<String>();
         List<String> autoPlayEvents = new ArrayList<String>();
         List<String> bgaEvents = new ArrayList<String>();
+        int playableEventOrder = 0;
         for (Event event : timedEvents) {
             int lane = laneFor(event.getChannel());
             if (lane >= 0) {
+                int eventOrder = playableEventOrder++;
                 switch (event.getFlag()) {
                     case NONE:
-                        notes.add(new ExportNote(event, lane, "tap"));
+                        notes.add(new ExportNote(event, lane, "tap", eventOrder, chart));
                         break;
                     case HOLD:
-                        ExportNote note = new ExportNote(event, lane, "holdStart");
+                        ExportNote note = new ExportNote(event, lane, "holdStart", eventOrder, chart);
                         notes.add(note);
                         pendingLongNotes.put(event.getChannel(), note);
                         break;
                     case RELEASE:
                         ExportNote pending = pendingLongNotes.remove(event.getChannel());
                         if (pending != null) {
-                            pending.setEnd(event);
+                            pending.setEnd(event, eventOrder);
                         }
                         break;
                     default:
@@ -71,7 +78,7 @@ public final class VosGameplayExporter {
             } else if (event.getChannel() == Event.Channel.MEASURE) {
                 measures.add(measureEvent(event));
             } else if (event.getChannel() == Event.Channel.AUTO_PLAY) {
-                autoPlayEvents.add(autoPlayEvent(event));
+                autoPlayEvents.add(autoPlayEvent(event, chart));
             } else if (event.getChannel() == Event.Channel.BGA) {
                 bgaEvents.add(bgaEvent(event));
             }
@@ -79,7 +86,7 @@ public final class VosGameplayExporter {
 
         List<String> fields = new ArrayList<String>();
         fields.add(JsonWriter.field("schemaVersion", 1));
-        fields.add(JsonWriter.field("format", "VOS"));
+        fields.add(JsonWriter.field("format", formatFor(chart)));
         fields.add(JsonWriter.field("sourcePath", input.getCanonicalPath()));
         fields.add(JsonWriter.field("title", chart.getTitle()));
         fields.add(JsonWriter.field("rank", 0));
@@ -101,16 +108,14 @@ public final class VosGameplayExporter {
         return JsonWriter.object(fields.toArray(new String[fields.size()]));
     }
 
-    private static VOSChart firstVosChart(File input) {
-        ChartList charts = ChartParser.parseFile(input);
-        if (charts != null) {
-            for (Chart chart : charts) {
-                if (chart instanceof VOSChart) {
-                    return (VOSChart) chart;
-                }
-            }
+    private static String formatFor(Chart chart) {
+        if (chart.type == Chart.TYPE.OSU) {
+            return "OSU";
         }
-        throw new IllegalArgumentException("No VOS chart found: " + input);
+        if (chart.type == Chart.TYPE.OJN) {
+            return "OJN";
+        }
+        return "VOS";
     }
 
     private static String[] noteJson(List<ExportNote> notes) {
@@ -121,11 +126,11 @@ public final class VosGameplayExporter {
         return json;
     }
 
-    private static String autoPlayEvent(Event event) {
+    private static String autoPlayEvent(Event event, Chart chart) {
         Event.SoundSample sample = event.getSample();
         return JsonWriter.object(
                 JsonWriter.field("startMs", event.getTime()),
-                JsonWriter.field("sampleId", sample.sample_id),
+                JsonWriter.field("sampleId", exportedSampleId(sample.sample_id, chart)),
                 JsonWriter.field("volume", sample.volume),
                 JsonWriter.field("pan", sample.pan));
     }
@@ -140,7 +145,7 @@ public final class VosGameplayExporter {
                 JsonWriter.field("spriteId", (int) event.getValue()));
     }
 
-    private static String[] bgaSprites(VOSChart chart, File bgaAssetDir) throws Exception {
+    private static String[] bgaSprites(Chart chart, File bgaAssetDir) throws Exception {
         Map<Integer, File> images = chart.getImages();
         if (images.isEmpty()) {
             return new String[0];
@@ -212,6 +217,13 @@ public final class VosGameplayExporter {
         }
     }
 
+    private static int exportedSampleId(int sampleId, Chart chart) {
+        if (chart.type == Chart.TYPE.OJN) {
+            return sampleId + 1;
+        }
+        return sampleId;
+    }
+
     private static final class ExportNote {
         private final int lane;
         private final int measure;
@@ -220,23 +232,27 @@ public final class VosGameplayExporter {
         private final int sampleId;
         private final float volume;
         private final float pan;
+        private final int eventOrder;
         private Double endMs;
         private Integer endMeasure;
+        private Integer releaseEventOrder;
 
-        ExportNote(Event event, int lane, String kind) {
+        ExportNote(Event event, int lane, String kind, int eventOrder, Chart chart) {
             Event.SoundSample sample = event.getSample();
             this.lane = lane;
             this.measure = event.getMeasure();
             this.kind = kind;
             this.startMs = event.getTime();
-            this.sampleId = sample.sample_id;
+            this.sampleId = exportedSampleId(sample.sample_id, chart);
             this.volume = sample.volume;
             this.pan = sample.pan;
+            this.eventOrder = eventOrder;
         }
 
-        void setEnd(Event event) {
+        void setEnd(Event event, int eventOrder) {
             this.endMs = event.getTime();
             this.endMeasure = event.getMeasure();
+            this.releaseEventOrder = eventOrder;
         }
 
         String toJson() {
@@ -248,6 +264,8 @@ public final class VosGameplayExporter {
                         JsonWriter.field("measure", measure),
                         JsonWriter.field("endMs", endMs),
                         JsonWriter.field("endMeasure", endMeasure.intValue()),
+                        JsonWriter.field("eventOrder", eventOrder),
+                        JsonWriter.field("releaseEventOrder", releaseEventOrder.intValue()),
                         JsonWriter.field("sampleId", sampleId),
                         JsonWriter.field("volume", volume),
                         JsonWriter.field("pan", pan));
@@ -257,6 +275,7 @@ public final class VosGameplayExporter {
                     JsonWriter.field("kind", kind),
                     JsonWriter.field("startMs", startMs),
                     JsonWriter.field("measure", measure),
+                    JsonWriter.field("eventOrder", eventOrder),
                     JsonWriter.field("sampleId", sampleId),
                     JsonWriter.field("volume", volume),
                     JsonWriter.field("pan", pan));

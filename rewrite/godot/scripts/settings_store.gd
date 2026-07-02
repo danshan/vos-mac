@@ -1,6 +1,7 @@
 extends RefCounted
 
 const InputMapStore = preload("res://scripts/input_map_store.gd")
+const SettingsI18n = preload("res://scripts/settings_i18n.gd")
 
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MODIFIERS: Array[String] = ["None", "Mirror", "Shuffle", "Random"]
@@ -10,19 +11,30 @@ const VISIBILITY_MOD_NONE: String = "None"
 const VISIBILITY_MODIFIERS: Array[String] = ["None", "Hidden", "Sudden", "Dark"]
 const JUDGMENT_TYPE_DEFAULT: String = "beat"
 const JUDGMENT_TYPES: Array[String] = ["beat", "time"]
+const AUTOSYNC_MODE_NONE: String = ""
+const AUTOSYNC_MODE_DISPLAY: String = "display"
+const AUTOSYNC_MODE_AUDIO: String = "audio"
+const AUTOSYNC_MODES: Array[String] = [AUTOSYNC_MODE_NONE, AUTOSYNC_MODE_DISPLAY, AUTOSYNC_MODE_AUDIO]
+const SETTINGS_LANGUAGE_EN: String = SettingsI18n.LANGUAGE_EN
+const SETTINGS_LANGUAGE_ZH: String = SettingsI18n.LANGUAGE_ZH
+const SETTINGS_LANGUAGES: Array[String] = SettingsI18n.LANGUAGE_ORDER
 
 var _song_directories: Array[String] = []
+var _settings_language: String = SETTINGS_LANGUAGE_EN
 var _fullscreen_enabled: bool = false
+var _vsync_enabled: bool = true
 var _autoplay_enabled: bool = false
 var _autosound_enabled: bool = false
 var _audio_latency_ms: float = 0.0
 var _display_latency_ms: float = 0.0
+var _autosync_mode: String = AUTOSYNC_MODE_NONE
 var _master_volume: float = 1.0
 var _key_volume: float = 1.0
 var _bgm_volume: float = 1.0
 var _haste_mode_enabled: bool = false
 var _haste_mode_normalize_speed: bool = true
 var _start_paused_enabled: bool = false
+var _local_matching_server: String = ""
 var _key_bindings: Array[String] = []
 var _misc_key_bindings: Dictionary = InputMapStore.DEFAULT_MISC_KEY_BINDINGS.duplicate(true)
 var _channel_modifier: String = CHANNEL_MOD_NONE
@@ -40,12 +52,31 @@ func song_directories() -> Array[String]:
 	return _song_directories.duplicate()
 
 
+func set_settings_language(language: String) -> void:
+	if SettingsI18n.is_supported_language(language):
+		_settings_language = language
+	else:
+		_settings_language = SETTINGS_LANGUAGE_EN
+
+
+func settings_language() -> String:
+	return _settings_language
+
+
 func set_fullscreen_enabled(enabled: bool) -> void:
 	_fullscreen_enabled = enabled
 
 
 func fullscreen_enabled() -> bool:
 	return _fullscreen_enabled
+
+
+func set_vsync_enabled(enabled: bool) -> void:
+	_vsync_enabled = enabled
+
+
+func vsync_enabled() -> bool:
+	return _vsync_enabled
 
 
 func set_autoplay_enabled(enabled: bool) -> void:
@@ -78,6 +109,17 @@ func set_display_latency_ms(latency_ms: float) -> void:
 
 func display_latency_ms() -> float:
 	return _display_latency_ms
+
+
+func set_autosync_mode(mode: String) -> void:
+	if AUTOSYNC_MODES.has(mode):
+		_autosync_mode = mode
+	else:
+		_autosync_mode = AUTOSYNC_MODE_NONE
+
+
+func autosync_mode() -> String:
+	return _autosync_mode
 
 
 func set_master_volume(volume: float) -> void:
@@ -126,6 +168,14 @@ func set_start_paused_enabled(enabled: bool) -> void:
 
 func start_paused_enabled() -> bool:
 	return _start_paused_enabled
+
+
+func set_local_matching_server(server: String) -> void:
+	_local_matching_server = server.strip_edges()
+
+
+func local_matching_server() -> String:
+	return _local_matching_server
 
 
 func set_key_bindings(bindings: Array[String]) -> void:
@@ -214,18 +264,22 @@ func judgment_type() -> String:
 
 func save_to_file(path: String) -> bool:
 	var config := ConfigFile.new()
+	config.set_value("ui", "settings_language", _settings_language)
 	config.set_value("songs", "directories", _song_directories)
 	config.set_value("display", "fullscreen", _fullscreen_enabled)
+	config.set_value("display", "vsync", _vsync_enabled)
 	config.set_value("gameplay", "autoplay", _autoplay_enabled)
 	config.set_value("gameplay", "autosound", _autosound_enabled)
 	config.set_value("gameplay", "audio_latency_ms", _audio_latency_ms)
 	config.set_value("gameplay", "display_latency_ms", _display_latency_ms)
+	config.set_value("gameplay", "autosync_mode", _autosync_mode)
 	config.set_value("gameplay", "master_volume", _master_volume)
 	config.set_value("gameplay", "key_volume", _key_volume)
 	config.set_value("gameplay", "bgm_volume", _bgm_volume)
 	config.set_value("gameplay", "haste_mode", _haste_mode_enabled)
 	config.set_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed)
 	config.set_value("gameplay", "start_paused", _start_paused_enabled)
+	config.set_value("gameplay", "local_matching_server", _local_matching_server)
 	config.set_value("gameplay", "channel_modifier", _channel_modifier)
 	config.set_value("gameplay", "speed_type", _speed_type)
 	config.set_value("gameplay", "speed_multiplier", _speed_multiplier)
@@ -241,18 +295,22 @@ func load_from_file(path: String) -> bool:
 	if config.load(path) != OK:
 		return false
 
+	set_settings_language(_string_value(config.get_value("ui", "settings_language", _settings_language), _settings_language))
 	set_song_directories(_string_array_value(config.get_value("songs", "directories", song_directories()), song_directories()))
 	set_fullscreen_enabled(_bool_value(config.get_value("display", "fullscreen", _fullscreen_enabled), _fullscreen_enabled))
+	set_vsync_enabled(_bool_value(config.get_value("display", "vsync", _vsync_enabled), _vsync_enabled))
 	set_autoplay_enabled(_bool_value(config.get_value("gameplay", "autoplay", _autoplay_enabled), _autoplay_enabled))
 	set_autosound_enabled(_bool_value(config.get_value("gameplay", "autosound", _autosound_enabled), _autosound_enabled))
 	set_audio_latency_ms(_float_value(config.get_value("gameplay", "audio_latency_ms", _audio_latency_ms), _audio_latency_ms))
 	set_display_latency_ms(_float_value(config.get_value("gameplay", "display_latency_ms", _display_latency_ms), _display_latency_ms))
+	set_autosync_mode(_string_value(config.get_value("gameplay", "autosync_mode", _autosync_mode), _autosync_mode))
 	set_master_volume(_float_value(config.get_value("gameplay", "master_volume", _master_volume), _master_volume))
 	set_key_volume(_float_value(config.get_value("gameplay", "key_volume", _key_volume), _key_volume))
 	set_bgm_volume(_float_value(config.get_value("gameplay", "bgm_volume", _bgm_volume), _bgm_volume))
 	set_haste_mode_enabled(_bool_value(config.get_value("gameplay", "haste_mode", _haste_mode_enabled), _haste_mode_enabled))
 	set_haste_mode_normalize_speed(_bool_value(config.get_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed), _haste_mode_normalize_speed))
 	set_start_paused_enabled(_bool_value(config.get_value("gameplay", "start_paused", _start_paused_enabled), _start_paused_enabled))
+	set_local_matching_server(_string_value(config.get_value("gameplay", "local_matching_server", _local_matching_server), _local_matching_server))
 	set_channel_modifier(_string_value(config.get_value("gameplay", "channel_modifier", _channel_modifier), _channel_modifier))
 	set_speed_type(_string_value(config.get_value("gameplay", "speed_type", _speed_type), _speed_type))
 	set_speed_multiplier(_float_value(config.get_value("gameplay", "speed_multiplier", _speed_multiplier), _speed_multiplier))

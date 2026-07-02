@@ -8,8 +8,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import org.open2jam.parsers.Chart;
-import org.open2jam.parsers.ChartList;
-import org.open2jam.parsers.ChartParser;
 import org.open2jam.parsers.VOSChart;
 
 public final class VosCatalogExporter {
@@ -18,14 +16,9 @@ public final class VosCatalogExporter {
         List<String> entries = new ArrayList<String>();
 
         for (File file : files) {
-            ChartList charts = ChartParser.parseFile(file);
-            if (charts == null) {
-                continue;
-            }
-            for (Chart chart : charts) {
-                if (chart instanceof VOSChart) {
-                    entries.add(entry((VOSChart) chart));
-                }
+            List<Chart> gameplayCharts = PlayableChartSelector.playableCharts(file);
+            for (int i = 0; i < gameplayCharts.size(); i++) {
+                entries.add(entry(gameplayCharts.get(i), gameplayCharts.size(), i));
             }
         }
 
@@ -54,7 +47,7 @@ public final class VosCatalogExporter {
             return;
         }
         if (!input.isDirectory()) {
-            if (isVosFile(input)) {
+            if (isSupportedChartFile(input)) {
                 files.add(input);
             }
             return;
@@ -69,41 +62,78 @@ public final class VosCatalogExporter {
         }
     }
 
-    private static boolean isVosFile(File file) {
-        return file.getName().toLowerCase().endsWith(".vos");
+    private static boolean isSupportedChartFile(File file) {
+        String name = file.getName().toLowerCase();
+        return name.endsWith(".vos") || name.endsWith(".osu") || name.endsWith(".osz") || name.endsWith(".ojn");
     }
 
-    private static String entry(VOSChart chart) throws Exception {
+    private static String entry(Chart chart, int chartCount, int chartIndex) throws Exception {
         String sourcePath = chart.getSource().getCanonicalPath();
-        return JsonWriter.object(
-                JsonWriter.field("id", idFor(sourcePath)),
-                JsonWriter.field("format", "VOS"),
-                JsonWriter.field("sourcePath", sourcePath),
-                JsonWriter.field("title", chart.getTitle()),
-                JsonWriter.field("artist", chart.getArtist()),
-                JsonWriter.field("noter", chart.getNoter()),
-                JsonWriter.field("genre", chart.getGenre()),
-                JsonWriter.field("keys", chart.getKeys()),
-                JsonWriter.field("level", chart.getLevel()),
-                JsonWriter.field("levelKnown", chart.hasKnownLevel()),
-                JsonWriter.field("bpm", chart.getBPM()),
-                JsonWriter.field("durationMs", chart.getDuration() * 1000),
-                JsonWriter.field("noteCount", chart.getNoteCount()),
-                JsonWriter.field("coverAsset", coverAsset(chart)),
-                JsonWriter.field("exportStatus", "ready"));
+        List<String> fields = new ArrayList<String>();
+        fields.add(JsonWriter.field("id",
+                idFor(idPrefixFor(chart), identitySourcePath(sourcePath, chartCount, chartIndex))));
+        fields.add(JsonWriter.field("format", formatFor(chart)));
+        fields.add(JsonWriter.field("sourcePath", sourcePath));
+        if (chartCount > 1) {
+            fields.add(JsonWriter.field("chartIndex", chartIndex));
+        }
+        fields.add(JsonWriter.field("title", chart.getTitle()));
+        fields.add(JsonWriter.field("artist", chart.getArtist()));
+        fields.add(JsonWriter.field("noter", chart.getNoter()));
+        fields.add(JsonWriter.field("genre", chart.getGenre()));
+        fields.add(JsonWriter.field("keys", chart.getKeys()));
+        fields.add(JsonWriter.field("level", chart.getLevel()));
+        fields.add(JsonWriter.field("levelKnown", levelKnown(chart)));
+        fields.add(JsonWriter.field("bpm", chart.getBPM()));
+        fields.add(JsonWriter.field("durationMs", chart.getDuration() * 1000));
+        fields.add(JsonWriter.field("noteCount", chart.getNoteCount()));
+        fields.add(JsonWriter.field("coverAsset", coverAsset(chart)));
+        fields.add(JsonWriter.field("exportStatus", "ready"));
+        return JsonWriter.object(fields.toArray(new String[fields.size()]));
     }
 
-    private static String idFor(String sourcePath) throws Exception {
+    private static String idFor(String prefix, String sourcePath) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hash = digest.digest(sourcePath.getBytes(StandardCharsets.UTF_8));
-        StringBuilder id = new StringBuilder("vos:sha256:");
+        StringBuilder id = new StringBuilder(prefix + ":sha256:");
         for (int i = 0; i < 8; i++) {
             id.append(String.format("%02x", hash[i] & 0xFF));
         }
         return id.toString();
     }
 
-    private static String coverAsset(VOSChart chart) {
+    private static String identitySourcePath(String sourcePath, int chartCount, int chartIndex) {
+        if (chartCount <= 1) {
+            return sourcePath;
+        }
+        return sourcePath + "#chart=" + chartIndex;
+    }
+
+    private static String formatFor(Chart chart) {
+        if (chart.type == Chart.TYPE.OSU) {
+            return "OSU";
+        }
+        if (chart.type == Chart.TYPE.OJN) {
+            return "OJN";
+        }
+        return "VOS";
+    }
+
+    private static String idPrefixFor(Chart chart) {
+        if (chart.type == Chart.TYPE.OSU) {
+            return "osu";
+        }
+        if (chart.type == Chart.TYPE.OJN) {
+            return "ojn";
+        }
+        return "vos";
+    }
+
+    private static boolean levelKnown(Chart chart) {
+        return !(chart instanceof VOSChart) || ((VOSChart) chart).hasKnownLevel();
+    }
+
+    private static String coverAsset(Chart chart) {
         return chart.hasCover() && chart.getCoverName() != null ? chart.getCoverName() : "";
     }
 }

@@ -6,11 +6,11 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 
-final class JavaSoundPcmDecoder {
+public final class JavaSoundPcmDecoder {
     private JavaSoundPcmDecoder() {
     }
 
-    static DecodedPcm decode(byte[] data) throws SoundSystemException {
+    public static DecodedPcm decode(byte[] data) throws SoundSystemException {
         try {
             AudioInputStream source = AudioSystem.getAudioInputStream(new ByteArrayInputStream(data));
             AudioFormat sourceFormat = source.getFormat();
@@ -38,11 +38,11 @@ final class JavaSoundPcmDecoder {
         }
     }
 
-    static final class DecodedPcm {
-        final byte[] pcm;
-        final int channels;
-        final int sampleRate;
-        final int bitsPerSample;
+    public static final class DecodedPcm {
+        public final byte[] pcm;
+        public final int channels;
+        public final int sampleRate;
+        public final int bitsPerSample;
 
         DecodedPcm(byte[] pcm, int channels, int sampleRate, int bitsPerSample) {
             this.pcm = pcm;

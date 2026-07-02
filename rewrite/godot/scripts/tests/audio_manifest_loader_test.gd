@@ -50,6 +50,18 @@ func _init() -> void:
 	if not _expect_bool(minimal_assets[0].has("preload"), false, "optional preload absent"):
 		return
 
+	var osu_manifest: Dictionary = _valid_manifest()
+	osu_manifest["format"] = "OSU"
+	osu_manifest["chartId"] = "osu:fixture"
+	if not _expect_loaded(loader, osu_manifest, "osu manifest format"):
+		return
+
+	var ojn_manifest: Dictionary = _valid_manifest()
+	ojn_manifest["format"] = "OJN"
+	ojn_manifest["chartId"] = "ojn:fixture"
+	if not _expect_loaded(loader, ojn_manifest, "ojn manifest format"):
+		return
+
 	var missing_manifest: Dictionary = loader.load_from_file("res://test/fixtures/missing_audio_manifest.json")
 	if not _expect_bool(missing_manifest.is_empty(), true, "missing file result"):
 		return

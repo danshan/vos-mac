@@ -14,6 +14,8 @@ func _init() -> void:
 		return
 	if not _test_miss_does_not_make_score_negative():
 		return
+	if not _test_java_judgment_result_names():
+		return
 
 	quit(0)
 
@@ -170,6 +172,40 @@ func _test_miss_does_not_make_score_negative() -> bool:
 	if not _expect_int(state.life, 22560, "empty miss life"):
 		return false
 	if not _expect_int(state.judgments.get("miss", 0), 1, "empty miss count"):
+		return false
+
+	return true
+
+
+func _test_java_judgment_result_names() -> bool:
+	var state = ScoreState.new()
+
+	if not _expect_string(state.apply_judgment("JUDGMENT_PERFECT"), "perfect", "Java perfect result name"):
+		return false
+	if not _expect_int(state.score, 0, "Java perfect score"):
+		return false
+	if not _expect_int(state.combo, 1, "Java perfect combo"):
+		return false
+	if not _expect_int(state.max_combo, 0, "Java perfect max combo order"):
+		return false
+	if not _expect_int(state.jam_bar, 0, "Java perfect jam bar"):
+		return false
+	if not _expect_int(state.judgments.get("perfect", 0), 1, "Java perfect count"):
+		return false
+	if not _expect_int(state.judgments.get("judgment_perfect", 0), 0, "Java perfect raw count absent"):
+		return false
+
+	if not _expect_string(state.apply_judgment("JUDGMENT_COOL"), "cool", "Java cool result name"):
+		return false
+	if not _expect_int(state.score, 200, "Java cool score after perfect"):
+		return false
+	if not _expect_int(state.combo, 2, "Java cool combo after perfect"):
+		return false
+	if not _expect_int(state.max_combo, 1, "Java cool max combo after perfect"):
+		return false
+	if not _expect_int(state.jam_bar, 2, "Java cool jam bar after perfect"):
+		return false
+	if not _expect_int(state.judgments.get("cool", 0), 1, "Java cool count"):
 		return false
 
 	return true

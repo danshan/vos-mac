@@ -27,6 +27,12 @@ func _init() -> void:
 		return
 	if not _expect_array(store.key_bindings(), ["A", "S", "D", "F", "J", "K", "L"], "unchanged bindings"):
 		return
+	if not _expect_string(InputMapStore.normalized_key_name("<SPACE>"), "Space", "normalized bracketed space"):
+		return
+	if not _expect_bool(store.set_key_bindings(["A", "S", "C", "<SPACE>", "M", "L", ";"]), true, "set punctuation bindings"):
+		return
+	if not _expect_array(store.key_bindings(), ["A", "S", "C", "Space", "M", "L", ";"], "normalized punctuation bindings"):
+		return
 	if not _expect_bool(store.has_method("set_misc_key_bindings"), true, "misc key binding setter"):
 		return
 	if not _expect_bool(store.has_method("misc_key_bindings"), true, "misc key binding getter"):
@@ -81,6 +87,8 @@ func _init() -> void:
 	if not _expect_bool(InputMap.has_action("bgm_volume_down"), true, "bgm volume down input action exists"):
 		return
 	if not _expect_int(InputMap.action_get_events("vos_lane_1").size(), 1, "first input action event count"):
+		return
+	if not _expect_int(_keycode_for_action("vos_lane_7"), KEY_SEMICOLON, "semicolon lane keycode"):
 		return
 	if not _expect_int(InputMap.action_get_events("speed_up").size(), 1, "speed up input action event count"):
 		return

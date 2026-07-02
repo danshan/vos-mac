@@ -203,7 +203,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
                 <configuration>
-                    <argLine>--add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED</argLine>
+                    <argLine>-Djava.awt.headless=true --add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED</argLine>
                 </configuration>
             </plugin>
             <plugin>

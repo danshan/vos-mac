@@ -7,6 +7,7 @@ const REQUIRED_ASSET_FIELDS: Array[String] = [
 	"type",
 	"role",
 ]
+const VALID_FORMATS: Array[String] = ["VOS", "OSU", "OJN"]
 
 
 func load_from_file(path: String) -> Dictionary:
@@ -29,7 +30,7 @@ func load_from_file(path: String) -> Dictionary:
 func _normalized_manifest(manifest: Dictionary) -> Dictionary:
 	if manifest.get("schemaVersion") != 1:
 		return {}
-	if manifest.get("format") != "VOS":
+	if not VALID_FORMATS.has(manifest.get("format")):
 		return {}
 
 	var assets: Variant = manifest.get("assets")

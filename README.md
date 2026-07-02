@@ -99,10 +99,22 @@ Running from source
 
 You need JDK 17 or later and Maven.
 
+This repository includes a `mise.toml` for local tool and task management. If you use [mise](https://mise.jdx.dev/), install the pinned JDK and Maven with:
+
+```bash
+mise install
+```
+
 Build the project with:
 
 ```
 mvn -s .mvn/settings.xml verify
+```
+
+Or through mise:
+
+```bash
+mise run build
 ```
 
 Run the packaged jar on macOS with:
@@ -117,6 +129,12 @@ Run from source with:
 
 ```
 mvn -s .mvn/settings.xml exec:exec
+```
+
+Or through mise:
+
+```bash
+mise run run
 ```
 
 GitHub Actions macOS app artifact
@@ -146,6 +164,12 @@ jpackage \
   --mac-package-identifier com.danshan.vosmac \
   --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
   --dest target/jpackage
+```
+
+The same local app image can be built through mise:
+
+```bash
+mise run app
 ```
 
 Do not point `jpackage --input` at `target` or `target/jpackage`. The input directory is copied into `VosMac.app/Contents/app`; using a parent directory that also contains the output app image can create recursive app bundles that Maven cannot clean reliably.

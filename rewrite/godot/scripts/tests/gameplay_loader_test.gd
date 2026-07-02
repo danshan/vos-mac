@@ -58,6 +58,50 @@ func _init() -> void:
 	if not _expect_bool(normalized_events[0].has("timeMs"), false, "normalized event timeMs removed"):
 		return
 
+	var osu_chart: Dictionary = _valid_chart()
+	osu_chart["chartId"] = "osu:fixture"
+	osu_chart["format"] = "OSU"
+	var osu_chart_path := _chart_path("osu_format")
+	if not _write_chart(osu_chart_path, osu_chart):
+		return
+	var normalized_osu_chart: Dictionary = loader.load_from_file(osu_chart_path)
+	if not _expect_bool(normalized_osu_chart.is_empty(), false, "osu chart load"):
+		return
+	if not _expect_string(normalized_osu_chart.get("format", ""), "OSU", "normalized osu format"):
+		return
+	if not _expect_int(int(normalized_osu_chart.get("keys", 0)), 7, "normalized osu keys"):
+		return
+
+	var osu_no_keysound_chart: Dictionary = _valid_chart()
+	osu_no_keysound_chart["chartId"] = "osu:no-keysound"
+	osu_no_keysound_chart["format"] = "OSU"
+	osu_no_keysound_chart["notes"][0]["sampleId"] = 0
+	var osu_no_keysound_chart_path := _chart_path("osu_no_keysound")
+	if not _write_chart(osu_no_keysound_chart_path, osu_no_keysound_chart):
+		return
+	var normalized_osu_no_keysound_chart: Dictionary = loader.load_from_file(osu_no_keysound_chart_path)
+	if not _expect_bool(normalized_osu_no_keysound_chart.is_empty(), false, "osu no keysound chart load"):
+		return
+	var no_keysound_notes: Array = normalized_osu_no_keysound_chart.get("notes", [])
+	if not _expect_int(no_keysound_notes[0].get("sampleId", -1), 0, "osu no keysound sample id"):
+		return
+
+	var ojn_chart: Dictionary = _valid_chart()
+	ojn_chart["chartId"] = "ojn:fixture"
+	ojn_chart["format"] = "OJN"
+	ojn_chart["notes"][0]["sampleId"] = 1
+	var ojn_chart_path := _chart_path("ojn_format")
+	if not _write_chart(ojn_chart_path, ojn_chart):
+		return
+	var normalized_ojn_chart: Dictionary = loader.load_from_file(ojn_chart_path)
+	if not _expect_bool(normalized_ojn_chart.is_empty(), false, "ojn chart load"):
+		return
+	if not _expect_string(normalized_ojn_chart.get("format", ""), "OJN", "normalized ojn format"):
+		return
+	var ojn_notes: Array = normalized_ojn_chart.get("notes", [])
+	if not _expect_int(ojn_notes[0].get("sampleId", -1), 1, "ojn sample id"):
+		return
+
 	var bga_time_ms_chart: Dictionary = _valid_chart()
 	bga_time_ms_chart["bgaEvents"] = [{"timeMs": 75.0, "spriteId": 3}]
 	var bga_time_ms_path := _chart_path("bga_time_ms")
@@ -224,6 +268,118 @@ func _init() -> void:
 	if not _expect_int(int(randomized_hold_notes[1].get("lane", -1)), 5, "random keeps map while long note crosses measure"):
 		return
 
+	var random_overlap_chart: Dictionary = _valid_chart()
+	random_overlap_chart["channelModifier"] = "Random"
+	random_overlap_chart["channelMapsByMeasure"] = [
+		[6, 5, 4, 3, 2, 1, 0],
+		[0, 1, 2, 3, 4, 5, 6],
+	]
+	random_overlap_chart["notes"] = [
+		{"lane": 0, "startMs": 1000.0, "measure": 0, "endMs": 2500.0, "endMeasure": 1, "sampleId": 2, "volume": 1.0, "pan": 0.0, "kind": "holdStart"},
+		{"lane": 0, "startMs": 2500.0, "measure": 1, "sampleId": 3, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+	]
+	var random_overlap_path := _chart_path("random_overlap_modifier")
+	if not _write_chart(random_overlap_path, random_overlap_chart):
+		return
+	var randomized_overlap_chart: Dictionary = loader.load_from_file(random_overlap_path)
+	if not _expect_bool(randomized_overlap_chart.is_empty(), false, "random overlap chart load"):
+		return
+	var randomized_overlap_notes: Array = randomized_overlap_chart.get("notes", [])
+	if not _expect_int(randomized_overlap_notes.size(), 1, "random overlap filters tap at long note release boundary"):
+		return
+	if not _expect_int(int(randomized_overlap_notes[0].get("lane", -1)), 6, "random overlap keeps long lane"):
+		return
+
+	var random_release_before_tap_chart: Dictionary = _valid_chart()
+	random_release_before_tap_chart["channelModifier"] = "Random"
+	random_release_before_tap_chart["channelMapsByMeasure"] = [
+		[6, 5, 4, 3, 2, 1, 0],
+		[0, 1, 2, 3, 4, 5, 6],
+	]
+	random_release_before_tap_chart["notes"] = [
+		{
+			"lane": 0,
+			"startMs": 1000.0,
+			"measure": 0,
+			"endMs": 2500.0,
+			"endMeasure": 1,
+			"eventOrder": 0,
+			"releaseEventOrder": 1,
+			"sampleId": 2,
+			"volume": 1.0,
+			"pan": 0.0,
+			"kind": "holdStart",
+		},
+		{
+			"lane": 0,
+			"startMs": 2500.0,
+			"measure": 1,
+			"eventOrder": 2,
+			"sampleId": 3,
+			"volume": 1.0,
+			"pan": 0.0,
+			"kind": "tap",
+		},
+	]
+	var random_release_before_tap_path := _chart_path("random_release_before_tap_modifier")
+	if not _write_chart(random_release_before_tap_path, random_release_before_tap_chart):
+		return
+	var randomized_release_before_tap_chart: Dictionary = loader.load_from_file(random_release_before_tap_path)
+	if not _expect_bool(randomized_release_before_tap_chart.is_empty(), false, "random release-before-tap chart load"):
+		return
+	var randomized_release_before_tap_notes: Array = randomized_release_before_tap_chart.get("notes", [])
+	if not _expect_int(randomized_release_before_tap_notes.size(), 2, "random release-before-tap keeps tap"):
+		return
+	if not _expect_int(int(randomized_release_before_tap_notes[0].get("lane", -1)), 6, "random release-before-tap long lane"):
+		return
+	if not _expect_int(int(randomized_release_before_tap_notes[1].get("lane", -1)), 6, "random release-before-tap keeps previous measure map"):
+		return
+
+	var random_past_release_chart: Dictionary = _valid_chart()
+	random_past_release_chart["channelModifier"] = "Random"
+	random_past_release_chart["channelMapsByMeasure"] = [
+		[6, 5, 4, 3, 2, 1, 0],
+		[0, 1, 2, 3, 4, 5, 6],
+	]
+	random_past_release_chart["notes"] = [
+		{
+			"lane": 0,
+			"startMs": 1000.0,
+			"measure": 0,
+			"endMs": 2100.0,
+			"endMeasure": 1,
+			"eventOrder": 0,
+			"releaseEventOrder": 1,
+			"sampleId": 2,
+			"volume": 1.0,
+			"pan": 0.0,
+			"kind": "holdStart",
+		},
+		{
+			"lane": 0,
+			"startMs": 2200.0,
+			"measure": 1,
+			"eventOrder": 2,
+			"sampleId": 3,
+			"volume": 1.0,
+			"pan": 0.0,
+			"kind": "tap",
+		},
+	]
+	var random_past_release_path := _chart_path("random_past_release_modifier")
+	if not _write_chart(random_past_release_path, random_past_release_chart):
+		return
+	var randomized_past_release_chart: Dictionary = loader.load_from_file(random_past_release_path)
+	if not _expect_bool(randomized_past_release_chart.is_empty(), false, "random past-release chart load"):
+		return
+	var randomized_past_release_notes: Array = randomized_past_release_chart.get("notes", [])
+	if not _expect_int(randomized_past_release_notes.size(), 2, "random past-release keeps tap"):
+		return
+	if not _expect_int(int(randomized_past_release_notes[0].get("lane", -1)), 6, "random past-release long lane"):
+		return
+	if not _expect_int(int(randomized_past_release_notes[1].get("lane", -1)), 6, "random past-release keeps previous measure map"):
+		return
+
 	if not _expect_rejected(loader, _chart_with("schemaVersion", 2), "bad schema"):
 		return
 	if not _expect_rejected(loader, _chart_with("keys", "7"), "string keys"):
@@ -319,6 +475,12 @@ func _init() -> void:
 	if not _expect_rejected(loader, _chart_with("bgaVideoPath", ""), "empty bga video path"):
 		return
 	if not _expect_rejected(loader, _chart_with("bgaVideoPath", 7), "numeric bga video path"):
+		return
+	if not _expect_rejected(loader, _chart_with("speedType", "FastSpeed"), "invalid speed type"):
+		return
+	if not _expect_rejected(loader, _chart_with("visibilityModifier", "Blink"), "invalid visibility modifier"):
+		return
+	if not _expect_rejected(loader, _chart_with("judgmentType", "distance"), "invalid judgment type"):
 		return
 
 	var missing_chart: Dictionary = loader.load_from_file("res://test/fixtures/missing_gameplay.json")

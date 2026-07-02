@@ -85,10 +85,22 @@ vos-mac 的主要变化集中在运行时和平台支持:
 
 需要 JDK 17 或更新版本, 以及 Maven.
 
+仓库包含 `mise.toml`, 用于本地 tool 和 task 管理. 如果使用 [mise](https://mise.jdx.dev/), 可以先安装固定版本的 JDK 和 Maven:
+
+```bash
+mise install
+```
+
 构建项目:
 
 ```bash
 mvn -s .mvn/settings.xml verify
+```
+
+也可以通过 mise 构建:
+
+```bash
+mise run build
 ```
 
 在 macOS 上运行 packaged jar:
@@ -103,6 +115,12 @@ java -jar target/open2jam-0.1.2.jar
 
 ```bash
 mvn -s .mvn/settings.xml exec:exec
+```
+
+也可以通过 mise 从源码运行:
+
+```bash
+mise run run
 ```
 
 ## GitHub Actions macOS app artifact
@@ -131,6 +149,12 @@ jpackage \
   --mac-package-identifier com.danshan.vosmac \
   --java-options "--add-exports=java.desktop/com.sun.media.sound=ALL-UNNAMED" \
   --dest target/jpackage
+```
+
+同一个本地 app image 也可以通过 mise 构建:
+
+```bash
+mise run app
 ```
 
 不要把 `jpackage --input` 指向 `target` 或 `target/jpackage`. input 目录会被复制到 `VosMac.app/Contents/app`; 如果 input 的父目录里同时包含输出 app image, 就可能生成递归 app bundle, 导致 Maven clean 难以可靠删除.

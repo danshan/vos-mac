@@ -5,59 +5,100 @@ const TimingModel = preload("res://scripts/timing_model.gd")
 
 
 func _init() -> void:
+	var oracle: Dictionary = _load_oracle()
+	if oracle.is_empty():
+		return
+
 	var timing = TimingModel.new()
-	timing.add_change(0.0, 120.0)
-	timing.add_change(1000.0, 240.0)
+	for change in oracle.get("timingChanges", []):
+		if not change is Dictionary:
+			push_error("Expected note distance timing change object.")
+			quit(1)
+			return
+		timing.add_change(float(change.get("timeMs", 0.0)), float(change.get("bpm", 120.0)))
 	timing.finish()
 
-	if not _expect_float(timing.get_beat(-500.0), -1.0, "beat before first change"):
-		return
-	if not _expect_float(timing.get_beat(0.0), 0.0, "beat at first change"):
-		return
-	if not _expect_float(timing.get_beat(500.0), 1.0, "beat before bpm change"):
-		return
-	if not _expect_float(timing.get_beat(1000.0), 2.0, "beat at bpm change"):
-		return
-	if not _expect_float(timing.get_beat(1500.0), 4.0, "beat after bpm change"):
-		return
+	for beat_case in oracle.get("beatCases", []):
+		if not beat_case is Dictionary:
+			push_error("Expected note distance beat case object.")
+			quit(1)
+			return
+		if not _expect_float(
+				timing.get_beat(float(beat_case.get("timeMs", 0.0))),
+				float(beat_case.get("expectedBeat", 0.0)),
+				"beat at %.1fms" % float(beat_case.get("timeMs", 0.0))):
+			return
 
-	var calculator = NoteDistanceCalculator.new(timing)
-
-	if not _expect_float(calculator.calculate_hi_speed(0.0, 1000.0, 2.0), 385.0, "hi speed distance"):
-		return
-	if not _expect_float(calculator.calculate_hi_speed(500.0, 1500.0, 1.5), 433.125, "hi speed with bpm change"):
-		return
-	if not _expect_float(calculator.calculate_regul_speed(0.0, 1000.0, 2.0), 481.25, "regul speed distance"):
-		return
-
-	calculator.speed_factor = 1.25
-	if not _expect_float(calculator.calculate_hi_speed(0.0, 1000.0, 2.0), 481.25, "adjusted hi speed distance"):
-		return
-	calculator.speed_factor = 1.0
-
-	if not _expect_bool(calculator.has_method("calculate_w_speed"), true, "w speed distance method"):
-		return
-	if not _expect_bool(calculator.has_method("update_w_speed"), true, "w speed update method"):
-		return
-	if not _expect_float(calculator.calculate_w_speed(0.0, 1000.0), 96.25, "initial w speed distance"):
-		return
-	calculator.update_w_speed(1000.0, 2.0)
-	if not _expect_float(calculator.calculate_w_speed(0.0, 1000.0), 192.5, "updated w speed distance"):
-		return
-
-	if not _expect_bool(calculator.has_method("set_xr_speed_factors"), true, "xr speed factors method"):
-		return
-	if not _expect_bool(calculator.has_method("calculate_xr_speed"), true, "xr speed distance method"):
-		return
-	calculator.set_xr_speed_factors([0.25, 0.0, 0.0, 0.0, 0.0, 0.0, 0.75])
-	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, 0), 481.25, "xr speed lane one distance"):
-		return
-	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, 6), 673.75, "xr speed lane seven distance"):
-		return
-	if not _expect_float(calculator.calculate_xr_speed(0.0, 1000.0, 2.0, -1), 385.0, "xr speed unknown lane distance"):
-		return
+	for distance_case in oracle.get("distanceCases", []):
+		if not distance_case is Dictionary:
+			push_error("Expected note distance case object.")
+			quit(1)
+			return
+		if not _verify_distance_case(timing, float(oracle.get("measureSize", 385.0)), distance_case):
+			return
 
 	quit(0)
+
+
+func _load_oracle() -> Dictionary:
+	var path := "res://test/fixtures/note-distance-oracle.json"
+	if not FileAccess.file_exists(path):
+		push_error("Missing note distance oracle fixture: %s" % path)
+		quit(1)
+		return {}
+
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not parsed is Dictionary:
+		push_error("Expected note distance oracle root object.")
+		quit(1)
+		return {}
+
+	var root: Dictionary = parsed
+	if int(root.get("schemaVersion", 0)) != 1:
+		push_error("Expected note distance oracle schema version 1.")
+		quit(1)
+		return {}
+	if str(root.get("source", "")) != "NoteDistanceCalculator Java speed modes":
+		push_error("Expected note distance oracle source NoteDistanceCalculator Java speed modes.")
+		quit(1)
+		return {}
+	return root
+
+
+func _verify_distance_case(timing, measure_size: float, distance_case: Dictionary) -> bool:
+	var calculator = NoteDistanceCalculator.new(timing, measure_size)
+	calculator.speed_factor = float(distance_case.get("speedFactor", 1.0))
+	var mode := str(distance_case.get("mode", ""))
+	if mode == "xRSpeed":
+		calculator.set_xr_speed_factors(distance_case.get("xrFactors", []))
+	for update in distance_case.get("updates", []):
+		if not update is Dictionary:
+			push_error("Expected note distance update object.")
+			quit(1)
+			return false
+		calculator.update_w_speed(float(update.get("deltaMs", 0.0)), float(update.get("targetSpeed", 1.0)))
+
+	var now_ms := float(distance_case.get("nowMs", 0.0))
+	var target_ms := float(distance_case.get("targetMs", 0.0))
+	var speed := float(distance_case.get("speed", 1.0))
+	var lane := int(distance_case.get("lane", -1))
+	var actual := 0.0
+	match mode:
+		"HiSpeed":
+			actual = calculator.calculate_hi_speed(now_ms, target_ms, speed)
+		"RegulSpeed":
+			actual = calculator.calculate_regul_speed(now_ms, target_ms, speed)
+		"WSpeed":
+			actual = calculator.calculate_w_speed(now_ms, target_ms)
+		"xRSpeed":
+			actual = calculator.calculate_xr_speed(now_ms, target_ms, speed, lane)
+		_:
+			push_error("Unknown note distance mode: %s" % mode)
+			quit(1)
+			return false
+
+	return _expect_float(actual, float(distance_case.get("expectedDistance", 0.0)),
+			str(distance_case.get("name", mode)))
 
 
 func _expect_float(actual: float, expected: float, label: String) -> bool:

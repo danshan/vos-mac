@@ -151,12 +151,23 @@ When you do add a dependency, say why. "I'm adding zod because this project need
 
 This project uses `mise.toml` as the source of truth for local runtime tools. Do not judge the Java or Maven environment from bare `java` or `mvn` commands in a random shell. On this machine, bare `java` may resolve to `/usr/bin/java` and fail even when the project runtime is correctly installed through mise.
 
+Declared mise configuration:
+
+- `min_version = "2024.9.5"`.
+- `[tools]`: `java = "zulu-17.66.19.0"` and `maven = "3.9.9"`.
+- `[env]`: `MAVEN_SETTINGS = ".mvn/settings.xml"`.
+- Tasks: `build`, `package`, `godot`, `run`, and `app`.
+
 Rules:
 
 - Treat `mise.toml` as the only checked-in runtime configuration for Java and Maven.
 - When a runtime version needs to change, update the `[tools]` section in `mise.toml`, run `mise install`, then verify with `mise current`.
+- Do not set `JAVA_HOME`, `MAVEN_HOME`, `M2_HOME`, or `PATH` by hand for project commands. Let `mise exec` or `mise run` provide the runtime environment.
+- If `mise current` reports missing tools, run `mise install` instead of falling back to host Java or host Maven.
 - Use `mise current` to inspect the active tool versions for this checkout.
 - Use `mise exec -- ...` when running Java, Maven, or project verification commands.
+- If a command needs environment variables defined by `mise.toml`, run the shell inside mise, for example `mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" verify'`. Do not rely on the parent shell to expand mise-provided variables.
+- When diagnosing Java or Maven availability, report the mise-resolved environment first: `mise current`, `mise exec -- java -version`, and `mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" -version'`. Bare `java` or `mvn` output may be included only as host-shell context, not as the project runtime verdict.
 - Maven commands must use the project settings file: `.mvn/settings.xml`.
 - The Maven settings path is exported by `mise.toml` as `MAVEN_SETTINGS=.mvn/settings.xml`; project tasks should use that value instead of hard-coding another settings file.
 - Prefer the project tasks in `mise.toml` when they match the task.
@@ -169,13 +180,15 @@ Canonical commands:
 mise current
 mise install
 mise exec -- java -version
-mise exec -- mvn -s .mvn/settings.xml -version
-mise exec -- mvn -s .mvn/settings.xml validate
-mise exec -- mvn -s .mvn/settings.xml verify
+mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" -version'
+mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" validate'
+mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" verify'
 mise exec -- bash rewrite/tools/verify_vos_godot_initial.sh
 mise run build
 mise run package
+mise run godot
 mise run run
+mise run app
 ```
 
 Godot is currently provided by Homebrew and is not declared in `mise.toml`. Use it directly unless it is added to `mise.toml` later:
@@ -184,6 +197,8 @@ Godot is currently provided by Homebrew and is not declared in `mise.toml`. Use 
 godot --version
 godot --path rewrite/godot
 ```
+
+For normal development of the Godot rewrite, prefer `mise run godot` over direct `godot --path rewrite/godot`. The Godot UI scans song directories by invoking the packaged jar under `target/`, so launching directly can use a stale jar after Java exporter changes.
 
 ## 10. Communication
 

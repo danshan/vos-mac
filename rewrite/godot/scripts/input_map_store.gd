@@ -33,7 +33,7 @@ func set_key_bindings(bindings: Array) -> bool:
 	for binding: Variant in bindings:
 		if not binding is String:
 			return false
-		var key := str(binding).strip_edges()
+		var key := normalized_key_name(str(binding))
 		if key.is_empty():
 			return false
 		next_bindings.append(key)
@@ -57,7 +57,7 @@ func set_misc_key_bindings(bindings: Dictionary) -> bool:
 		var binding: Variant = bindings[action]
 		if not binding is String:
 			return false
-		var key := str(binding).strip_edges()
+		var key := normalized_key_name(str(binding))
 		if key.is_empty():
 			return false
 		next_bindings[action_name] = key
@@ -116,7 +116,7 @@ func apply_to_godot_input_map() -> bool:
 
 
 func _apply_key_action(action: String, key: String) -> bool:
-	var keycode := OS.find_keycode_from_string(key)
+	var keycode := keycode_for_key_name(key)
 	if keycode == 0:
 		return false
 
@@ -128,3 +128,54 @@ func _apply_key_action(action: String, key: String) -> bool:
 	event.keycode = keycode
 	InputMap.action_add_event(action, event)
 	return true
+
+
+static func normalized_key_name(key: String) -> String:
+	var value := key.strip_edges()
+	if value.is_empty():
+		return ""
+	var alias := _normalized_key_alias(value)
+	if not alias.is_empty():
+		return alias
+	if OS.find_keycode_from_string(value) != 0:
+		return value
+	return ""
+
+
+static func key_name_from_event(event: InputEventKey) -> String:
+	var keycode := event.keycode
+	if keycode == 0:
+		keycode = event.physical_keycode
+	if keycode == 0:
+		return ""
+	return _display_name_for_keycode(keycode)
+
+
+static func keycode_for_key_name(key: String) -> int:
+	var value := normalized_key_name(key)
+	if value.is_empty():
+		return 0
+	match value:
+		";":
+			return KEY_SEMICOLON
+		_:
+			return OS.find_keycode_from_string(value)
+
+
+static func _normalized_key_alias(value: String) -> String:
+	match value:
+		" ", "Spacebar", "spacebar", "<SPACE>", "<space>":
+			return "Space"
+		";", "Semicolon", "semicolon":
+			return ";"
+		_:
+			return ""
+
+
+static func _display_name_for_keycode(keycode: int) -> String:
+	match keycode:
+		KEY_SEMICOLON:
+			return ";"
+		_:
+			var key_name := OS.get_keycode_string(keycode)
+			return normalized_key_name(key_name)

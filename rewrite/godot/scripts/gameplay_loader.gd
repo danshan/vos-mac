@@ -11,10 +11,14 @@ const REQUIRED_NOTE_FIELDS: Array[String] = [
 ]
 
 const VALID_NOTE_KINDS := ["tap", "holdStart"]
+const VALID_FORMATS := ["VOS", "OSU", "OJN"]
 const CHANNEL_MOD_NONE: String = "None"
 const CHANNEL_MOD_MIRROR: String = "Mirror"
 const CHANNEL_MOD_SHUFFLE: String = "Shuffle"
 const CHANNEL_MOD_RANDOM: String = "Random"
+const VALID_SPEED_TYPES := ["HiSpeed", "xRSpeed", "WSpeed", "RegulSpeed"]
+const VALID_VISIBILITY_MODIFIERS := ["None", "Hidden", "Sudden", "Dark"]
+const VALID_JUDGMENT_TYPES := ["beat", "time"]
 
 
 func load_from_file(path: String) -> Dictionary:
@@ -43,8 +47,9 @@ func load_from_file_with_overrides(path: String, overrides: Dictionary) -> Dicti
 func _normalized_chart(chart: Dictionary) -> Dictionary:
 	if chart.get("schemaVersion") != 1:
 		return {}
-	if chart.get("format") != "VOS":
+	if not VALID_FORMATS.has(chart.get("format")):
 		return {}
+	var chart_format := str(chart.get("format"))
 	if not chart.has("keys"):
 		return {}
 
@@ -61,7 +66,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	for note: Variant in notes:
 		if not note is Dictionary:
 			return {}
-		var normalized_note: Dictionary = _normalized_note(note, int(keys))
+		var normalized_note: Dictionary = _normalized_note(note, int(keys), chart_format)
 		if normalized_note.is_empty():
 			return {}
 		normalized_notes.append(normalized_note)
@@ -135,11 +140,12 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 		if not _is_positive_number(speed_multiplier):
 			return {}
 		normalized_chart["speedMultiplier"] = float(speed_multiplier)
-	if normalized_chart.has("speedType"):
-		var speed_type: Variant = normalized_chart.get("speedType")
-		if not speed_type is String or str(speed_type).is_empty():
-			return {}
-		normalized_chart["speedType"] = str(speed_type)
+	if not _normalize_optional_string_enum(normalized_chart, "speedType", VALID_SPEED_TYPES):
+		return {}
+	if not _normalize_optional_string_enum(normalized_chart, "visibilityModifier", VALID_VISIBILITY_MODIFIERS):
+		return {}
+	if not _normalize_optional_string_enum(normalized_chart, "judgmentType", VALID_JUDGMENT_TYPES):
+		return {}
 	var channel_notes: Array[Dictionary] = _notes_with_channel_modifier(
 			normalized_notes,
 			int(keys),
@@ -157,7 +163,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	return normalized_chart
 
 
-func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
+func _normalized_note(note: Dictionary, keys: int, chart_format: String) -> Dictionary:
 	if not _has_fields(note, REQUIRED_NOTE_FIELDS):
 		return {}
 	if note.has("id"):
@@ -178,8 +184,12 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 		return {}
 
 	var sample_id: Variant = note.get("sampleId")
-	if not _is_positive_integer_like(sample_id):
-		return {}
+	if chart_format == "OSU":
+		if not _is_integer_like(sample_id) or int(sample_id) < 0:
+			return {}
+	else:
+		if not _is_positive_integer_like(sample_id):
+			return {}
 
 	if not note.get("volume") is int and not note.get("volume") is float:
 		return {}
@@ -199,6 +209,10 @@ func _normalized_note(note: Dictionary, keys: int) -> Dictionary:
 	normalized_note["startMs"] = float(start_ms)
 	normalized_note["measure"] = int(measure)
 	normalized_note["sampleId"] = int(sample_id)
+	if not _normalize_optional_integer(normalized_note, "eventOrder"):
+		return {}
+	if not _normalize_optional_integer(normalized_note, "releaseEventOrder"):
+		return {}
 	if str(kind) == "holdStart" and not _normalize_hold_note(normalized_note, float(start_ms)):
 		return {}
 	return normalized_note
@@ -340,6 +354,29 @@ func _normalize_optional_positive_number(entry: Dictionary, field: String) -> bo
 	return true
 
 
+func _normalize_optional_integer(entry: Dictionary, field: String) -> bool:
+	if not entry.has(field):
+		return true
+	var value: Variant = entry.get(field)
+	if not _is_integer_like(value):
+		return false
+	entry[field] = int(value)
+	return true
+
+
+func _normalize_optional_string_enum(entry: Dictionary, field: String, valid_values: Array) -> bool:
+	if not entry.has(field):
+		return true
+	var value: Variant = entry.get(field)
+	if not value is String:
+		return false
+	var text := str(value)
+	if not valid_values.has(text):
+		return false
+	entry[field] = text
+	return true
+
+
 func _is_non_negative_number(value: Variant) -> bool:
 	if not (value is int or value is float):
 		return false
@@ -447,13 +484,17 @@ func _notes_with_random_channel_modifier(
 
 	for note: Dictionary in notes:
 		var note_measure := _note_measure(note)
-		_release_finished_random_longs(active_long_notes, float(note.get("startMs", 0.0)))
+		current_measure = _release_past_random_longs(
+				active_long_notes,
+				float(note.get("startMs", 0.0)),
+				current_measure)
 		if note_measure > current_measure:
 			if active_long_notes.is_empty():
 				current_map = _random_channel_map_for_measure(keys, raw_maps_by_measure, note_measure)
 				if current_map.is_empty():
 					return []
 			current_measure = note_measure
+		_release_ordered_random_longs(active_long_notes, note)
 
 		var source_lane := int(note.get("lane", -1))
 		var target_lane := int(current_map[source_lane])
@@ -462,6 +503,8 @@ func _notes_with_random_channel_modifier(
 			active_long_notes[source_lane] = {
 				"targetLane": target_lane,
 				"endMs": float(note.get("endMs", note.get("startMs", 0.0))),
+				"endMeasure": int(note.get("endMeasure", note_measure)),
+				"releaseEventOrder": int(note.get("releaseEventOrder", -1)),
 			}
 		elif _random_target_lane_is_active(active_long_notes, target_lane):
 			continue
@@ -485,10 +528,31 @@ func _note_measure(note: Dictionary) -> int:
 	return 0
 
 
-func _release_finished_random_longs(active_long_notes: Dictionary, now_ms: float) -> void:
+func _release_past_random_longs(active_long_notes: Dictionary, now_ms: float, current_measure: int) -> int:
+	var next_measure := current_measure
 	for raw_source_lane: Variant in active_long_notes.keys():
 		var long_note: Dictionary = active_long_notes.get(raw_source_lane, {})
-		if float(long_note.get("endMs", 0.0)) <= now_ms:
+		if float(long_note.get("endMs", 0.0)) < now_ms:
+			var release_measure := int(long_note.get("endMeasure", next_measure))
+			if release_measure > next_measure:
+				next_measure = release_measure
+			active_long_notes.erase(raw_source_lane)
+	return next_measure
+
+
+func _release_ordered_random_longs(active_long_notes: Dictionary, note: Dictionary) -> void:
+	if not note.has("eventOrder"):
+		return
+	var now_ms := float(note.get("startMs", 0.0))
+	var event_order := int(note.get("eventOrder", -1))
+	for raw_source_lane: Variant in active_long_notes.keys():
+		var long_note: Dictionary = active_long_notes.get(raw_source_lane, {})
+		if not long_note.has("releaseEventOrder"):
+			continue
+		if not is_equal_approx(float(long_note.get("endMs", 0.0)), now_ms):
+			continue
+		var release_order := int(long_note.get("releaseEventOrder", -1))
+		if release_order >= 0 and release_order < event_order:
 			active_long_notes.erase(raw_source_lane)
 
 

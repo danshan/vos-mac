@@ -83,6 +83,10 @@ func _init() -> void:
 		return
 	if not _test_non_vos_rejected_keysound_keeps_java_behavior():
 		return
+	if not _test_non_vos_unbuffered_note_replays_java_last_sound():
+		return
+	if not _test_non_vos_no_keysound_note_has_no_audio_commands():
+		return
 
 	quit(0)
 
@@ -171,6 +175,38 @@ func _test_non_vos_rejected_keysound_keeps_java_behavior() -> bool:
 	return true
 
 
+func _test_non_vos_unbuffered_note_replays_java_last_sound() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_non_vos_unbuffered_replay_chart()), true, "non VOS unbuffered replay chart load"):
+		return false
+
+	var replay: Dictionary = controller.press_action("vos_lane_2", 0.0)
+	if not _expect_bool(replay.get("accepted", true), false, "non VOS unbuffered press rejected"):
+		return false
+	if not _expect_string(replay.get("reason", ""), "no_note", "non VOS unbuffered reason"):
+		return false
+	if not _expect_bool(replay.get("rejectedKeysound", false), true, "non VOS unbuffered replay keysound"):
+		return false
+	if not _expect_result_command(replay, "playSample", 12, "note", "extrasound", "non VOS unbuffered replay command"):
+		return false
+	return true
+
+
+func _test_non_vos_no_keysound_note_has_no_audio_commands() -> bool:
+	var controller = GameplayController.new()
+	if not _expect_bool(controller.load_chart(_non_vos_no_keysound_chart()), true, "non VOS no keysound chart load"):
+		return false
+
+	var hit: Dictionary = controller.press_action("vos_lane_1", 1000.0)
+	if not _expect_bool(hit.get("accepted", false), true, "non VOS no keysound hit accepted"):
+		return false
+	if not _expect_result_command_count(hit, 0, "non VOS no keysound hit command count"):
+		return false
+	if not _expect_int(controller.drain_audio_commands().size(), 0, "non VOS no keysound drained commands"):
+		return false
+	return true
+
+
 func _chart() -> Dictionary:
 	return {
 		"schemaVersion": 1,
@@ -238,6 +274,39 @@ func _non_vos_rejected_keysound_chart() -> Dictionary:
 		"durationMs": 3000,
 		"notes": [
 			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 7, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _non_vos_unbuffered_replay_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "osu:unbuffered-replay",
+		"format": "OSU",
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 20000,
+		"notes": [
+			{"lane": 0, "startMs": 10000.0, "measure": 0, "sampleId": 11, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+			{"lane": 1, "startMs": 20000.0, "measure": 0, "sampleId": 12, "volume": 1.0, "pan": 0.0, "kind": "tap"},
+		],
+		"autoPlayEvents": [],
+	}
+
+
+func _non_vos_no_keysound_chart() -> Dictionary:
+	return {
+		"schemaVersion": 1,
+		"chartId": "osu:no-keysound",
+		"format": "OSU",
+		"judgmentType": "time",
+		"keys": 7,
+		"bpm": 120.0,
+		"durationMs": 3000,
+		"notes": [
+			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 0, "volume": 0.0, "pan": 0.0, "kind": "tap"},
 		],
 		"autoPlayEvents": [],
 	}

@@ -27,6 +27,10 @@ func _init() -> void:
 		return
 	if not _expect_int(pool.preloaded_sample_count(), 1, "preloaded sample count"):
 		return
+	if not _test_large_manifest_skips_eager_preload():
+		return
+	if not _test_large_manifest_async_preload_step():
+		return
 
 	var first_play: Dictionary = pool.play_sample(1)
 	if not _expect_bool(first_play.get("played", false), true, "first play"):
@@ -77,18 +81,18 @@ func _init() -> void:
 		return
 	if not _expect_float(float(note_play.get("effectiveVolume", -1.0)), 0.125, "note effective volume"):
 		return
-	if not _expect_float(float(note_play.get("pan", 0.0)), -1.0, "note clamped pan"):
+	if not _expect_float(float(note_play.get("pan", 0.0)), -1.5, "note raw pan"):
 		return
 	var note_player: Node = pool.get_node(str(note_play.get("player", "")))
 	if not _expect_bool(note_player is AudioStreamPlayer2D, true, "note player node type"):
 		return
-	if not _expect_float(float(note_player.get_meta("pan", 0.0)), -1.0, "note player pan metadata"):
+	if not _expect_float(float(note_player.get_meta("pan", 0.0)), -1.5, "note player pan metadata"):
 		return
 	if not _expect_float((note_player as AudioStreamPlayer2D).panning_strength, 1.0, "note player panning strength"):
 		return
 	if not _expect_float((note_player as AudioStreamPlayer2D).attenuation, 0.0, "note player attenuation"):
 		return
-	if not _expect_float((note_player as AudioStreamPlayer2D).position.x, -1.0, "note player pan position"):
+	if not _expect_float((note_player as AudioStreamPlayer2D).position.x, -1.5, "note player pan position"):
 		return
 	if not _expect_float((note_player as AudioStreamPlayer2D).pitch_scale, 2.0, "note player initial pitch scale"):
 		return
@@ -205,6 +209,101 @@ func _init() -> void:
 
 	pool.free()
 	quit(0)
+
+
+func _test_large_manifest_skips_eager_preload() -> bool:
+	var manifest := {
+		"schemaVersion": 1,
+		"format": "VOS",
+		"sourcePath": "res://test/fixtures/large-audio.vos",
+		"assetDir": "res://test/fixtures",
+		"assets": [],
+	}
+	for sample_id in range(1, 41):
+		manifest["assets"].append({
+			"sampleId": sample_id,
+			"fileName": "sample.wav",
+			"path": "res://test/fixtures/sample.wav",
+			"type": "wav",
+			"role": "keysound",
+			"preload": true,
+		})
+
+	var pool = AudioPlayerPool.new()
+	get_root().add_child(pool)
+	if not _expect_bool(pool.load_manifest(manifest), true, "large manifest load"):
+		return false
+	if not _expect_int(pool.asset_count(), 40, "large manifest asset count"):
+		return false
+	if not _expect_int(pool.preloaded_sample_count(), 0, "large manifest eager preload count"):
+		return false
+	if not _expect_bool(pool.has_method("preload_sample_count"), true, "preload sample count method"):
+		return false
+	if not _expect_bool(pool.has_method("preload_pending_sample_count"), true, "preload pending sample count method"):
+		return false
+	if not _expect_bool(pool.has_method("preload_next_sample"), true, "preload next sample method"):
+		return false
+	if not _expect_int(pool.preload_sample_count(), 40, "large manifest preload sample count"):
+		return false
+	if not _expect_int(pool.preload_pending_sample_count(), 40, "large manifest initial preload pending count"):
+		return false
+	if not _expect_bool(pool.preload_next_sample(), true, "large manifest preload first sample"):
+		return false
+	if not _expect_int(pool.preloaded_sample_count(), 1, "large manifest manual preload cache count"):
+		return false
+	if not _expect_int(pool.preload_pending_sample_count(), 39, "large manifest preload pending after one"):
+		return false
+
+	var played: Dictionary = pool.play_sample(1)
+	if not _expect_bool(bool(played.get("played", false)), true, "large manifest lazy sample play"):
+		return false
+	if not _expect_int(pool.preloaded_sample_count(), 1, "large manifest lazy sample cache count"):
+		return false
+	var repeated_play: Dictionary = pool.play_sample(1)
+	if not _expect_bool(bool(repeated_play.get("played", false)), true, "large manifest repeated lazy sample play"):
+		return false
+	if not _expect_int(pool.preloaded_sample_count(), 1, "large manifest repeated lazy sample cache count"):
+		return false
+	pool.free()
+	return true
+
+
+func _test_large_manifest_async_preload_step() -> bool:
+	var manifest := {
+		"assets": [],
+	}
+	for sample_id in range(1, 41):
+		manifest["assets"].append({
+			"sampleId": sample_id,
+			"fileName": "sample.wav",
+			"path": "res://test/fixtures/sample.wav",
+			"type": "wav",
+			"role": "keysound",
+			"preload": true,
+		})
+
+	var pool = AudioPlayerPool.new()
+	get_root().add_child(pool)
+	if not _expect_bool(pool.load_manifest(manifest), true, "large manifest async load"):
+		return false
+	if not _expect_bool(pool.has_method("preload_next_sample_async"), true, "async preload method"):
+		return false
+	if not _expect_bool(pool.has_method("preload_in_progress"), true, "async preload in-progress method"):
+		return false
+
+	for i in range(100):
+		if not _expect_bool(pool.preload_next_sample_async(), true, "large manifest async preload step"):
+			return false
+		if int(pool.preloaded_sample_count()) >= 1:
+			break
+		OS.delay_msec(5)
+
+	if not _expect_int(pool.preloaded_sample_count(), 1, "large manifest async preload cache count"):
+		return false
+	if not _expect_int(pool.preload_pending_sample_count(), 39, "large manifest async pending count"):
+		return false
+	pool.free()
+	return true
 
 
 func _expect_bool(actual: bool, expected: bool, label: String) -> bool:

@@ -343,6 +343,8 @@ create_fixture() {
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_vos_godot_manifest.sh" \
 		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_java_migration_nested_tmpdir.sh" \
+		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_java_oracle_provenance.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_java_migration_package.sh" \

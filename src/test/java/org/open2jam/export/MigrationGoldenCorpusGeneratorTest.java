@@ -2,6 +2,7 @@ package org.open2jam.export;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -787,6 +788,25 @@ class MigrationGoldenCorpusGeneratorTest {
                 System.setProperty("java.io.tmpdir", originalTmpdir);
             }
         }
+    }
+
+    @Test
+    void trustsJvmTempRootOnlyWhenItContainsTheCanonicalProcessTmpdir() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path jvmTempRoot = base.resolve("jvm-temp");
+        Path processTmpdir = jvmTempRoot.resolve("nested-process-tmp");
+        Path unrelatedJvmTempRoot = base.resolve("unrelated-jvm-temp");
+        Files.createDirectories(processTmpdir);
+        Files.createDirectories(unrelatedJvmTempRoot);
+
+        assertEquals(
+                jvmTempRoot,
+                MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                        processTmpdir.toString(), jvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                processTmpdir.toString(), unrelatedJvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                processTmpdir.resolve("missing").toString(), jvmTempRoot.toString()));
     }
 
     @Test

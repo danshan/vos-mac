@@ -9,6 +9,7 @@ WORKFLOW=".github/workflows/build.yml"
 INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 MISE_CONFIG="mise.toml"
 BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
+NESTED_TMPDIR_TEST="rewrite/tools/test_java_migration_nested_tmpdir.sh"
 ORACLE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_oracle_provenance.sh"
 PACKAGE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_package.sh"
 REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
@@ -22,6 +23,7 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 [[ -f "$INITIAL" ]] || { printf 'Missing aggregate initial verifier.\n' >&2; exit 1; }
 [[ -f "$MISE_CONFIG" ]] || { printf 'Missing mise configuration.\n' >&2; exit 1; }
 [[ -f "$BEHAVIOR_TEST" ]] || { printf 'Missing golden verifier behavioral contract.\n' >&2; exit 1; }
+[[ -x "$NESTED_TMPDIR_TEST" ]] || { printf 'Missing nested TMPDIR regression.\n' >&2; exit 1; }
 [[ -x "$ORACLE_BEHAVIOR_TEST" ]] || { printf 'Missing oracle provenance behavioral contract.\n' >&2; exit 1; }
 [[ -x "$PACKAGE_BEHAVIOR_TEST" ]] || { printf 'Missing package behavioral contract.\n' >&2; exit 1; }
 [[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
@@ -125,6 +127,7 @@ done
 for required_text in \
 	'bash rewrite/tools/test_verify_java_migration_goldens.sh' \
 	'bash rewrite/tools/test_verify_vos_godot_manifest.sh' \
+	'bash rewrite/tools/test_java_migration_nested_tmpdir.sh' \
 	'bash rewrite/tools/test_verify_java_oracle_provenance.sh' \
 	'bash rewrite/tools/test_verify_java_migration_package.sh' \
 	'bash rewrite/tools/verify_java_oracle_provenance.sh' \

@@ -8,6 +8,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -45,6 +46,7 @@ public final class MigrationGoldenCorpusGenerator {
             "04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
+    private static final String PROCESS_START_TMPDIR = System.getenv("TMPDIR");
     private static final Path CORPUS_RELATIVE_PATH = Path.of("rewrite/golden/java-migration");
     private static final String FILE_TYPE_MANIFEST = "manifest.files";
     private static final String HASH_MANIFEST = "manifest.sha256";
@@ -1131,28 +1133,59 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static List<TempRoot> controlledTempRoots() throws Exception {
-        Set<String> candidates = new LinkedHashSet<>();
-        candidates.add(System.getenv("TMPDIR"));
-        candidates.add("/private/tmp");
-        candidates.add("/tmp");
-        List<TempRoot> roots = new ArrayList<>();
-        for (String candidate : candidates) {
-            if (candidate == null || candidate.isEmpty()) {
-                continue;
-            }
-            Path lexical = Path.of(candidate).toAbsolutePath().normalize();
-            if (!Files.isDirectory(lexical) || lexical.getParent() == null) {
-                continue;
-            }
-            Path canonical = lexical.toRealPath();
-            if (canonical.getParent() != null) {
+        Set<TempRoot> roots = new LinkedHashSet<>();
+        for (String fixedRoot : List.of("/private/tmp", "/tmp")) {
+            Path lexical = Path.of(fixedRoot).toAbsolutePath().normalize();
+            Path canonical = canonicalExistingTempDirectory(fixedRoot);
+            if (canonical != null) {
                 roots.add(new TempRoot(lexical, canonical));
-                if (!canonical.equals(lexical)) {
-                    roots.add(new TempRoot(canonical, canonical));
-                }
+                roots.add(new TempRoot(canonical, canonical));
             }
         }
-        return roots;
+
+        Path processTmpdir = canonicalExistingTempDirectory(PROCESS_START_TMPDIR);
+        if (processTmpdir != null) {
+            roots.add(new TempRoot(processTmpdir, processTmpdir));
+        }
+        Path relatedJvmTempRoot = canonicalRelatedJvmTempRoot(
+                PROCESS_START_TMPDIR, System.getProperty("java.io.tmpdir"));
+        if (relatedJvmTempRoot != null) {
+            roots.add(new TempRoot(relatedJvmTempRoot, relatedJvmTempRoot));
+        }
+        return new ArrayList<>(roots);
+    }
+
+    static Path canonicalRelatedJvmTempRoot(String processTmpdir, String javaTmpdir)
+            throws Exception {
+        Path canonicalProcessTmpdir = canonicalExistingTempDirectory(processTmpdir);
+        Path canonicalJvmTempRoot = canonicalExistingTempDirectory(javaTmpdir);
+        if (canonicalProcessTmpdir == null || canonicalJvmTempRoot == null
+                || (!canonicalProcessTmpdir.equals(canonicalJvmTempRoot)
+                        && !canonicalProcessTmpdir.startsWith(canonicalJvmTempRoot))) {
+            return null;
+        }
+        return canonicalJvmTempRoot;
+    }
+
+    private static Path canonicalExistingTempDirectory(String candidate) throws Exception {
+        if (candidate == null || candidate.isEmpty()) {
+            return null;
+        }
+        final Path lexical;
+        try {
+            lexical = Path.of(candidate);
+        } catch (InvalidPathException invalidPath) {
+            return null;
+        }
+        if (!lexical.isAbsolute()) {
+            return null;
+        }
+        Path normalized = lexical.normalize();
+        if (!Files.isDirectory(normalized)) {
+            return null;
+        }
+        Path canonical = normalized.toRealPath();
+        return canonical.getParent() == null ? null : canonical;
     }
 
     private static void validateNoSymlinkComponents(

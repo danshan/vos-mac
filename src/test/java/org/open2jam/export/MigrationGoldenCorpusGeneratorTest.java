@@ -6,7 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
@@ -312,6 +316,73 @@ class MigrationGoldenCorpusGeneratorTest {
                             }
                         }));
         assertEquals("unexpected\n", Files.readString(target.resolve("z-unexpected.txt")));
+    }
+
+    @Test
+    void copyTreeRejectsSameLengthTargetContentReplacementBeforeFinalSnapshot()
+            throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-target-content-source");
+        Path target = base.resolve("copy-race-target-content-target");
+        Path targetFile = target.resolve("data.txt");
+        Path sentinel = base.resolve("copy-race-target-content-sentinel.txt");
+        Files.createDirectories(source);
+        Files.writeString(source.resolve("data.txt"), "data\n");
+        Files.writeString(sentinel, "keep\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                FileTime originalMtime = Files.getLastModifiedTime(
+                                        targetFile, LinkOption.NOFOLLOW_LINKS);
+                                Files.writeString(
+                                        targetFile,
+                                        "evil\n",
+                                        StandardOpenOption.WRITE,
+                                        StandardOpenOption.TRUNCATE_EXISTING);
+                                Files.setLastModifiedTime(targetFile, originalMtime);
+                            }
+                        }));
+        assertEquals("evil\n", Files.readString(targetFile));
+        assertEquals("keep\n", Files.readString(sentinel));
+    }
+
+    @Test
+    void copyTreeRejectsSameByteTargetInodeReplacementBeforeFinalSnapshot()
+            throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-target-inode-source");
+        Path target = base.resolve("copy-race-target-inode-target");
+        Path targetFile = target.resolve("data.txt");
+        Path replacement = base.resolve("copy-race-target-inode-replacement.txt");
+        Path sentinel = base.resolve("copy-race-target-inode-sentinel.txt");
+        Files.createDirectories(source);
+        Files.writeString(source.resolve("data.txt"), "same bytes\n");
+        Files.writeString(replacement, "same bytes\n");
+        Files.writeString(sentinel, "keep\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.move(
+                                        replacement,
+                                        targetFile,
+                                        StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        }));
+        assertEquals("same bytes\n", Files.readString(targetFile));
+        assertFalse(Files.exists(replacement));
+        assertEquals("keep\n", Files.readString(sentinel));
     }
 
     @Test

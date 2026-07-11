@@ -485,6 +485,7 @@ public final class MigrationGoldenCorpusGenerator {
         }
 
         ensureDirectoryNoFollow(target.toAbsolutePath().normalize(), "copy target root");
+        Map<String, StableFileSnapshot> copiedTargetFiles = new LinkedHashMap<>();
         for (Map.Entry<String, EntryState> entry : sourceSnapshot.entries().entrySet()) {
             Path sourcePath = sourceSnapshot.root().resolve(entry.getKey());
             Path destination = target.toAbsolutePath().normalize().resolve(entry.getKey());
@@ -493,17 +494,26 @@ public final class MigrationGoldenCorpusGenerator {
                 ensureDirectoryNoFollow(destination, "copy target directory");
             } else if (entry.getValue().kind() == EntryKind.REGULAR) {
                 observer.beforeFileRead("copy", Path.of(entry.getKey()));
-                copyStableRegularFile(sourcePath, entry.getValue(), entry.getKey(), destination);
+                copiedTargetFiles.put(
+                        entry.getKey(),
+                        copyStableRegularFile(
+                                sourcePath, entry.getValue(), entry.getKey(), destination));
             } else {
                 throw unsafeTreeEntry(sourcePath);
             }
         }
-        observer.beforeFinalSnapshot("copy", sourceSnapshot.root());
-        assertTreeUnchanged(sourceSnapshot, "copy source tree");
-        TreeSnapshot finalTarget = captureTree(target, "copy target tree");
-        if (!entryKinds(finalTarget).equals(expectedTargetTypes)) {
+        StableTreeSnapshot postCopyTarget = captureStableTree(target, "copy target tree");
+        if (!entryKinds(postCopyTarget.tree()).equals(expectedTargetTypes)) {
             throw new IllegalArgumentException("Copy target tree entry set or types changed");
         }
+        assertCopiedTargetFilesMatch(copiedTargetFiles, postCopyTarget);
+        observer.beforeFinalSnapshot("copy", sourceSnapshot.root());
+        assertTreeUnchanged(sourceSnapshot, "copy source tree");
+        StableTreeSnapshot finalTarget = captureStableTree(target, "copy target tree");
+        if (!postCopyTarget.equals(finalTarget)) {
+            throw new IllegalArgumentException("Copy target tree changed after copying");
+        }
+        assertCopiedTargetFilesMatch(copiedTargetFiles, finalTarget);
     }
 
     private static TreeSnapshot captureOptionalTree(Path target, String role) throws Exception {
@@ -674,7 +684,7 @@ public final class MigrationGoldenCorpusGenerator {
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    private static void copyStableRegularFile(
+    private static StableFileSnapshot copyStableRegularFile(
             Path source,
             EntryState expected,
             String label,
@@ -684,6 +694,7 @@ public final class MigrationGoldenCorpusGenerator {
             throw new IllegalArgumentException("Copy source changed before reading: " + label);
         }
         ensureDirectoryNoFollow(destination.getParent(), "copy target parent");
+        MessageDigest sourceDigest = MessageDigest.getInstance("SHA-256");
         long bytesRead = 0L;
         EntryState destinationIdentity;
         try (FileChannel input = FileChannel.open(
@@ -705,6 +716,7 @@ public final class MigrationGoldenCorpusGenerator {
                 }
                 bytesRead += read;
                 buffer.flip();
+                sourceDigest.update(buffer.asReadOnlyBuffer());
                 while (buffer.hasRemaining()) {
                     output.write(buffer);
                 }
@@ -721,6 +733,45 @@ public final class MigrationGoldenCorpusGenerator {
                 || destinationAfter.kind() != EntryKind.REGULAR
                 || destinationAfter.size() != bytesRead) {
             throw new IllegalArgumentException("Copy target changed while writing: " + destination);
+        }
+        String sourceSha256 = HexFormat.of().formatHex(sourceDigest.digest());
+        String destinationSha256 = hashStableFile(
+                destination, destinationAfter, destination.toString());
+        if (!sourceSha256.equals(destinationSha256)) {
+            throw new IllegalArgumentException(
+                    "Copy target content does not match source: " + destination);
+        }
+        return new StableFileSnapshot(destinationAfter, destinationSha256);
+    }
+
+    private static StableTreeSnapshot captureStableTree(Path root, String role) throws Exception {
+        TreeSnapshot tree = captureTree(root, role);
+        Map<String, String> hashes = new LinkedHashMap<>();
+        for (Map.Entry<String, EntryState> entry : tree.entries().entrySet().stream()
+                .filter(item -> item.getValue().kind() == EntryKind.REGULAR)
+                .sorted(Map.Entry.comparingByKey())
+                .toList()) {
+            hashes.put(
+                    entry.getKey(),
+                    hashStableFile(
+                            tree.root().resolve(entry.getKey()),
+                            entry.getValue(),
+                            entry.getKey()));
+        }
+        assertTreeUnchanged(tree, role);
+        return new StableTreeSnapshot(tree, Map.copyOf(hashes));
+    }
+
+    private static void assertCopiedTargetFilesMatch(
+            Map<String, StableFileSnapshot> copiedTargetFiles,
+            StableTreeSnapshot target) {
+        for (Map.Entry<String, StableFileSnapshot> copied : copiedTargetFiles.entrySet()) {
+            EntryState state = target.tree().entries().get(copied.getKey());
+            String sha256 = target.regularFileSha256().get(copied.getKey());
+            if (!copied.getValue().equals(new StableFileSnapshot(state, sha256))) {
+                throw new IllegalArgumentException(
+                        "Copied target file changed after copying: " + copied.getKey());
+            }
         }
     }
 
@@ -977,6 +1028,13 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private record TreeSnapshot(Path root, Map<String, EntryState> entries) {
+    }
+
+    private record StableFileSnapshot(EntryState state, String sha256) {
+    }
+
+    private record StableTreeSnapshot(
+            TreeSnapshot tree, Map<String, String> regularFileSha256) {
     }
 
     record GenerationPaths(

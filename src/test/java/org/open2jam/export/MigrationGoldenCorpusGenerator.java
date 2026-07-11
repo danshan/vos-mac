@@ -358,20 +358,21 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     static String hashManifest(Path root, TreeOperationObserver observer) throws Exception {
-        TreeSnapshot snapshot = captureTree(root, "golden corpus");
-        observer.afterInitialSnapshot("hash", snapshot.root());
-        String fileTypesRelative = relativePath(snapshot.root(), snapshot.root().resolve(FILE_TYPE_MANIFEST));
-        EntryState fileTypesState = snapshot.entries().get(fileTypesRelative);
+        StableTreeSnapshot snapshot = captureStableTree(root, "golden corpus");
+        observer.afterInitialSnapshot("hash", snapshot.tree().root());
+        String fileTypesRelative = relativePath(
+                snapshot.tree().root(), snapshot.tree().root().resolve(FILE_TYPE_MANIFEST));
+        EntryState fileTypesState = snapshot.tree().entries().get(fileTypesRelative);
         if (fileTypesState == null || fileTypesState.kind() != EntryKind.REGULAR) {
             throw new IllegalArgumentException(
                     "Missing regular corpus file-type manifest: "
-                            + snapshot.root().resolve(FILE_TYPE_MANIFEST));
+                            + snapshot.tree().root().resolve(FILE_TYPE_MANIFEST));
         }
         observer.beforeFileRead("hash", Path.of(fileTypesRelative));
-        String expectedTypes = renderFileTypeManifest(snapshot);
+        String expectedTypes = renderFileTypeManifest(snapshot.tree());
         String actualTypes = new String(
                 readStableBytes(
-                        snapshot.root().resolve(fileTypesRelative),
+                        snapshot.tree().root().resolve(fileTypesRelative),
                         fileTypesState,
                         fileTypesRelative),
                 StandardCharsets.UTF_8);
@@ -379,7 +380,7 @@ public final class MigrationGoldenCorpusGenerator {
             throw new IllegalArgumentException("Corpus file-type manifest does not match the tree");
         }
 
-        List<Map.Entry<String, EntryState>> files = snapshot.entries().entrySet().stream()
+        List<Map.Entry<String, EntryState>> files = snapshot.tree().entries().entrySet().stream()
                 .filter(entry -> entry.getValue().kind() == EntryKind.REGULAR)
                 .filter(entry -> !entry.getKey().equals(HASH_MANIFEST))
                 .sorted(Map.Entry.comparingByKey())
@@ -388,12 +389,19 @@ public final class MigrationGoldenCorpusGenerator {
         StringBuilder hashes = new StringBuilder();
         for (Map.Entry<String, EntryState> file : files) {
             observer.beforeFileRead("hash", Path.of(file.getKey()));
-            String sha256 = hashStableFile(
-                    snapshot.root().resolve(file.getKey()), file.getValue(), file.getKey());
+            String sha256 = snapshot.regularFileSha256().get(file.getKey());
+            if (sha256 == null) {
+                throw new IllegalArgumentException(
+                        "Missing pinned corpus file hash: " + file.getKey());
+            }
             hashes.append(sha256).append("  ").append(file.getKey()).append('\n');
         }
-        observer.beforeFinalSnapshot("hash", snapshot.root());
-        assertTreeUnchanged(snapshot, "golden corpus");
+        observer.beforeFinalSnapshot("hash", snapshot.tree().root());
+        StableTreeSnapshot finalSnapshot = captureStableTree(root, "golden corpus");
+        if (!snapshot.equals(finalSnapshot)) {
+            throw new IllegalArgumentException(
+                    "golden corpus metadata or content changed during hashing");
+        }
         return hashes.toString();
     }
 

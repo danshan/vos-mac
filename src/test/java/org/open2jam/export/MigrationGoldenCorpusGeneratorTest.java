@@ -10,6 +10,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
 import java.util.zip.ZipFile;
@@ -138,6 +139,43 @@ class MigrationGoldenCorpusGeneratorTest {
                             }
                         }));
         assertFalse(Files.exists(data));
+    }
+
+    @Test
+    void hashManifestRejectsSameLengthContentChangeWithRestoredMtimeAfterHashing()
+            throws Exception {
+        Path root = tempDir.toRealPath().resolve("hash-content-corpus");
+        Path data = root.resolve("data.txt");
+        Files.createDirectories(root);
+        Files.writeString(data, "good\n");
+        writeFileTypeManifest(root);
+        Object originalFileKey = Files.readAttributes(
+                data, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey();
+        long originalSize = Files.size(data);
+        FileTime originalMtime = Files.getLastModifiedTime(data, LinkOption.NOFOLLOW_LINKS);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.hashManifest(
+                        root,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                if ("hash".equals(operation)) {
+                                    Files.writeString(
+                                            data,
+                                            "evil\n",
+                                            StandardOpenOption.WRITE,
+                                            StandardOpenOption.TRUNCATE_EXISTING);
+                                    Files.setLastModifiedTime(data, originalMtime);
+                                }
+                            }
+                        }));
+        assertEquals("evil\n", Files.readString(data));
+        assertEquals(originalFileKey, Files.readAttributes(
+                data, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS).fileKey());
+        assertEquals(originalSize, Files.size(data));
+        assertEquals(originalMtime, Files.getLastModifiedTime(data, LinkOption.NOFOLLOW_LINKS));
     }
 
     @Test

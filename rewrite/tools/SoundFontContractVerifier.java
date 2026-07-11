@@ -15,7 +15,6 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
@@ -29,7 +28,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 public final class SoundFontContractVerifier {
@@ -77,7 +75,7 @@ public final class SoundFontContractVerifier {
                 Path.of(args[1]).toAbsolutePath().normalize(),
                 Path.of(args[2]).toAbsolutePath().normalize(),
                 VerificationObserver.NONE);
-        System.out.printf("SoundFont snapshot verified: %s.%n", snapshot);
+        System.out.printf("SoundFont completed snapshot verified: %s.%n", snapshot);
     }
 
     static Path verify(
@@ -86,26 +84,10 @@ public final class SoundFontContractVerifier {
             Path snapshotRoot,
             VerificationObserver observer)
             throws Exception {
-        return verify(
-                manifestPath,
-                payloadRoot,
-                snapshotRoot,
-                observer,
-                SnapshotPublisher.ATOMIC);
-    }
-
-    static Path verify(
-            Path manifestPath,
-            Path payloadRoot,
-            Path snapshotRoot,
-            VerificationObserver observer,
-            SnapshotPublisher publisher)
-            throws Exception {
         Objects.requireNonNull(manifestPath, "manifestPath");
         Objects.requireNonNull(payloadRoot, "payloadRoot");
         Objects.requireNonNull(snapshotRoot, "snapshotRoot");
         Objects.requireNonNull(observer, "observer");
-        Objects.requireNonNull(publisher, "publisher");
 
         Path manifest = canonicalInput(manifestPath, "manifest");
         Path root = canonicalInput(payloadRoot, "payload root");
@@ -129,8 +111,39 @@ public final class SoundFontContractVerifier {
                 snapshot,
                 snapshotParentGuard,
                 contract,
-                observer,
-                publisher);
+                observer);
+    }
+
+    static Path verifyCompletedSnapshot(Path snapshotRoot) throws Exception {
+        Objects.requireNonNull(snapshotRoot, "snapshotRoot");
+        Path root = canonicalInput(snapshotRoot, "snapshot root");
+        try {
+            validateNoSymlinkAncestry(root);
+            EntryState rootState = captureEntry(root, "snapshot root");
+            if (rootState.kind() != EntryKind.DIRECTORY) {
+                throw failure("snapshot root is not a directory: " + root);
+            }
+            Path manifest = root.resolve("contract.manifest");
+            EntryState manifestState = captureEntry(manifest, "snapshot manifest");
+            if (manifestState.kind() != EntryKind.REGULAR) {
+                throw failure("snapshot manifest is not regular");
+            }
+            StableRead manifestRead = readStableBytes(
+                    manifest, manifestState, MANIFEST_SIZE_CAP, "snapshot manifest");
+            Contract contract = parseManifest(decodeUtf8(manifestRead.bytes()));
+            SnapshotShape shape = snapshotShape(contract, manifestRead);
+            SnapshotState first = verifySnapshot(
+                    root, shape, shape.maxDepth(), shape.maxEntries());
+            SnapshotState second = verifySnapshot(
+                    root, shape, shape.maxDepth(), shape.maxEntries());
+            if (!first.equals(second)) {
+                throw failure("completed snapshot changed during consumer verification");
+            }
+            return root.toRealPath(LinkOption.NOFOLLOW_LINKS);
+        } catch (Exception exception) {
+            throw phaseFailure(
+                    "SNAPSHOT_VERIFY", "completed snapshot consumer rejected root", exception);
+        }
     }
 
     private static Path canonicalInput(Path input, String label) {
@@ -193,27 +206,26 @@ public final class SoundFontContractVerifier {
             Path snapshotRoot,
             EntryState snapshotParentGuard,
             Contract contract,
-            VerificationObserver observer,
-            SnapshotPublisher publisher)
+            VerificationObserver observer)
             throws Exception {
-        Path staging = createOwnedStaging(snapshotRoot, snapshotParentGuard);
-        EntryState guard = captureEntry(staging, "snapshot staging root");
         SnapshotShape shape = snapshotShape(contract, manifestRead);
-        boolean published = false;
+        OwnedSnapshotRoot owned = reserveSnapshotRoot(
+                snapshotRoot, snapshotParentGuard, observer);
+        boolean completed = false;
         Exception primaryFailure = null;
         try {
             try {
-                requireSnapshotParentGuard(snapshotRoot, snapshotParentGuard);
-                validateNoSymlinkAncestry(staging);
+                owned.requireIdentity();
                 buildSnapshot(
-                        manifestRead, payloadRoot, staging, contract, observer);
+                        manifestRead, payloadRoot, owned, contract, observer);
             } catch (Exception exception) {
                 throw phaseFailure("SNAPSHOT_BUILD", "unable to build verified snapshot", exception);
             }
 
             SnapshotState first;
             try {
-                observer.beforeSnapshotVerification(staging);
+                owned.requireIdentity();
+                observer.beforeSnapshotVerification(snapshotRoot);
                 int maxDepth = observer.snapshotMaxDepth(shape.maxDepth());
                 int maxEntries = observer.snapshotMaxEntries(shape.maxEntries());
                 if (maxDepth < 1
@@ -222,38 +234,31 @@ public final class SoundFontContractVerifier {
                         || maxEntries > shape.maxEntries()) {
                     throw failure("snapshot traversal limits may only tighten fixed ceilings");
                 }
-                first = verifySnapshot(staging, shape, maxDepth, maxEntries);
+                first = verifySnapshot(snapshotRoot, shape, maxDepth, maxEntries);
                 SnapshotState second = verifySnapshot(
-                        staging, shape, maxDepth, maxEntries);
+                        snapshotRoot, shape, maxDepth, maxEntries);
                 if (!first.equals(second)) {
                     throw failure("completed snapshot changed during final verification");
                 }
+                owned.requireIdentity();
+                Path verified = verifyCompletedSnapshot(snapshotRoot);
+                owned.requireIdentity();
+                completed = true;
+                return verified;
             } catch (Exception exception) {
                 throw phaseFailure("SNAPSHOT_VERIFY", "completed snapshot verification failed", exception);
             }
-
-            try {
-                requireSnapshotParentGuard(snapshotRoot, snapshotParentGuard);
-                if (Files.exists(snapshotRoot, LinkOption.NOFOLLOW_LINKS)
-                        || Files.isSymbolicLink(snapshotRoot)) {
-                    throw failure("requested snapshot appeared before publication");
-                }
-                publisher.publish(staging, snapshotRoot);
-                published = true;
-            } catch (Exception exception) {
-                throw phaseFailure("SNAPSHOT_PUBLISH", "atomic snapshot publication failed", exception);
-            }
-            return snapshotRoot.toRealPath(LinkOption.NOFOLLOW_LINKS);
         } catch (Exception exception) {
             primaryFailure = exception;
             throw exception;
         } finally {
-            if (!published) {
+            if (!completed) {
                 try {
-                    deleteOwnedStaging(staging, guard, shape);
+                    deleteOwnedSnapshotRoot(owned);
                 } catch (Exception cleanupFailure) {
                     IllegalStateException residueFailure = failure(
-                            "[SNAPSHOT_CLEANUP] owned staging residue retained: " + staging,
+                            "[SNAPSHOT_CLEANUP] owned incomplete snapshot residue retained: "
+                                    + snapshotRoot,
                             cleanupFailure);
                     if (primaryFailure != null) {
                         primaryFailure.addSuppressed(residueFailure);
@@ -265,22 +270,40 @@ public final class SoundFontContractVerifier {
         }
     }
 
-    private static Path createOwnedStaging(
-            Path snapshotRoot, EntryState snapshotParentGuard) {
-        Path parent = snapshotRoot.getParent();
-        requireSnapshotParentGuard(snapshotRoot, snapshotParentGuard);
-        String prefix = "." + snapshotRoot.getFileName() + ".staging-";
-        for (int attempt = 0; attempt < 16; attempt++) {
-            Path candidate = parent.resolve(prefix + UUID.randomUUID());
-            try {
-                return Files.createDirectory(candidate);
-            } catch (FileAlreadyExistsException ignored) {
-                // Retry with a fresh unguessable sibling name.
-            } catch (IOException exception) {
-                throw failure("[SNAPSHOT_BUILD] unable to create snapshot staging directory", exception);
-            }
+    private static OwnedSnapshotRoot reserveSnapshotRoot(
+            Path snapshotRoot,
+            EntryState snapshotParentGuard,
+            VerificationObserver observer)
+            throws Exception {
+        try {
+            observer.beforeSnapshotReservation(snapshotRoot);
+            requireSnapshotParentGuard(snapshotRoot, snapshotParentGuard);
+            Files.createDirectory(snapshotRoot);
+        } catch (FileAlreadyExistsException exception) {
+            throw failure(
+                    "[SNAPSHOT_PUBLISH] requested snapshot appeared before reservation: "
+                            + snapshotRoot,
+                    exception);
+        } catch (Exception exception) {
+            throw phaseFailure(
+                    "SNAPSHOT_PUBLISH", "unable to reserve requested snapshot root", exception);
         }
-        throw failure("[SNAPSHOT_BUILD] unable to allocate unique snapshot staging directory");
+        EntryState rootGuard;
+        try {
+            rootGuard = captureEntry(snapshotRoot, "reserved snapshot root");
+            if (rootGuard.kind() != EntryKind.DIRECTORY) {
+                throw failure("reserved snapshot root is not a directory");
+            }
+            requireSnapshotParentGuard(snapshotRoot, snapshotParentGuard);
+            validateNoSymlinkAncestry(snapshotRoot);
+        } catch (Exception exception) {
+            throw failure(
+                    "[SNAPSHOT_CLEANUP] reserved root could not be guarded; residue retained: "
+                            + snapshotRoot,
+                    exception);
+        }
+        return new OwnedSnapshotRoot(
+                snapshotRoot, snapshotParentGuard, rootGuard);
     }
 
     private static void requireSnapshotParentGuard(
@@ -302,26 +325,26 @@ public final class SoundFontContractVerifier {
     private static void buildSnapshot(
             StableRead manifestRead,
             Path payloadRoot,
-            Path staging,
+            OwnedSnapshotRoot owned,
             Contract contract,
             VerificationObserver observer)
             throws Exception {
-        Files.createDirectory(staging.resolve("payload"));
+        owned.createDirectory("payload");
         expectedPayloadDirectories(contract).stream()
                 .filter(path -> !path.isEmpty())
                 .sorted((left, right) -> Integer.compare(
                         Path.of(left).getNameCount(), Path.of(right).getNameCount()))
-                .forEach(relative -> createSnapshotDirectory(
-                        staging.resolve("payload").resolve(relative)));
+                .forEach(relative -> owned.createDirectory("payload/" + relative));
 
         writeCreateNew(
-                staging.resolve("contract.manifest"),
+                owned,
+                "contract.manifest",
                 manifestRead.bytes(),
                 MANIFEST_SIZE_CAP,
                 "manifest snapshot");
         String manifestSnapshotSha = hashStableFile(
-                staging.resolve("contract.manifest"),
-                captureEntry(staging.resolve("contract.manifest"), "manifest snapshot"),
+                owned.root().resolve("contract.manifest"),
+                captureEntry(owned.root().resolve("contract.manifest"), "manifest snapshot"),
                 MANIFEST_SIZE_CAP,
                 "manifest snapshot");
         if (!manifestRead.sha256().equals(manifestSnapshotSha)) {
@@ -331,14 +354,14 @@ public final class SoundFontContractVerifier {
         for (ExpectedFile expected : contract.files()) {
             copyVerifiedSource(
                     payloadRoot.resolve(expected.relativePath()),
-                    staging.resolve("payload").resolve(expected.relativePath()),
+                    owned,
+                    "payload/" + expected.relativePath(),
                     expected,
                     observer);
         }
+        owned.requireIdentity();
         observer.beforeMarkerWrite();
-        byte[] marker = markerBytes(manifestRead.sha256());
-        writeCreateNew(
-                staging.resolve("snapshot.marker"), marker, marker.length, "snapshot marker");
+        writeMarkerCreateNew(owned, manifestRead.sha256(), observer);
     }
 
     private static Set<String> expectedPayloadDirectories(Contract contract) {
@@ -353,31 +376,27 @@ public final class SoundFontContractVerifier {
         return directories;
     }
 
-    private static void createSnapshotDirectory(Path directory) {
-        try {
-            Files.createDirectory(directory);
-        } catch (IOException exception) {
-            throw failure("unable to create snapshot directory: " + directory, exception);
-        }
-    }
-
     private static void writeCreateNew(
-            Path destination, byte[] bytes, long cap, String label) throws Exception {
+            OwnedSnapshotRoot owned,
+            String relative,
+            byte[] bytes,
+            long cap,
+            String label)
+            throws Exception {
         if (bytes.length > cap) {
             throw failure(label + " exceeds hard cap of " + cap + " bytes");
         }
-        try (FileChannel output = FileChannel.open(
-                destination, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            while (buffer.hasRemaining()) {
-                output.write(buffer);
-            }
-        }
+        writeOwnedFile(
+                owned,
+                relative,
+                cap,
+                output -> writeFully(output, ByteBuffer.wrap(bytes)));
     }
 
     private static void copyVerifiedSource(
             Path source,
-            Path destination,
+            OwnedSnapshotRoot owned,
+            String snapshotRelative,
             ExpectedFile expected,
             VerificationObserver observer)
             throws Exception {
@@ -387,37 +406,37 @@ public final class SoundFontContractVerifier {
                     + expected.relativePath());
         }
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        long copied = 0L;
+        long[] copied = {0L};
         try (FileChannel input = FileChannel.open(
-                        source, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
-                FileChannel output = FileChannel.open(
-                        destination,
-                        StandardOpenOption.CREATE_NEW,
-                        StandardOpenOption.WRITE)) {
+                source, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
             EntryState afterOpen = captureEntry(source, expected.relativePath());
             if (!before.equals(afterOpen)) {
                 throw failure("[SOURCE_CONTENT] source changed while opening: "
                         + expected.relativePath());
             }
-            observer.afterSourceOpen(expected.relativePath());
-            ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
-            int count;
-            while ((count = input.read(buffer)) != -1) {
-                if (count == 0) {
-                    continue;
-                }
-                if (copied > expected.sizeCap() - count) {
-                    throw failure("[SOURCE_CONTENT] source exceeds hard cap: "
-                            + expected.relativePath());
-                }
-                copied += count;
-                buffer.flip();
-                digest.update(buffer.asReadOnlyBuffer());
-                while (buffer.hasRemaining()) {
-                    output.write(buffer);
-                }
-                buffer.clear();
-            }
+            writeOwnedFile(
+                    owned,
+                    snapshotRelative,
+                    expected.sizeCap(),
+                    output -> {
+                        observer.afterSourceOpen(expected.relativePath());
+                        ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
+                        int count;
+                        while ((count = input.read(buffer)) != -1) {
+                            if (count == 0) {
+                                continue;
+                            }
+                            if (copied[0] > expected.sizeCap() - count) {
+                                throw failure("[SOURCE_CONTENT] source exceeds hard cap: "
+                                        + expected.relativePath());
+                            }
+                            copied[0] += count;
+                            buffer.flip();
+                            digest.update(buffer.asReadOnlyBuffer());
+                            writeFully(output, buffer);
+                            buffer.clear();
+                        }
+                    });
         } catch (IllegalStateException exception) {
             throw exception;
         } catch (Exception exception) {
@@ -425,9 +444,70 @@ public final class SoundFontContractVerifier {
                     + expected.relativePath(), exception);
         }
         String actualSha = HexFormat.of().formatHex(digest.digest());
-        if (copied != expected.size() || !actualSha.equals(expected.sha256())) {
+        if (copied[0] != expected.size() || !actualSha.equals(expected.sha256())) {
             throw failure("[SOURCE_CONTENT] source bytes do not match manifest: "
                     + expected.relativePath());
+        }
+    }
+
+    private static void writeMarkerCreateNew(
+            OwnedSnapshotRoot owned,
+            String manifestSha256,
+            VerificationObserver observer)
+            throws Exception {
+        byte[] prefix = "soundfont-snapshot-v1\n".getBytes(StandardCharsets.UTF_8);
+        byte[] suffix = ("manifest.sha256=" + manifestSha256 + "\n")
+                .getBytes(StandardCharsets.UTF_8);
+        int markerSize = prefix.length + suffix.length;
+        writeOwnedFile(
+                owned,
+                "snapshot.marker",
+                markerSize,
+                output -> {
+                    writeFully(output, ByteBuffer.wrap(prefix));
+                    observer.afterPartialMarkerWrite(
+                            owned.root().resolve("snapshot.marker"));
+                    writeFully(output, ByteBuffer.wrap(suffix));
+                });
+    }
+
+    private static void writeOwnedFile(
+            OwnedSnapshotRoot owned,
+            String relative,
+            long cap,
+            OwnedFileWriter writer)
+            throws Exception {
+        owned.requireIdentity();
+        Path destination = owned.root().resolve(relative);
+        boolean registered = false;
+        Exception primaryFailure = null;
+        try (FileChannel output = FileChannel.open(
+                destination, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            owned.registerCreatedFile(relative, cap);
+            registered = true;
+            writer.write(output);
+        } catch (Exception exception) {
+            primaryFailure = exception;
+            throw exception;
+        } finally {
+            if (registered) {
+                try {
+                    owned.refreshFile(relative, cap);
+                } catch (Exception refreshFailure) {
+                    if (primaryFailure != null) {
+                        primaryFailure.addSuppressed(refreshFailure);
+                    } else {
+                        throw refreshFailure;
+                    }
+                }
+            }
+        }
+    }
+
+    private static void writeFully(FileChannel output, ByteBuffer buffer)
+            throws IOException {
+        while (buffer.hasRemaining()) {
+            output.write(buffer);
         }
     }
 
@@ -586,57 +666,117 @@ public final class SoundFontContractVerifier {
         return result;
     }
 
-    private static void deleteOwnedStaging(
-            Path staging, EntryState guard, SnapshotShape shape) throws Exception {
-        if (!Files.exists(staging, LinkOption.NOFOLLOW_LINKS)
-                && !Files.isSymbolicLink(staging)) {
+    private static void deleteOwnedSnapshotRoot(OwnedSnapshotRoot owned)
+            throws Exception {
+        Path root = owned.root();
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)
+                && !Files.isSymbolicLink(root)) {
             return;
         }
-        EntryState current = captureEntry(staging, "snapshot staging cleanup root");
-        if (guard.kind() != EntryKind.DIRECTORY
-                || current.kind() != EntryKind.DIRECTORY
-                || !guard.fileKey().equals(current.fileKey())) {
-            throw failure("staging guard mismatch; residue retained: " + staging);
+        owned.requireIdentity();
+        TreeSnapshot current = captureCleanupTree(root);
+        if (!current.entries().keySet().equals(owned.guards().keySet())) {
+            throw failure("incomplete snapshot entries changed; residue retained: " + root);
         }
+        for (Map.Entry<String, OwnedGuard> entry : owned.guards().entrySet()) {
+            validateOwnedGuard(root, entry.getKey(), entry.getValue(), current);
+        }
+
+        List<String> files = owned.guards().entrySet().stream()
+                .filter(entry -> entry.getValue().state().kind() == EntryKind.REGULAR)
+                .map(Map.Entry::getKey)
+                .sorted((left, right) -> Integer.compare(
+                        Path.of(right).getNameCount(), Path.of(left).getNameCount()))
+                .toList();
+        for (String relative : files) {
+            validateOwnedGuard(root, relative, owned.guards().get(relative), current);
+            Files.delete(root.resolve(relative));
+        }
+
+        List<String> directories = owned.guards().entrySet().stream()
+                .filter(entry -> entry.getValue().state().kind() == EntryKind.DIRECTORY)
+                .map(Map.Entry::getKey)
+                .filter(relative -> !relative.isEmpty())
+                .sorted((left, right) -> Integer.compare(
+                        Path.of(right).getNameCount(), Path.of(left).getNameCount()))
+                .toList();
+        for (String relative : directories) {
+            EntryState state = captureEntry(root.resolve(relative), relative);
+            OwnedGuard guard = owned.guards().get(relative);
+            if (state.kind() != EntryKind.DIRECTORY
+                    || !state.fileKey().equals(guard.state().fileKey())) {
+                throw failure("owned directory changed; residue retained: " + relative);
+            }
+            Files.delete(root.resolve(relative));
+        }
+        owned.requireIdentity();
+        Files.delete(root);
+    }
+
+    private static TreeSnapshot captureCleanupTree(Path root) throws Exception {
+        Map<String, EntryState> entries = new LinkedHashMap<>();
         int[] count = {0};
         Files.walkFileTree(
-                staging,
+                root,
                 EnumSet.noneOf(FileVisitOption.class),
-                Math.max(shape.maxDepth() + 2, SNAPSHOT_CLEANUP_DEPTH_CAP),
+                SNAPSHOT_CLEANUP_DEPTH_CAP,
                 new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult preVisitDirectory(
                             Path directory, BasicFileAttributes attributes) {
-                        count[0]++;
-                        if (count[0] > SNAPSHOT_CLEANUP_ENTRY_CAP) {
-                            throw failure("staging cleanup exceeded bounded entry ceiling; "
-                                    + "residue retained: " + staging);
-                        }
+                        String relative = portable(root.relativize(directory));
+                        countCleanupEntry(count, relative, root);
+                        addTreeEntry(entries, relative, captureEntry(directory, relative));
                         return FileVisitResult.CONTINUE;
                     }
 
                     @Override
                     public FileVisitResult visitFile(
-                            Path file, BasicFileAttributes attributes) throws IOException {
-                        count[0]++;
-                        if (count[0] > SNAPSHOT_CLEANUP_ENTRY_CAP) {
-                            throw failure("staging cleanup exceeded bounded entry ceiling; "
-                                    + "residue retained: " + staging);
+                            Path file, BasicFileAttributes attributes) {
+                        String relative = portable(root.relativize(file));
+                        countCleanupEntry(count, relative, root);
+                        if (attributes.isDirectory()) {
+                            throw failure("cleanup depth ceiling reached; residue retained: "
+                                    + root);
                         }
-                        Files.delete(file);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult postVisitDirectory(
-                            Path directory, IOException exception) throws IOException {
-                        if (exception != null) {
-                            throw exception;
-                        }
-                        Files.delete(directory);
+                        addTreeEntry(entries, relative, captureEntry(file, relative));
                         return FileVisitResult.CONTINUE;
                     }
                 });
+        return new TreeSnapshot(Map.copyOf(entries));
+    }
+
+    private static void countCleanupEntry(
+            int[] count, String relative, Path root) {
+        count[0]++;
+        if (count[0] > SNAPSHOT_CLEANUP_ENTRY_CAP) {
+            throw failure("cleanup entry ceiling reached at " + relative
+                    + "; residue retained: " + root);
+        }
+    }
+
+    private static void validateOwnedGuard(
+            Path root,
+            String relative,
+            OwnedGuard guard,
+            TreeSnapshot snapshot)
+            throws Exception {
+        EntryState actual = snapshot.entries().get(relative);
+        if (actual == null
+                || actual.kind() != guard.state().kind()
+                || !actual.fileKey().equals(guard.state().fileKey())) {
+            throw failure("owned entry identity changed; residue retained: " + relative);
+        }
+        if (actual.kind() == EntryKind.REGULAR) {
+            if (!actual.equals(guard.state()) || guard.sha256() == null) {
+                throw failure("owned file metadata changed; residue retained: " + relative);
+            }
+            String actualSha = hashStableFile(
+                    root.resolve(relative), actual, guard.sizeCap(), relative);
+            if (!actualSha.equals(guard.sha256())) {
+                throw failure("owned file bytes changed; residue retained: " + relative);
+            }
+        }
     }
 
     private static IllegalStateException phaseFailure(
@@ -1233,13 +1373,19 @@ public final class SoundFontContractVerifier {
         default void afterInitialSnapshot() throws Exception {
         }
 
+        default void beforeSnapshotReservation(Path requested) throws Exception {
+        }
+
         default void afterSourceOpen(String relativePath) throws Exception {
         }
 
         default void beforeMarkerWrite() throws Exception {
         }
 
-        default void beforeSnapshotVerification(Path staging) throws Exception {
+        default void afterPartialMarkerWrite(Path marker) throws Exception {
+        }
+
+        default void beforeSnapshotVerification(Path snapshotRoot) throws Exception {
         }
 
         default int snapshotMaxDepth(int fixedMaximum) {
@@ -1252,11 +1398,88 @@ public final class SoundFontContractVerifier {
     }
 
     @FunctionalInterface
-    interface SnapshotPublisher {
-        SnapshotPublisher ATOMIC = (staging, requested) -> Files.move(
-                staging, requested, StandardCopyOption.ATOMIC_MOVE);
+    private interface OwnedFileWriter {
+        void write(FileChannel output) throws Exception;
+    }
 
-        void publish(Path staging, Path requested) throws Exception;
+    private static final class OwnedSnapshotRoot {
+        private final Path root;
+        private final EntryState parentGuard;
+        private final EntryState rootGuard;
+        private final Map<String, OwnedGuard> guards = new LinkedHashMap<>();
+
+        private OwnedSnapshotRoot(
+                Path root, EntryState parentGuard, EntryState rootGuard) {
+            this.root = root;
+            this.parentGuard = parentGuard;
+            this.rootGuard = rootGuard;
+            guards.put("", new OwnedGuard(rootGuard, null, 0L));
+        }
+
+        private Path root() {
+            return root;
+        }
+
+        private Map<String, OwnedGuard> guards() {
+            return guards;
+        }
+
+        private void requireIdentity() {
+            requireSnapshotParentGuard(root, parentGuard);
+            validateNoSymlinkAncestry(root);
+            EntryState actual = captureEntry(root, "reserved snapshot root");
+            if (actual.kind() != EntryKind.DIRECTORY
+                    || rootGuard.kind() != EntryKind.DIRECTORY
+                    || !actual.fileKey().equals(rootGuard.fileKey())) {
+                throw failure("reserved snapshot root identity changed");
+            }
+        }
+
+        private void createDirectory(String relative) {
+            requireIdentity();
+            Path directory = root.resolve(relative);
+            try {
+                Files.createDirectory(directory);
+            } catch (IOException exception) {
+                throw failure("unable to create snapshot directory: " + relative, exception);
+            }
+            EntryState state = captureEntry(directory, relative);
+            if (state.kind() != EntryKind.DIRECTORY
+                    || guards.putIfAbsent(
+                                    relative, new OwnedGuard(state, null, 0L))
+                            != null) {
+                throw failure("unable to guard created snapshot directory: " + relative);
+            }
+            requireIdentity();
+        }
+
+        private void registerCreatedFile(String relative, long sizeCap) {
+            requireIdentity();
+            EntryState state = captureEntry(root.resolve(relative), relative);
+            if (state.kind() != EntryKind.REGULAR
+                    || guards.putIfAbsent(
+                                    relative, new OwnedGuard(state, null, sizeCap))
+                            != null) {
+                throw failure("unable to guard created snapshot file: " + relative);
+            }
+        }
+
+        private void refreshFile(String relative, long sizeCap) throws Exception {
+            requireIdentity();
+            OwnedGuard previous = guards.get(relative);
+            if (previous == null || previous.state().kind() != EntryKind.REGULAR) {
+                throw failure("missing created snapshot file guard: " + relative);
+            }
+            EntryState state = captureEntry(root.resolve(relative), relative);
+            if (state.kind() != EntryKind.REGULAR
+                    || !state.fileKey().equals(previous.state().fileKey())) {
+                throw failure("created snapshot file identity changed: " + relative);
+            }
+            String sha = hashStableFile(
+                    root.resolve(relative), state, sizeCap, relative);
+            guards.put(relative, new OwnedGuard(state, sha, sizeCap));
+            requireIdentity();
+        }
     }
 
     private enum EntryKind {
@@ -1307,5 +1530,8 @@ public final class SoundFontContractVerifier {
     }
 
     private record SnapshotState(TreeSnapshot tree, Map<String, String> hashes) {
+    }
+
+    private record OwnedGuard(EntryState state, String sha256, long sizeCap) {
     }
 }

@@ -140,11 +140,15 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void writeHashes(Path stagedCorpus) throws Exception {
+        writeUtf8(stagedCorpus.resolve("manifest.sha256"), hashManifest(stagedCorpus));
+    }
+
+    public static String hashManifest(Path root) throws Exception {
         List<Path> files;
-        try (Stream<Path> paths = Files.walk(stagedCorpus)) {
+        try (Stream<Path> paths = Files.walk(root)) {
             files = paths.filter(Files::isRegularFile)
-                    .filter(path -> !path.equals(stagedCorpus.resolve("manifest.sha256")))
-                    .sorted(Comparator.comparing(path -> relativePath(stagedCorpus, path)))
+                    .filter(path -> !path.equals(root.resolve("manifest.sha256")))
+                    .sorted(Comparator.comparing(path -> relativePath(root, path)))
                     .toList();
         }
 
@@ -152,9 +156,9 @@ public final class MigrationGoldenCorpusGenerator {
         StringBuilder hashes = new StringBuilder();
         for (Path file : files) {
             String sha256 = HexFormat.of().formatHex(digest.digest(Files.readAllBytes(file)));
-            hashes.append(sha256).append("  ").append(relativePath(stagedCorpus, file)).append('\n');
+            hashes.append(sha256).append("  ").append(relativePath(root, file)).append('\n');
         }
-        writeUtf8(stagedCorpus.resolve("manifest.sha256"), hashes.toString());
+        return hashes.toString();
     }
 
     private static String relativePath(Path root, Path path) {

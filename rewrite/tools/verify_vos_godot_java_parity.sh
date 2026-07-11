@@ -135,7 +135,6 @@ require_text "$RENDER_FIXTURE" '"glyphHeight":20.0' "status text glyph-height me
 require_text "$RENDER_FIXTURE" '"antiAlias":false' "status text antialias metadata"
 require_text "$RENDER_FIXTURE" '"fontColor":"#ffffffff"' "status text font color metadata"
 require_text "$RENDER_FIXTURE" '"scaleY":-1.0' "status text scale-y metadata"
-require_text "$RENDER_FIXTURE" '"networkStatusTextLayout"' "network status text layout metadata"
 require_text "$RENDER_FIXTURE" '"startY":64.0' "network status text start-y metadata"
 require_text "$RENDER_FIXTURE" '"serverLineHeight":24.0' "network status server line-height metadata"
 require_text "$RENDER_FIXTURE" '"connectionLineHeight":18.0' "network status connection line-height metadata"

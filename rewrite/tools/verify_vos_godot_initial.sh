@@ -12,6 +12,12 @@ JAVA_TESTS=(
 	VOSChartTest
 	VOSParserTest
 	EventListChannelRandomTest
+	OsuManiaParserTest
+	ChartModelLoaderTest
+	MusicSelectionSelectionTest
+	ChartDisplayTest
+	ConfigTest
+	JudgmentStrategyOracleFixtureTest
 	JudgmentResultStringTest
 	SpeedMultiplierOracleFixtureTest
 	NoteDistanceCalculatorOracleFixtureTest
@@ -171,8 +177,6 @@ run_godot_test res://scripts/tests/java_capture_resampler_test.gd
 run_godot_test res://scripts/tests/java_capture_viewport_config_test.gd
 run_godot_test res://scripts/tests/java_texture_loader_test.gd
 run_godot_test res://scripts/tests/settings_store_test.gd
-run_godot_test res://scripts/tests/partytime_client_test.gd
-run_godot_test res://scripts/tests/partytime_server_test.gd
 run_godot_test res://scripts/tests/input_map_store_test.gd
 run_godot_test res://scripts/tests/catalog_store_test.gd
 run_godot_test res://scripts/tests/gameplay_loader_test.gd

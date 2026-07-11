@@ -80,8 +80,8 @@ public final class MigrationGoldenCorpusGenerator {
 
     static GenerationPaths validateProgrammaticPaths(Path outputRoot, Path workRoot) throws Exception {
         Path projectRoot = Path.of("").toRealPath();
-        Path output = canonicalTempDescendant(outputRoot, "output root");
-        Path work = canonicalTempDescendant(workRoot, "work root");
+        Path output = canonicalProgrammaticTempDescendant(outputRoot, "output root");
+        Path work = canonicalProgrammaticTempDescendant(workRoot, "work root");
         rejectProjectTree(output, projectRoot, "output root");
         rejectProjectTree(work, projectRoot, "work root");
         rejectOverlappingRoots(output, work);
@@ -109,6 +109,11 @@ public final class MigrationGoldenCorpusGenerator {
 
         Path rawWork = Path.of(workArgument);
         Path work = canonicalTempDescendant(rawWork, "work root");
+        Path expectedWork = Path.of(CANONICAL_WORK_ROOT);
+        if (!work.equals(expectedWork)) {
+            throw new IllegalArgumentException(
+                    "CLI work root must be the pinned migration temp root: " + expectedWork);
+        }
         rejectProjectTree(work, project, "work root");
         rejectOverlappingRoots(output, work);
         return new GenerationPaths(output, work, project, true);
@@ -515,6 +520,22 @@ public final class MigrationGoldenCorpusGenerator {
             return canonical;
         }
         throw new IllegalArgumentException(role + " must be below a controlled temp root: " + rawPath);
+    }
+
+    private static Path canonicalProgrammaticTempDescendant(Path rawPath, String role)
+            throws Exception {
+        if (rawPath == null || !rawPath.isAbsolute() || !rawPath.equals(rawPath.normalize())) {
+            throw new IllegalArgumentException(
+                    role + " must be an absolute normalized path: " + rawPath);
+        }
+        Path normalized = rawPath.normalize();
+        validateNoSymlinkAncestry(normalized, role);
+        Path canonical = canonicalTempDescendant(normalized, role);
+        if (!canonical.equals(normalized)) {
+            throw new IllegalArgumentException(
+                    role + " must use its physical canonical path: " + rawPath);
+        }
+        return canonical;
     }
 
     private static List<TempRoot> controlledTempRoots() throws Exception {

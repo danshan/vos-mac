@@ -52,8 +52,9 @@ class MigrationGoldenCorpusTest {
 
     @Test
     void pinnedJavaReproducesCommittedCorpus() throws Exception {
-        Path regenerated = tempDir.resolve("regenerated");
-        MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("work"));
+        Path base = tempDir.toRealPath();
+        Path regenerated = base.resolve("regenerated");
+        MigrationGoldenCorpusGenerator.generate(regenerated, base.resolve("work"));
         assertEquals(MigrationGoldenCorpusGenerator.hashManifest(COMMITTED),
                 MigrationGoldenCorpusGenerator.hashManifest(regenerated.toRealPath()));
     }
@@ -74,9 +75,10 @@ class MigrationGoldenCorpusTest {
 
     @Test
     void regeneratedCorpusHashRejectsDirectorySymlink() throws Exception {
-        Path regenerated = tempDir.resolve("regenerated-directory-symlink");
-        Path external = tempDir.resolve("external-directory");
-        MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("directory-work"));
+        Path base = tempDir.toRealPath();
+        Path regenerated = base.resolve("regenerated-directory-symlink");
+        Path external = base.resolve("external-directory");
+        MigrationGoldenCorpusGenerator.generate(regenerated, base.resolve("directory-work"));
         Files.createDirectories(external);
         Files.writeString(external.resolve("same.json"), "{}\n", StandardCharsets.UTF_8);
         Files.createSymbolicLink(regenerated.resolve("linked-directory"), external);
@@ -87,9 +89,10 @@ class MigrationGoldenCorpusTest {
 
     @Test
     void regeneratedCorpusHashRejectsSpecialFile() throws Exception {
-        Path regenerated = tempDir.resolve("regenerated-special-file");
+        Path base = tempDir.toRealPath();
+        Path regenerated = base.resolve("regenerated-special-file");
         Path fifo = regenerated.resolve("fifo");
-        MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("special-work"));
+        MigrationGoldenCorpusGenerator.generate(regenerated, base.resolve("special-work"));
         Process process = new ProcessBuilder("mkfifo", fifo.toString()).start();
         assertEquals(0, process.waitFor());
 

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -17,8 +18,9 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void generatesSourcesExpectedArtifactsAndProvenance() throws Exception {
-        Path output = tempDir.resolve("java-migration");
-        Path work = tempDir.resolve("open2jam-java-golden-v1");
+        Path base = tempDir.toRealPath();
+        Path output = base.resolve("java-migration");
+        Path work = base.resolve("open2jam-java-golden-v1");
 
         MigrationGoldenCorpusGenerator.generate(output, work);
 
@@ -165,7 +167,7 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void rejectsOverlappingRootsBeforeDeletingSentinels() throws Exception {
-        Path output = tempDir.resolve("overlap");
+        Path output = tempDir.toRealPath().resolve("overlap");
         Path work = output.resolve("work");
         Path sentinel = output.resolve("sentinel.txt");
         Files.createDirectories(work);
@@ -178,7 +180,7 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void rejectsEqualRootsBeforeDeletingSentinels() throws Exception {
-        Path root = tempDir.resolve("equal");
+        Path root = tempDir.toRealPath().resolve("equal");
         Path sentinel = root.resolve("sentinel.txt");
         Files.createDirectories(root);
         Files.writeString(sentinel, "keep\n");
@@ -206,8 +208,9 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void rejectsExistingSymlinkComponentBeforeMutation() throws Exception {
-        Path realOutput = tempDir.resolve("real-output");
-        Path linkedOutput = tempDir.resolve("linked-output");
+        Path base = tempDir.toRealPath();
+        Path realOutput = base.resolve("real-output");
+        Path linkedOutput = base.resolve("linked-output");
         Path sentinel = realOutput.resolve("sentinel.txt");
         Files.createDirectories(realOutput);
         Files.writeString(sentinel, "keep\n");
@@ -215,7 +218,7 @@ class MigrationGoldenCorpusGeneratorTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> MigrationGoldenCorpusGenerator.generate(
-                        linkedOutput.resolve("java-migration"), tempDir.resolve("work")));
+                        linkedOutput.resolve("java-migration"), base.resolve("work")));
         assertTrue(Files.isSymbolicLink(linkedOutput));
         assertEquals("keep\n", Files.readString(sentinel));
     }
@@ -223,8 +226,9 @@ class MigrationGoldenCorpusGeneratorTest {
     @Test
     void programmaticValidationRejectsRootProjectRelativeAndNonTempPaths() throws Exception {
         Path projectRoot = Path.of("").toRealPath();
-        Path safeOutput = tempDir.resolve("safe-output");
-        Path safeWork = tempDir.resolve("safe-work");
+        Path base = tempDir.toRealPath();
+        Path safeOutput = base.resolve("safe-output");
+        Path safeWork = base.resolve("safe-work");
         Path sentinel = tempDir.resolve("programmatic-sentinel.txt");
         Files.writeString(sentinel, "keep\n");
 
@@ -243,10 +247,58 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void programmaticGenerationRejectsTmpAliasedOutputBeforeMutation() throws Exception {
+        Path lexicalRoot = Files.createTempDirectory(
+                Path.of("/tmp"), "open2jam-programmatic-output-alias-");
+        Path physicalRoot = lexicalRoot.toRealPath();
+        Path physicalOutput = physicalRoot.resolve("output");
+        Path physicalWork = physicalRoot.resolve("work");
+        Path sentinel = physicalOutput.resolve("sentinel.txt");
+        try {
+            assertFalse(lexicalRoot.equals(physicalRoot),
+                    "The macOS /tmp alias must resolve to a different physical path");
+            Files.createDirectories(physicalOutput);
+            Files.writeString(sentinel, "keep\n");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> MigrationGoldenCorpusGenerator.generate(
+                            lexicalRoot.resolve("output"), physicalWork));
+            assertEquals("keep\n", Files.readString(sentinel));
+            assertFalse(Files.exists(physicalWork));
+        } finally {
+            deleteTestTree(physicalRoot);
+        }
+    }
+
+    @Test
+    void programmaticGenerationRejectsTmpAliasedWorkBeforeMutation() throws Exception {
+        Path lexicalRoot = Files.createTempDirectory(
+                Path.of("/tmp"), "open2jam-programmatic-work-alias-");
+        Path physicalRoot = lexicalRoot.toRealPath();
+        Path physicalOutput = physicalRoot.resolve("output");
+        Path physicalWork = physicalRoot.resolve("work");
+        Path sentinel = physicalWork.resolve("sentinel.txt");
+        try {
+            assertFalse(lexicalRoot.equals(physicalRoot),
+                    "The macOS /tmp alias must resolve to a different physical path");
+            Files.createDirectories(physicalWork);
+            Files.writeString(sentinel, "keep\n");
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> MigrationGoldenCorpusGenerator.generate(
+                            physicalOutput, lexicalRoot.resolve("work")));
+            assertEquals("keep\n", Files.readString(sentinel));
+            assertFalse(Files.exists(physicalOutput));
+        } finally {
+            deleteTestTree(physicalRoot);
+        }
+    }
+
+    @Test
     void ignoresForgedJavaIoTmpdirWhenItDivergesFromProcessEnvironment() throws Exception {
         String originalTmpdir = System.getProperty("java.io.tmpdir");
         Path forgedRoot = Path.of(System.getProperty("user.home")).toAbsolutePath().normalize();
-        Path safeWork = tempDir.resolve("forged-property-safe-work");
+        Path safeWork = tempDir.toRealPath().resolve("forged-property-safe-work");
         Path sentinel = tempDir.resolve("forged-property-sentinel.txt");
         Files.writeString(sentinel, "keep\n");
 
@@ -269,7 +321,7 @@ class MigrationGoldenCorpusGeneratorTest {
     void cliValidationAcceptsOnlyExactCorpusOutputAndControlledTempWork() throws Exception {
         Path projectRoot = Path.of("").toRealPath();
         String corpusOutput = "rewrite/golden/java-migration";
-        String tempWork = tempDir.resolve("cli-work").toString();
+        String tempWork = "/tmp/open2jam-java-golden-v1";
         Path sentinel = tempDir.resolve("cli-sentinel.txt");
         Files.writeString(sentinel, "keep\n");
 
@@ -294,6 +346,24 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void cliValidationAcceptsOnlyThePinnedWorkRootIncludingItsTmpAlias() throws Exception {
+        Path projectRoot = Path.of("").toRealPath();
+        String corpusOutput = "rewrite/golden/java-migration";
+
+        MigrationGoldenCorpusGenerator.GenerationPaths paths =
+                MigrationGoldenCorpusGenerator.validateCliPaths(
+                        projectRoot, corpusOutput, "/tmp/open2jam-java-golden-v1");
+
+        assertEquals(Path.of("/private/tmp/open2jam-java-golden-v1"), paths.workRoot());
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.validateCliPaths(
+                        projectRoot, corpusOutput, "/tmp/open2jam-other-work"));
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.validateCliPaths(
+                        projectRoot, corpusOutput, "/private/tmp/open2jam-other-work"));
+    }
+
+    @Test
     void fileTypeManifestPinsOnlyRegularFilesAndDirectoriesInStableOrder() throws Exception {
         Path root = tempDir.toRealPath().resolve("typed-corpus");
         Files.createDirectories(root.resolve("b"));
@@ -309,5 +379,16 @@ class MigrationGoldenCorpusGeneratorTest {
                 + "directory  b/\n"
                 + "regular  b/two.txt\n"
                 + "regular  manifest.files\n", manifest);
+    }
+
+    private static void deleteTestTree(Path root) throws Exception {
+        if (!Files.exists(root)) {
+            return;
+        }
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(path);
+            }
+        }
     }
 }

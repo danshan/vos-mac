@@ -15,6 +15,7 @@ step_if=""
 step_continue=""
 step_body=""
 step_body_line_count=0
+step_run_multiline=false
 step_index=0
 runtime_count=0
 runtime_index=0
@@ -24,6 +25,10 @@ build_count=0
 build_index=0
 package_count=0
 package_index=0
+runtime_identity_count=0
+golden_identity_count=0
+build_identity_count=0
+package_identity_count=0
 inside_maven=false
 inside_steps=false
 maven_job_count=0
@@ -54,11 +59,58 @@ require_exact_step_body() {
 	fi
 }
 
+normalize_shell_command() {
+	awk '
+		{
+			line = $0
+			sub(/^[[:space:]]+/, "", line)
+			sub(/[[:space:]]+$/, "", line)
+			sub(/[[:space:]]*\\\\$/, "", line)
+			if (line != "") {
+				if (command != "") {
+					command = command " "
+				}
+				command = command line
+			}
+		}
+		END {
+			gsub(/[[:space:]]+/, " ", command)
+			print command
+		}'
+}
+
+count_required_identity() {
+	local normalized_command
+	local normalized_uses
+	normalized_uses="$(printf '%s\n' "$step_uses" | normalize_shell_command)"
+	normalized_uses="${normalized_uses#\"}"
+	normalized_uses="${normalized_uses%\"}"
+	normalized_uses="${normalized_uses#\'}"
+	normalized_uses="${normalized_uses%\'}"
+	normalized_command="$(printf '%s\n' "$step_run" | normalize_shell_command)"
+
+	if [[ "$normalized_uses" == "jdx/mise-action@v4" ]]; then
+		runtime_identity_count=$((runtime_identity_count + 1))
+	fi
+	case "$normalized_command" in
+		"mise run verify-goldens")
+			golden_identity_count=$((golden_identity_count + 1))
+			;;
+		"mise exec -- bash -lc 'mvn --batch-mode -s \"\$MAVEN_SETTINGS\" clean verify'")
+			build_identity_count=$((build_identity_count + 1))
+			;;
+		"bash rewrite/tools/verify_java_migration_package.sh")
+			package_identity_count=$((package_identity_count + 1))
+			;;
+	esac
+}
+
 finish_step() {
 	if [[ -z "$step_name" ]]; then
 		return
 	fi
 	step_index=$((step_index + 1))
+	count_required_identity
 	case "$step_name" in
 		"Install project runtime")
 			runtime_count=$((runtime_count + 1))
@@ -113,6 +165,7 @@ finish_step() {
 	step_continue=""
 	step_body=""
 	step_body_line_count=0
+	step_run_multiline=false
 }
 
 while IFS= read -r line || [[ -n "$line" ]]; do
@@ -170,9 +223,27 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 			step_body="$step_body"$'\n'"$line"
 		fi
 	fi
+	if [[ "$step_run_multiline" == true && "$line" == "          "* ]]; then
+		if [[ -n "$step_run" ]]; then
+			step_run="$step_run"$'\n'
+		fi
+		step_run="$step_run${line#          }"
+		continue
+	fi
+	if [[ "$step_run_multiline" == true ]]; then
+		step_run_multiline=false
+	fi
 	case "$line" in
 		"        uses: "*) step_uses="${line#        uses: }" ;;
-		"        run: "*) step_run="${line#        run: }" ;;
+		"        run: "*)
+			step_run="${line#        run: }"
+			case "$step_run" in
+				"|"|"|-"|"|+"|">"|">-"|">+")
+					step_run=""
+					step_run_multiline=true
+					;;
+			esac
+			;;
 		"        if: "*) step_if="${line#        if: }" ;;
 		"        continue-on-error: "*)
 			step_continue="${line#        continue-on-error: }"
@@ -212,6 +283,11 @@ done
 if [[ "$runtime_count" -ne 1 || "$golden_count" -ne 1 || "$build_count" -ne 1 \
 	|| "$package_count" -ne 1 ]]; then
 	printf 'Build workflow is missing or duplicates a required enabled step.\n' >&2
+	exit 1
+fi
+if [[ "$runtime_identity_count" -ne 1 || "$golden_identity_count" -ne 1 \
+	|| "$build_identity_count" -ne 1 || "$package_identity_count" -ne 1 ]]; then
+	printf 'Build workflow required action or command is missing or duplicated.\n' >&2
 	exit 1
 fi
 if (( runtime_index >= golden_index || golden_index >= build_index \

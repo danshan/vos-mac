@@ -736,6 +736,50 @@ duplicate_package_step() {
 	fi
 }
 
+duplicate_required_step_with_different_name() {
+	local fixture_root="$1"
+	local target_line="$2"
+	local duplicate_name="$3"
+	local duplicate_line="${4:-$target_line}"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="$target_line" -v duplicate_name="$duplicate_name" \
+		-v duplicate_line="$duplicate_line" '{
+		print
+		if ($0 == target) {
+			print ""
+			print "      - name: " duplicate_name
+			print duplicate_line
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate required workflow step under another name.\n' >&2
+		return 1
+	fi
+}
+
+duplicate_required_run_as_multiline_block() {
+	local fixture_root="$1"
+	local target_command="$2"
+	local duplicate_name="$3"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="        run: $target_command" \
+		-v command="$target_command" -v duplicate_name="$duplicate_name" '{
+		print
+		if ($0 == target) {
+			print ""
+			print "      - name: " duplicate_name
+			print "        run: |-"
+			print "          " command
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate required workflow command as a block.\n' >&2
+		return 1
+	fi
+}
+
 write_reordered_workflow() {
 	local fixture_root="$1"
 	local workflow="$fixture_root/.github/workflows/build.yml"
@@ -1069,6 +1113,44 @@ install_real_contract "$fixture"
 duplicate_package_step "$fixture"
 expect_contract_failure "duplicate workflow package gate" "$fixture" \
 	"Build workflow required step name is missing or duplicated"
+
+while IFS='|' read -r required_line duplicate_name; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	duplicate_required_step_with_different_name \
+		"$fixture" "$required_line" "$duplicate_name"
+	expect_contract_failure "renamed duplicate required workflow identity" \
+		"$fixture" "Build workflow required action or command is missing or duplicated"
+done <<'EOF'
+        uses: jdx/mise-action@v4|Install another runtime
+        run: mise run verify-goldens|Run another golden gate
+        run: mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'|Run another clean build
+        run: bash rewrite/tools/verify_java_migration_package.sh|Run another package gate
+EOF
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+duplicate_required_step_with_different_name \
+	"$fixture" '        uses: jdx/mise-action@v4' \
+	"Install whitespace runtime" '        uses:    jdx/mise-action@v4'
+expect_contract_failure "whitespace-equivalent renamed runtime action" \
+	"$fixture" "Build workflow required action or command is missing or duplicated"
+
+while IFS='|' read -r required_command duplicate_name; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	duplicate_required_run_as_multiline_block \
+		"$fixture" "$required_command" "$duplicate_name"
+	expect_contract_failure "multiline duplicate required workflow command" \
+		"$fixture" "Build workflow required action or command is missing or duplicated"
+done <<'EOF'
+mise run verify-goldens|Run block golden gate
+mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'|Run block clean build
+bash rewrite/tools/verify_java_migration_package.sh|Run block package gate
+EOF
 
 create_fixture
 fixture="$CREATED_FIXTURE"

@@ -113,7 +113,8 @@ expect_pass() {
 		printf '%s failed:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
-	if [[ "$output" != *"SoundFont completed snapshot verified:"* ]]; then
+	if [[ "$output" \
+		!= *"SoundFont completed snapshot audit passed; location="* ]]; then
 		printf '%s produced unexpected output:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
@@ -570,8 +571,8 @@ if [[ "$missing_parent_output" != *"[SNAPSHOT_PATH]"* \
 fi
 NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
 
-RACE_SOURCE="$TEST_ROOT/SoundFontContractVerifierRaceTest.java"
-cat >"$RACE_SOURCE" <<'EOF'
+CONSISTENCY_SOURCE="$TEST_ROOT/SoundFontContractVerifierConsistencyTest.java"
+cat >"$CONSISTENCY_SOURCE" <<'EOF'
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryStream;
@@ -582,37 +583,34 @@ import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 
-public final class SoundFontContractVerifierRaceTest {
+public final class SoundFontContractVerifierConsistencyTest {
     private static final String COMMIT = "0123456789abcdef0123456789abcdef01234567";
     private static int positiveCount;
     private static int negativeCount;
 
-    private SoundFontContractVerifierRaceTest() {
+    private SoundFontContractVerifierConsistencyTest() {
     }
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
-            throw new IllegalArgumentException("usage: race-test <temp-root>");
+            throw new IllegalArgumentException("usage: consistency-test <temp-root>");
         }
         Path root = Path.of(args[0]);
         Files.createDirectories(root);
 
         Fixture baseline = Fixture.create(root.resolve("observer-none"));
-        Path result = SoundFontContractVerifier.verify(
+        SoundFontContractVerifier.verify(
                 baseline.manifest(),
                 baseline.payload(),
                 baseline.snapshot(),
                 SoundFontContractVerifier.VerificationObserver.NONE);
-        if (!result.equals(baseline.snapshot().toAbsolutePath().normalize())) {
-            throw new AssertionError("verifier returned the wrong snapshot path");
-        }
         baseline.assertPublishedSnapshot();
         positiveCount++;
 
         Fixture incomplete = Fixture.create(root.resolve("incomplete-no-marker"));
         incomplete.createIncompleteSnapshot();
         try {
-            SoundFontContractVerifier.verifyCompletedSnapshot(incomplete.snapshot());
+            SoundFontContractVerifier.checkCompletedSnapshot(incomplete.snapshot());
             throw new AssertionError("incomplete snapshot without marker was accepted");
         } catch (IllegalStateException expected) {
             if (!expected.getMessage().contains("[SNAPSHOT_VERIFY]")) {
@@ -648,7 +646,7 @@ public final class SoundFontContractVerifierRaceTest {
         positiveCount++;
 
         Fixture sourceMutation = Fixture.create(root.resolve("source-content-mutation"));
-        expectFailure(sourceMutation, "[SOURCE_CONTENT]", () ->
+        expectResidueFailure(sourceMutation, "[SOURCE_CONTENT]", null, () ->
                 SoundFontContractVerifier.verify(
                         sourceMutation.manifest(),
                         sourceMutation.payload(),
@@ -665,7 +663,7 @@ public final class SoundFontContractVerifierRaceTest {
                         }));
 
         Fixture partialBuild = Fixture.create(root.resolve("partial-build"));
-        expectFailure(partialBuild, "[SNAPSHOT_BUILD]", () ->
+        expectResidueFailure(partialBuild, "[SNAPSHOT_BUILD]", null, () ->
                 SoundFontContractVerifier.verify(
                         partialBuild.manifest(),
                         partialBuild.payload(),
@@ -678,7 +676,7 @@ public final class SoundFontContractVerifierRaceTest {
                         }));
 
         Fixture partialMarker = Fixture.create(root.resolve("partial-marker"));
-        expectFailure(partialMarker, "[SNAPSHOT_BUILD]", () ->
+        expectResidueFailure(partialMarker, "[SNAPSHOT_BUILD]", null, () ->
                 SoundFontContractVerifier.verify(
                         partialMarker.manifest(),
                         partialMarker.payload(),
@@ -751,7 +749,7 @@ public final class SoundFontContractVerifierRaceTest {
                         }));
 
         Fixture snapshotDepthCeiling = Fixture.create(root.resolve("snapshot-depth-ceiling"));
-        expectFailure(
+        expectResidueFailure(
                 snapshotDepthCeiling,
                 "[SNAPSHOT_VERIFY]",
                 "snapshot tree exceeds fixed depth ceiling",
@@ -761,13 +759,20 @@ public final class SoundFontContractVerifierRaceTest {
                         snapshotDepthCeiling.snapshot(),
                         new SoundFontContractVerifier.VerificationObserver() {
                             @Override
+                            public void beforeSnapshotVerification(Path snapshotRoot)
+                                    throws Exception {
+                                Files.createDirectories(snapshotRoot.resolve(
+                                        "payload/assets/deep"));
+                            }
+
+                            @Override
                             public int snapshotMaxDepth(int fixedMaximum) {
                                 return fixedMaximum - 1;
                             }
                         }));
 
         Fixture snapshotEntryCeiling = Fixture.create(root.resolve("snapshot-entry-ceiling"));
-        expectFailure(
+        expectResidueFailure(
                 snapshotEntryCeiling,
                 "[SNAPSHOT_VERIFY]",
                 "snapshot tree exceeds fixed entry ceiling",
@@ -776,6 +781,14 @@ public final class SoundFontContractVerifierRaceTest {
                         snapshotEntryCeiling.payload(),
                         snapshotEntryCeiling.snapshot(),
                         new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public void beforeSnapshotVerification(Path snapshotRoot)
+                                    throws Exception {
+                                Files.writeString(
+                                        snapshotRoot.resolve("unexpected-entry"),
+                                        "attack\n");
+                            }
+
                             @Override
                             public int snapshotMaxEntries(int fixedMaximum) {
                                 return 1;
@@ -833,36 +846,9 @@ public final class SoundFontContractVerifierRaceTest {
         negativeCount++;
 
         System.out.printf(
-                "SoundFont snapshot race contract passed: %d positive, %d negative.%n",
+                "SoundFont cooperative consistency contract passed: %d positive, %d negative.%n",
                 positiveCount,
                 negativeCount);
-    }
-
-    private static void expectFailure(
-            Fixture fixture, String category, ThrowingAction action) throws Exception {
-        expectFailure(fixture, category, null, action);
-    }
-
-    private static void expectFailure(
-            Fixture fixture,
-            String category,
-            String requiredText,
-            ThrowingAction action) throws Exception {
-        try {
-            action.run();
-            throw new AssertionError(category + " race unexpectedly passed");
-        } catch (IllegalStateException expected) {
-            if (!expected.getMessage().startsWith(
-                            "SoundFont contract verification failed:")
-                    || !expected.getMessage().contains(category)) {
-                throw expected;
-            }
-            if (requiredText != null && !expected.getMessage().contains(requiredText)) {
-                throw expected;
-            }
-        }
-        fixture.assertNoPublicationResidue();
-        negativeCount++;
     }
 
     private static void expectResidueFailure(
@@ -889,15 +875,18 @@ public final class SoundFontContractVerifierRaceTest {
         boolean cleanupReported = false;
         for (Throwable suppressed : failure.getSuppressed()) {
             if (suppressed.getMessage() != null
-                    && suppressed.getMessage().contains("[SNAPSHOT_CLEANUP]")) {
+                    && suppressed.getMessage().contains(
+                            "[SNAPSHOT_CLEANUP] incomplete residue retained: "
+                                    + fixture.snapshot())) {
                 cleanupReported = true;
             }
         }
         if (!cleanupReported || !Files.isDirectory(fixture.snapshot())) {
-            throw new AssertionError("guard mismatch did not retain and report residue");
+            throw new AssertionError(
+                    "incomplete failure did not retain and report residue");
         }
         try {
-            SoundFontContractVerifier.verifyCompletedSnapshot(fixture.snapshot());
+            SoundFontContractVerifier.checkCompletedSnapshot(fixture.snapshot());
             throw new AssertionError("invalid retained snapshot was accepted by consumer");
         } catch (IllegalStateException expected) {
             if (!expected.getMessage().contains("[SNAPSHOT_VERIFY]")) {
@@ -974,10 +963,7 @@ public final class SoundFontContractVerifierRaceTest {
                     .equals(expectedMarker)) {
                 throw new AssertionError("snapshot marker does not bind manifest SHA-256");
             }
-            if (!SoundFontContractVerifier.verifyCompletedSnapshot(snapshot)
-                    .equals(snapshot.toAbsolutePath().normalize())) {
-                throw new AssertionError("consumer returned the wrong completed root");
-            }
+            SoundFontContractVerifier.checkCompletedSnapshot(snapshot);
         }
 
         void createIncompleteSnapshot() throws Exception {
@@ -997,12 +983,6 @@ public final class SoundFontContractVerifierRaceTest {
                     snapshot.resolve("payload/approvals/redistribution.txt"));
         }
 
-        void assertNoPublicationResidue() throws Exception {
-            if (Files.exists(snapshot) || Files.isSymbolicLink(snapshot)) {
-                throw new AssertionError("failed verification published requested snapshot");
-            }
-        }
-
         private static String sha256(Path path) throws Exception {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             try (InputStream input = Files.newInputStream(path)) {
@@ -1019,15 +999,16 @@ public final class SoundFontContractVerifierRaceTest {
     }
 }
 EOF
-mise exec -- javac -Xlint:all -cp "$CLASSES" -d "$CLASSES" "$RACE_SOURCE"
+mise exec -- javac -Xlint:all -cp "$CLASSES" -d "$CLASSES" "$CONSISTENCY_SOURCE"
 race_output="$(mise exec -- java -cp "$CLASSES" \
-	SoundFontContractVerifierRaceTest "$TEST_ROOT/races" 2>&1)" || {
-	printf 'SoundFont race contract failed:\n%s\n' "$race_output" >&2
+	SoundFontContractVerifierConsistencyTest "$TEST_ROOT/consistency" 2>&1)" || {
+	printf 'SoundFont cooperative consistency contract failed:\n%s\n' \
+		"$race_output" >&2
 	exit 1
 }
 if [[ "$race_output" \
-	!= *"SoundFont snapshot race contract passed: 2 positive, 10 negative."* ]]; then
-	printf 'SoundFont race contract produced unexpected output:\n%s\n' \
+	!= *"SoundFont cooperative consistency contract passed: 2 positive, 10 negative."* ]]; then
+	printf 'SoundFont cooperative consistency contract produced unexpected output:\n%s\n' \
 		"$race_output" >&2
 	exit 1
 fi

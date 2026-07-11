@@ -289,6 +289,10 @@ CLI 必须提供稳定 exit code 和 machine-readable error code. Human-readable
 
 VOS audio 使用固定、许可允许再分发的 SoundFont. 在 production audio implementation 开始前, 必须完成 license audit、固定精确 asset bytes, 并在仓库或受控 artifact manifest 中记录 version、SHA-256、license 和 provenance.
 
+SoundFont CLI verifier 是 Phase 0/1 trusted single-writer offline build 的 consistency gate. 它用于检测 accidental 或 cooperative mutation, 不作为 hostile same-UID process 的 security boundary. Requested snapshot root 一旦创建即视为 INCOMPLETE, 只有在 manifest 与 payload 已完成校验、且最后写入的 `snapshot.marker` 也通过完整复核后, 才能作为 completed snapshot 接受. 失败的 incomplete root 必须保留并报告, build gate 不得对这个 exposed root 执行 validate-then-delete cleanup.
+
+未来 production consumer 必须只打开一次资源, 对同一个 open handle 完成 hash verification 并直接消费, 或从同一个 verified handle 复制到 private runtime storage 后再消费. 禁止将 `verify -> close -> reopen Path` 的流程当作 trust token 或安全边界.
+
 必须保持:
 
 - MIDI tempo 与 event order.

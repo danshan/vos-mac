@@ -9,7 +9,6 @@ const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
-const PartytimeServer = preload("res://scripts/partytime_server.gd")
 const RenderEntityModel = preload("res://scripts/render_entity_model.gd")
 const ResultModel = preload("res://scripts/result_model.gd")
 const SettingsStore = preload("res://scripts/settings_store.gd")
@@ -135,7 +134,6 @@ var _capturing_key_button: Button = null
 var _capturing_key_previous_text: String = ""
 var _loading_audio_pool: Node = null
 var _selected_export_job: Variant = null
-var _partytime_server = null
 
 
 func _ready() -> void:
@@ -319,6 +317,13 @@ func _show_main_menu() -> void:
 	_menu.add_child(_settings_button)
 	_layout_buttons.append(_settings_button)
 
+	var exit_button := Button.new()
+	exit_button.name = "ExitButton"
+	exit_button.text = "Exit"
+	exit_button.pressed.connect(_on_exit_pressed)
+	_menu.add_child(exit_button)
+	_layout_buttons.append(exit_button)
+
 	_status_label = Label.new()
 	_status_label.name = "Status"
 	_status_label.text = "Ready"
@@ -383,6 +388,10 @@ func _on_start_pressed() -> void:
 func _on_settings_pressed() -> void:
 	if _app_state.transition_to(AppState.SETTINGS):
 		_show_settings()
+
+
+func _on_exit_pressed() -> void:
+	get_tree().quit()
 
 
 func _show_settings() -> void:
@@ -482,24 +491,6 @@ func _show_settings() -> void:
 	start_paused.text = _settings_text("Wait for first lane key")
 	start_paused.button_pressed = _settings_store.start_paused_enabled()
 	_add_setting_row(form, "Start paused", "Keeps chart time at zero until the first lane key is pressed.", start_paused)
-
-	var local_matching_server := LineEdit.new()
-	local_matching_server.name = "LocalMatchingServerInput"
-	local_matching_server.placeholder_text = _settings_text("host:port")
-	local_matching_server.text = _settings_store.local_matching_server()
-	local_matching_server.clear_button_enabled = true
-	_add_setting_row(form, "Local matching server",
-			"Optional Java partytime host:port. When valid, gameplay waits for matching readiness instead of first-key start.",
-			local_matching_server)
-
-	var create_server := Button.new()
-	create_server.name = "CreatePartytimeServerButton"
-	create_server.text = _settings_text("Create server")
-	create_server.custom_minimum_size = Vector2(144.0, 44.0)
-	create_server.pressed.connect(_on_create_partytime_server_pressed)
-	_add_setting_row(form, "Create server",
-			"Starts a Java-compatible partytime server on the port from Local matching server, or 7273 when the field is empty.",
-			create_server)
 
 	_add_settings_section(form, "Timing", "Timing", "Millisecond offsets used to align input judgment, note drawing, and audio playback.")
 	var audio_latency := SpinBox.new()
@@ -889,36 +880,6 @@ func _refresh_song_directory_display() -> void:
 	var display: Node = _content_node_or_null("SongDirectoryDisplay")
 	if display is LineEdit:
 		display.text = _song_directories_text()
-
-
-func _on_create_partytime_server_pressed() -> void:
-	var local_matching_server: Node = _content_node_or_null("LocalMatchingServerInput")
-	var port := 7273
-	if local_matching_server is LineEdit:
-		var parsed_port := _partytime_server_port_from_text(local_matching_server.text)
-		if parsed_port > 0:
-			port = parsed_port
-		local_matching_server.text = "localhost:%d" % port
-		_settings_store.set_local_matching_server(local_matching_server.text)
-		_save_settings_to_file()
-
-	if _partytime_server != null and _partytime_server.has_method("stop"):
-		_partytime_server.stop()
-	_partytime_server = PartytimeServer.new()
-	_partytime_server.start(port)
-
-
-func _partytime_server_port_from_text(text: String) -> int:
-	var value := text.strip_edges()
-	if value.is_empty():
-		return 0
-	var parts := value.split(":")
-	var port_text := value
-	if parts.size() == 2:
-		port_text = str(parts[1])
-	if not port_text.is_valid_int():
-		return 0
-	return int(port_text)
 
 
 func _show_song_select() -> void:
@@ -1993,10 +1954,6 @@ func _save_settings_from_controls() -> void:
 	if start_paused is CheckBox:
 		_settings_store.set_start_paused_enabled(start_paused.button_pressed)
 
-	var local_matching_server: Node = _content_node_or_null("LocalMatchingServerInput")
-	if local_matching_server is LineEdit:
-		_settings_store.set_local_matching_server(local_matching_server.text)
-
 	var channel_modifier: Node = _content_node_or_null("ChannelModifierOption")
 	if channel_modifier is OptionButton:
 		_settings_store.set_channel_modifier(_selected_option_value(channel_modifier))
@@ -2113,15 +2070,12 @@ func _gameplay_option_overrides() -> Dictionary:
 		"hasteMode": _settings_store.haste_mode_enabled(),
 		"hasteModeNormalizeSpeed": _settings_store.haste_mode_normalize_speed(),
 		"manualStart": _settings_store.start_paused_enabled(),
-		"localMatchingServer": _settings_store.local_matching_server(),
 		"channelModifier": _settings_store.channel_modifier(),
 		"speedType": _settings_store.speed_type(),
 		"speedMultiplier": _settings_store.speed_multiplier(),
 		"visibilityModifier": _settings_store.visibility_modifier(),
 		"judgmentType": _settings_store.judgment_type(),
 	}
-	if _partytime_server != null:
-		overrides["partytimeServerObject"] = _partytime_server
 	return overrides
 
 

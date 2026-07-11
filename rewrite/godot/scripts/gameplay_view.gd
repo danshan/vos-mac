@@ -74,7 +74,6 @@ var _longflare_nodes: Array[Node] = []
 var _longflare_nodes_by_lane: Dictionary = {}
 var _visibility_nodes: Array[Node] = []
 var _status_nodes: Array[Node] = []
-var _network_status_nodes: Array[Node] = []
 var _status_font_cache: Dictionary = {}
 var _status_font_texture: Texture2D = null
 var _status_font_glyphs: Dictionary = {}
@@ -209,7 +208,6 @@ func update_hud_state(state: Dictionary) -> void:
 	_sync_note_visibility(state.get("hiddenNotes", []), _last_update_time_ms)
 	_sync_measure_visibility(state.get("hiddenMeasures", []), _last_update_time_ms)
 	_sync_status_texts(state.get("statusTexts", []))
-	_sync_network_status_texts(state.get("networkStatusTexts", []))
 	_sync_bga_event(state.get("currentBgaEvent", {}), bool(state.get("gameStarted", true)))
 
 
@@ -238,7 +236,6 @@ func _rebuild_entities() -> void:
 	_clear_longflare_nodes()
 	_clear_nodes(_visibility_nodes)
 	_clear_nodes(_status_nodes)
-	_clear_nodes(_network_status_nodes)
 
 	var index := 0
 	for entity: Dictionary in _model.entities_by_layer(_metadata):
@@ -1056,68 +1053,6 @@ func _sync_status_texts(raw_texts: Variant) -> void:
 		_status_nodes.append(label)
 
 
-func _sync_network_status_texts(raw_texts: Variant) -> void:
-	_clear_nodes(_network_status_nodes)
-	if not raw_texts is Array:
-		return
-	var layout := _network_status_text_layout()
-	if _java_status_font_available():
-		var right_x := _status_layout_float(layout, "rightX", JAVA_STATUS_RIGHT_X)
-		var y := _status_layout_float(layout, "startY", 64.0)
-		var server_line_height := _status_layout_float(layout, "serverLineHeight", 24.0)
-		var connection_line_height := _status_layout_float(layout, "connectionLineHeight", 18.0)
-		for i in range(raw_texts.size()):
-			var text := str(raw_texts[i])
-			if text.is_empty():
-				continue
-			var node := _java_status_text_node("NetworkStatusText_%03d" % i, text, right_x, y, layout)
-			if node == null:
-				break
-			add_child(node)
-			_network_status_nodes.append(node)
-			y += server_line_height if i == 0 else connection_line_height
-		return
-	var right_x := _status_layout_float(layout, "rightX", JAVA_STATUS_RIGHT_X)
-	var y := _status_layout_float(layout, "startY", 64.0)
-	var server_line_height := _status_layout_float(layout, "serverLineHeight", 24.0)
-	var connection_line_height := _status_layout_float(layout, "connectionLineHeight", 18.0)
-	var label_width := _status_layout_float(layout, "labelWidth", JAVA_STATUS_WIDTH)
-	var font_size := int(_status_layout_float(layout, "fontSize", float(JAVA_STATUS_FONT_SIZE)))
-	var bold := bool(layout.get("bold", false))
-	var anti_alias := bool(layout.get("antiAlias", false))
-	var font_family := _status_font_family(layout)
-	var font_weight := _status_font_weight(bold)
-	var font_color := _status_font_color(layout)
-	var alignment := _status_horizontal_alignment(layout)
-
-	for i in range(raw_texts.size()):
-		var text := str(raw_texts[i])
-		if text.is_empty():
-			continue
-		var line_height := server_line_height if i == 0 else connection_line_height
-		var label := Label.new()
-		label.name = "NetworkStatusText_%03d" % i
-		label.text = text
-		label.horizontal_alignment = alignment
-		label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		label.z_index = 1000
-		label.z_as_relative = false
-		label.add_theme_font_size_override("font_size", font_size)
-		label.add_theme_color_override("font_color", font_color)
-		label.set_meta("statusTextBold", bold)
-		label.set_meta("statusTextAntiAlias", anti_alias)
-		label.set_meta("statusTextFontFamily", font_family)
-		label.set_meta("statusTextFontWeight", font_weight)
-		_apply_status_text_font(label, font_family, font_weight, anti_alias)
-		var actual_width: float = max(label_width, label.get_combined_minimum_size().x)
-		label.position = Vector2(right_x - actual_width, _status_label_y(layout, y))
-		label.size = Vector2(actual_width, line_height)
-		add_child(label)
-		_network_status_nodes.append(label)
-		y += line_height
-
-
 func _java_status_font_available() -> bool:
 	return _java_status_font_texture() != null and not _java_status_font_glyphs().is_empty()
 
@@ -1297,13 +1232,6 @@ func _status_font_metadata() -> Dictionary:
 
 func _status_text_layout() -> Dictionary:
 	var layout: Variant = _metadata.get("statusTextLayout", {})
-	if layout is Dictionary:
-		return layout
-	return {}
-
-
-func _network_status_text_layout() -> Dictionary:
-	var layout: Variant = _metadata.get("networkStatusTextLayout", {})
 	if layout is Dictionary:
 		return layout
 	return {}

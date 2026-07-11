@@ -48,10 +48,6 @@ func _init() -> void:
 		return
 	if not _test_java_manual_start_gates_game_time(audio_manifest):
 		return
-	if not _test_java_local_matching_gates_game_time(audio_manifest):
-		return
-	if not _test_java_partytime_server_status_and_return_start(audio_manifest):
-		return
 	if not _test_java_latency_splits_judgment_display_and_autosound(audio_manifest):
 		return
 	if not _test_java_autosync_updates_runtime_latency(audio_manifest):
@@ -700,126 +696,6 @@ func _test_java_manual_start_gates_game_time(audio_manifest: Dictionary) -> bool
 		return false
 	var running_status: Array = running_state.get("statusTexts", [])
 	if not _expect_string(str(running_status[1]), "Current Measure: 1", "manual start next frame judges measure"):
-		return false
-
-	runtime.free()
-	return true
-
-
-func _test_java_local_matching_gates_game_time(audio_manifest: Dictionary) -> bool:
-	var chart := {
-		"schemaVersion": 1,
-		"chartId": "vos:local-matching",
-		"format": "VOS",
-		"localMatchingServer": "localhost:1234",
-		"localMatchingClientEnabled": false,
-		"judgmentType": "time",
-		"keys": 7,
-		"bpm": 120.0,
-		"durationMs": 3000,
-		"notes": [
-			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		],
-		"measures": [
-			{"startMs": 0.0},
-		],
-		"autoPlayEvents": [],
-	}
-	var runtime = GameplayRuntime.new()
-	get_root().add_child(runtime)
-	if not _expect_bool(runtime.start(chart, audio_manifest), true, "local matching runtime start"):
-		return false
-
-	runtime.advance_to(1000.0)
-	var waiting_state: Dictionary = runtime.hud_state()
-	if not _expect_int(waiting_state.get("elapsedMs", -1), 1000, "local matching elapsed advances"):
-		return false
-	if not _expect_int(waiting_state.get("gameTimeMs", -1), 0, "local matching game time waits"):
-		return false
-	if not _expect_bool(bool(waiting_state.get("gameStarted", true)), false, "local matching game started state waits"):
-		return false
-	var waiting_status: Array = waiting_state.get("statusTexts", [])
-	if not _expect_string(str(waiting_status[3]), "Connecting...", "local matching status"):
-		return false
-
-	var blocked_hit: Dictionary = runtime.press_action("vos_lane_1", 1000.0)
-	if not _expect_bool(blocked_hit.get("accepted", true), false, "local matching input rejected while waiting"):
-		return false
-	if not _expect_string(str(blocked_hit.get("reason", "")), "local_matching_wait", "local matching input wait reason"):
-		return false
-	var blocked_state: Dictionary = runtime.hud_state()
-	if not _expect_bool(bool(blocked_state.get("gameStarted", true)), false, "local matching input does not start"):
-		return false
-	if not _expect_int(blocked_state.get("gameTimeMs", -1), 0, "local matching input keeps game time"):
-		return false
-
-	if not _expect_bool(runtime.has_method("set_local_matching_ready"), true, "local matching ready setter"):
-		return false
-	runtime.set_local_matching_ready(true)
-	runtime.advance_to(1500.0)
-	var started_state: Dictionary = runtime.hud_state()
-	if not _expect_bool(bool(started_state.get("gameStarted", false)), true, "local matching ready starts"):
-		return false
-	if not _expect_int(started_state.get("gameTimeMs", -1), 500, "local matching game time after ready"):
-		return false
-	var started_status: Array = started_state.get("statusTexts", [])
-	if not _expect_string(str(started_status[3]), "Game start!", "local matching ready status"):
-		return false
-
-	runtime.free()
-	return true
-
-
-func _test_java_partytime_server_status_and_return_start(audio_manifest: Dictionary) -> bool:
-	var chart := {
-		"schemaVersion": 1,
-		"chartId": "vos:partytime-server",
-		"format": "VOS",
-		"judgmentType": "time",
-		"partytimeServerStatus": "Listening on port1234",
-		"partytimeServerConnections": [
-			{"host": "127.0.0.1", "status": "Client synchronized. Offset:12"},
-			{"host": "192.168.0.2", "status": "Syncing:1 / 50"},
-		],
-		"keys": 7,
-		"bpm": 120.0,
-		"durationMs": 3000,
-		"notes": [
-			{"lane": 0, "startMs": 1000.0, "measure": 0, "sampleId": 1, "volume": 1.0, "pan": 0.0, "kind": "tap"},
-		],
-		"measures": [
-			{"startMs": 0.0},
-		],
-		"autoPlayEvents": [],
-	}
-	var runtime = GameplayRuntime.new()
-	get_root().add_child(runtime)
-	if not _expect_bool(runtime.start(chart, audio_manifest), true, "partytime server runtime start"):
-		return false
-
-	var waiting_state: Dictionary = runtime.hud_state()
-	var network_status: Array = waiting_state.get("networkStatusTexts", [])
-	if not _expect_int(network_status.size(), 3, "partytime server network status count"):
-		return false
-	if not _expect_string(str(network_status[0]), "Server: Listening on port1234", "partytime server status text"):
-		return false
-	if not _expect_string(str(network_status[1]), "127.0.0.1: Client synchronized. Offset:12", "partytime first connection status text"):
-		return false
-	if not _expect_string(str(network_status[2]), "192.168.0.2: Syncing:1 / 50", "partytime second connection status text"):
-		return false
-	if not _expect_int(runtime.partytime_server_start_game_count(), 0, "partytime server initial start count"):
-		return false
-
-	_send_input_key(runtime, "Enter", true, false)
-	var started_state: Dictionary = runtime.hud_state()
-	var cleared_network_status: Array = started_state.get("networkStatusTexts", [])
-	if not _expect_int(cleared_network_status.size(), 0, "partytime server status clears after return"):
-		return false
-	if not _expect_int(runtime.partytime_server_start_game_count(), 1, "partytime server return start count"):
-		return false
-
-	_send_input_key(runtime, "Enter", true, false)
-	if not _expect_int(runtime.partytime_server_start_game_count(), 1, "partytime server return ignored after clear"):
 		return false
 
 	runtime.free()

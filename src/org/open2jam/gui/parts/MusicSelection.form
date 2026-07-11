@@ -40,15 +40,6 @@
                       <EmptySpace max="-2" attributes="0"/>
                       <Component id="panel_list" max="32767" attributes="0"/>
                   </Group>
-                  <Group type="102" alignment="0" attributes="0">
-                      <EmptySpace min="-2" pref="26" max="-2" attributes="0"/>
-                      <Component id="jLabel4" min="-2" max="-2" attributes="0"/>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="txtLocalMatchingServer" min="-2" pref="141" max="-2" attributes="0"/>
-                      <EmptySpace max="-2" attributes="0"/>
-                      <Component id="btnCreateServer" min="-2" max="-2" attributes="0"/>
-                      <EmptySpace min="-2" pref="176" max="-2" attributes="0"/>
-                  </Group>
               </Group>
           </Group>
       </Group>
@@ -64,9 +55,6 @@
               <Group type="103" groupAlignment="3" attributes="0">
                   <Component id="bt_play" alignment="3" min="-2" max="-2" attributes="0"/>
                   <Component id="cb_startPaused" alignment="3" min="-2" max="-2" attributes="0"/>
-                  <Component id="txtLocalMatchingServer" alignment="3" min="-2" max="-2" attributes="0"/>
-                  <Component id="btnCreateServer" alignment="3" min="-2" max="-2" attributes="0"/>
-                  <Component id="jLabel4" alignment="3" min="-2" max="-2" attributes="0"/>
               </Group>
               <EmptySpace min="-2" pref="27" max="-2" attributes="0"/>
           </Group>
@@ -1017,24 +1005,6 @@
       </Properties>
       <Events>
         <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="cb_startPausedActionPerformed"/>
-      </Events>
-    </Component>
-    <Component class="javax.swing.JLabel" name="jLabel4">
-      <Properties>
-        <Property name="text" type="java.lang.String" value="&lt;html&gt;Local Matching Server&lt;br&gt;&lt;small&gt;(host:port)&lt;/small&gt;"/>
-      </Properties>
-    </Component>
-    <Component class="javax.swing.JTextField" name="txtLocalMatchingServer">
-      <Events>
-        <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="txtLocalMatchingServerActionPerformed"/>
-      </Events>
-    </Component>
-    <Component class="javax.swing.JButton" name="btnCreateServer">
-      <Properties>
-        <Property name="text" type="java.lang.String" value="Create Server"/>
-      </Properties>
-      <Events>
-        <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btnCreateServerActionPerformed"/>
       </Events>
     </Component>
   </SubComponents>

@@ -1,7 +1,5 @@
 package org.open2jam.gui.parts;
 
-import com.github.dtinth.partytime.server.Server;
-import com.github.dtinth.partytime.server.ServerUI;
 import com.sun.jna.NativeLibrary;
 import java.awt.Component;
 import java.awt.Container;
@@ -43,7 +41,6 @@ import org.open2jam.util.Logger;
 
 public class MusicSelection extends javax.swing.JPanel
     implements PropertyChangeListener, ListSelectionListener {
-    private Server lastServer;
 
     private class RenderThread extends Thread {
 
@@ -370,9 +367,6 @@ public class MusicSelection extends javax.swing.JPanel
         table_chartlist = new javax.swing.JTable();
         bt_play = new javax.swing.JButton();
         cb_startPaused = new javax.swing.JCheckBox();
-        jLabel4 = new javax.swing.JLabel();
-        txtLocalMatchingServer = new javax.swing.JTextField();
-        btnCreateServer = new javax.swing.JButton();
 
         setPreferredSize(new java.awt.Dimension(900, 673));
 
@@ -939,21 +933,6 @@ public class MusicSelection extends javax.swing.JPanel
             }
         });
 
-        jLabel4.setText("<html>Local Matching Server<br><small>(host:port)</small>");
-
-        txtLocalMatchingServer.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                txtLocalMatchingServerActionPerformed(evt);
-            }
-        });
-
-        btnCreateServer.setText("Create Server");
-        btnCreateServer.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                btnCreateServerActionPerformed(evt);
-            }
-        });
-
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
         layout.setHorizontalGroup(
@@ -966,18 +945,8 @@ public class MusicSelection extends javax.swing.JPanel
                         .addComponent(bt_play, javax.swing.GroupLayout.PREFERRED_SIZE, 359, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(cb_startPaused)))
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createSequentialGroup()
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(panel_list, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                    .addGroup(layout.createSequentialGroup()
-                        .addGap(26, 26, 26)
-                        .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(txtLocalMatchingServer, javax.swing.GroupLayout.PREFERRED_SIZE, 141, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(btnCreateServer)
-                        .addGap(176, 176, 176))))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(panel_list, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -988,10 +957,7 @@ public class MusicSelection extends javax.swing.JPanel
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(bt_play)
-                    .addComponent(cb_startPaused)
-                    .addComponent(txtLocalMatchingServer, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(btnCreateServer)
-                    .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(cb_startPaused))
                 .addGap(27, 27, 27))
         );
     }// </editor-fold>//GEN-END:initComponents
@@ -1172,17 +1138,11 @@ public class MusicSelection extends javax.swing.JPanel
                 });
             }
             
-            r.setLocalMatchingServer(txtLocalMatchingServer.getText());
-            
             r.setRank(rank);
             
             r.setJudge(jc_timed_judgment.isSelected()
                     ? new TimeJudgment()
                     : new BeatJudgment());
-            
-            if (lastServer != null && !lastServer.isClosed()) {
-                r.setServer(lastServer);
-            }
             
             new RenderThread(this.getTopLevelAncestor(), r).start();
         } catch (SoundSystemException ex) {
@@ -1256,42 +1216,9 @@ public class MusicSelection extends javax.swing.JPanel
         // TODO add your handling code here:
     }//GEN-LAST:event_cb_startPausedActionPerformed
 
-    private void txtLocalMatchingServerActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtLocalMatchingServerActionPerformed
-        // TODO add your handling code here:
-    }//GEN-LAST:event_txtLocalMatchingServerActionPerformed
-
-    private void btnCreateServerActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnCreateServerActionPerformed
-        
-        String portText = JOptionPane.showInputDialog("What port?", "7273");
-        
-        if (portText == null || portText.isEmpty()) {
-            return;
-        }
-        
-        int port = 0;
-        
-        try {
-            port = Integer.parseInt(portText);
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Error", "Invalid port", JOptionPane.ERROR_MESSAGE, null);
-            return;
-        }
-        
-        txtLocalMatchingServer.setText("localhost:" + port);
-        
-        Server server = new Server(port);
-        ServerUI ui = new ServerUI(server);
-        
-        SwingUtilities.invokeLater(ui);
-        server.start();
-        lastServer = server;
-
-    }//GEN-LAST:event_btnCreateServerActionPerformed
-
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton bt_choose_dir;
     private javax.swing.JButton bt_play;
-    private javax.swing.JButton btnCreateServer;
     private javax.swing.JButton btn_autoplay_keys;
     private javax.swing.JButton btn_delete;
     private javax.swing.JButton btn_reload;
@@ -1306,7 +1233,6 @@ public class MusicSelection extends javax.swing.JPanel
     private javax.swing.JLabel jLabel1;
     private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
-    private javax.swing.JLabel jLabel4;
     private javax.swing.JCheckBox jc_autoplay;
     private javax.swing.JCheckBox jc_autosound;
     private javax.swing.JCheckBox jc_custom_size;
@@ -1356,7 +1282,6 @@ public class MusicSelection extends javax.swing.JPanel
     private javax.swing.JScrollPane table_scroll;
     private javax.swing.JScrollPane table_scroll2;
     private javax.swing.JTable table_songlist;
-    private javax.swing.JTextField txtLocalMatchingServer;
     private javax.swing.JTextField txt_audioLatency;
     private javax.swing.JTextField txt_displayLag;
     private javax.swing.JTextField txt_filter;

@@ -78,7 +78,6 @@ vos-mac 的主要变化集中在运行时和平台支持:
         * [Audio Latency and Autosyncing](https://github.com/open2jamorg/open2jam/pull/20)
         * [Display lag and audio latency - Some information and problems](https://github.com/open2jamorg/open2jam/issues/8)
 * 可选且可配置的替代判定方式: "Timed Judgment", 使用毫秒而不是 beat 判断 note.
-* Local matching - 和朋友一起游玩. 由 [partytime](https://github.com/dtinth/partytime) 提供支持. [Demo Video](http://www.youtube.com/watch?v=UaZu2jVOdS8)
 * Speed type: Hi-Speed, xR-Speed, W-Speed, Regul-Speed
 
 ## 从源码运行

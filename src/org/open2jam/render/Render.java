@@ -4,9 +4,6 @@ package org.open2jam.render;
 import org.open2jam.sound.SoundInstance;
 import org.open2jam.game.TimingData;
 import org.open2jam.game.Latency;
-import com.github.dtinth.partytime.Client;
-import com.github.dtinth.partytime.server.Connection;
-import com.github.dtinth.partytime.server.Server;
 import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -52,14 +49,8 @@ import org.open2jam.util.*;
  */
 public class Render implements GameWindowCallback
 {
-    private String localMatchingServer = "";
     private int rank;
     private final boolean normalizeSpeed;
-
-    private Server server = null;
-    public void setServer(Server lastServer) {
-        server = lastServer;
-    }
     
     
     public interface AutosyncCallback {
@@ -236,9 +227,6 @@ public class Render implements GameWindowCallback
     
     /** what to do after autosync? */
     AutosyncCallback autosyncCallback;
-    
-    /** local matching */
-    private Client localMatching;
     
     /** song finish time [leave 10 seconds] */
     long finish_time = -1;
@@ -421,10 +409,6 @@ public class Render implements GameWindowCallback
         this.gameStarted = false;
     }
     
-    public void setLocalMatchingServer(String text) {
-        this.localMatchingServer = text;
-    }
-
     public void setRank(int rank) {
         this.rank = rank;
     }
@@ -636,33 +620,7 @@ public class Render implements GameWindowCallback
         lastLoopTime = SystemTimer.getTime();
         start_time = lastLoopTime + DELAY_TIME;
         
-        try {
-            String[] data = localMatchingServer.trim().split(":");
-            if (data.length == 2) {
-                String host = data[0];
-                int port = Integer.parseInt(data[1]);
-                localMatching = new Client(host, port, (long)audioLatency.getLatency());
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        
-        if (localMatching != null) {
-            
-            gameStarted = false;
-            new Thread(localMatching).start();
-            statusList.add(new StatusItem() {
-
-                @Override
-                public String getText() {
-                    return "" + localMatching.getStatus();
-                }
-
-                @Override
-                public boolean isVisible() { return true; }
-            });
-	
-        } else if (!gameStarted) {
+        if (!gameStarted) {
             
             statusList.add(new StatusItem() {
 
@@ -781,10 +739,6 @@ public class Render implements GameWindowCallback
         changeSpeed(delta); // TODO: is everything here really needed every frame ?
         updateGameSpeed(delta);
 
-        if (!gameStarted && localMatching != null) {
-            if (localMatching.isReady()) gameStarted = true;
-        }
-        
         if (gameStarted) {
             gameTime += delta * effectiveSpeed;
         }
@@ -860,18 +814,6 @@ public class Render implements GameWindowCallback
         for (String s : statusList) {
             trueTypeFont.drawString(780, y, s, 1, -1, TextRenderer.ALIGN_RIGHT);
             y += 30;
-        }
-        
-        // TODO: THIS IS SPAGHETTI. IMPROVE SOON.
-        y = 64;
-        if (server != null) {
-            trueTypeFont.drawString(780, y, "Server: " + server.getStatus(), 1, -1, TextRenderer.ALIGN_RIGHT);
-            y += 24;
-            for (Connection conn : server.getConnections()) {
-                String s = conn.toString() + ": " + conn.getStatus();
-                trueTypeFont.drawString(780, y, s, 1, -1, TextRenderer.ALIGN_RIGHT);
-                y += 18;
-            }
         }
         
         if(!buffer_iterator.hasNext() && entities_matrix.isEmpty(note_layer)){
@@ -997,11 +939,6 @@ public class Render implements GameWindowCallback
     public void check_keyboard(double now)
     {
         
-        if (window.isKeyDown(Keys.getIndex("RETURN")) && server != null) {
-            server.startGame();
-            server = null;
-        }
-        
 	for(Map.Entry<Event.Channel,Integer> entry : keyboard_map.entrySet())
         {
             Event.Channel c = entry.getKey();
@@ -1012,7 +949,7 @@ public class Render implements GameWindowCallback
             
             if(keyDown && !keyWasDown){ // started holding now
                 
-                if (!gameStarted && localMatching == null) gameStarted = true;  
+                if (!gameStarted) gameStarted = true;
                 
                 keyboard_key_pressed.put(c, true);
                 Entity baseEntity = skin.getEntityMap().get("PRESSED_"+c);

@@ -32,8 +32,6 @@ func _init() -> void:
 			return
 	if not _expect_bool(view.has_node("StatusText_%03d" % draws.size()), false, "invisible Java status item skipped"):
 		return
-	if not _verify_network_draws(view, oracle):
-		return
 
 	view.free()
 	if not _verify_atlas_draws(oracle):
@@ -74,7 +72,6 @@ func _metadata_for_oracle(oracle: Dictionary) -> Dictionary:
 		"judgmentLine": 480.0,
 		"measureSize": 385.0,
 		"statusTextLayout": oracle.get("layout", {}).duplicate(true),
-		"networkStatusTextLayout": oracle.get("networkLayout", {}).duplicate(true),
 		"entities": [],
 		"lanes": [],
 	}
@@ -152,66 +149,6 @@ func _verify_draw(view: Node, draw: Dictionary, oracle: Dictionary, index: int) 
 	return true
 
 
-func _verify_network_draws(view: Node, oracle: Dictionary) -> bool:
-	var network_draws: Variant = oracle.get("networkDraws")
-	if not network_draws is Array:
-		push_error("Expected status text oracle networkDraws array.")
-		quit(1)
-		return false
-
-	var network_texts: Array[String] = []
-	for raw_draw: Variant in network_draws:
-		if not raw_draw is Dictionary:
-			push_error("Expected status text oracle network draw object.")
-			quit(1)
-			return false
-		network_texts.append(str(raw_draw.get("text", "")))
-
-	view.update_hud_state({
-		"statusTexts": [],
-		"networkStatusTexts": network_texts,
-	})
-	for i in range(network_draws.size()):
-		if not _verify_network_draw(view, network_draws[i], oracle, i):
-			return false
-	if not _expect_bool(view.has_node("NetworkStatusText_%03d" % network_draws.size()), false,
-			"invisible Java network status item skipped"):
-		return false
-	return true
-
-
-func _verify_network_draw(view: Node, draw: Dictionary, oracle: Dictionary, index: int) -> bool:
-	var layout: Dictionary = oracle.get("networkLayout", {})
-	var node_path := "NetworkStatusText_%03d" % index
-	if not _expect_bool(view.has_node(node_path), true, "%s label node" % node_path):
-		return false
-	var label: Label = view.get_node(node_path)
-	var label_width := float(layout.get("labelWidth", 0.0))
-	var line_height := float(layout.get("serverLineHeight", 0.0)) if index == 0 else float(layout.get("connectionLineHeight", 0.0))
-
-	if not _expect_string(label.text, str(draw.get("text", "")), "%s text" % node_path):
-		return false
-	if not _expect_float(label.position.x + label.size.x, float(draw.get("x", 0.0)), "%s Java right x" % node_path):
-		return false
-	if not _expect_float(label.position.y, _expected_label_y(draw, layout), "%s Java y" % node_path):
-		return false
-	if not _expect_bool(label.size.x >= label_width, true, "%s Java label minimum width" % node_path):
-		return false
-	if not _expect_bool(label.size.y >= line_height, true, "%s Java line height" % node_path):
-		return false
-	if not _expect_int(label.horizontal_alignment, _alignment_constant(str(draw.get("alignment", ""))),
-			"%s Java alignment" % node_path):
-		return false
-	if not _expect_int(label.vertical_alignment, VERTICAL_ALIGNMENT_TOP, "%s Java vertical alignment" % node_path):
-		return false
-	if not _expect_int(label.get_theme_font_size("font_size"), int(layout.get("fontSize", 0)),
-			"%s Java font size" % node_path):
-		return false
-	if not _expect_float(float(layout.get("glyphHeight", 0.0)), 20.0, "%s Java glyph height" % node_path):
-		return false
-	return true
-
-
 func _verify_atlas_draws(oracle: Dictionary) -> bool:
 	var view = GameplayView.new()
 	var font := _status_font_metadata()
@@ -240,39 +177,8 @@ func _verify_atlas_draws(oracle: Dictionary) -> bool:
 	if not _expect_bool(view.has_node("StatusText_%03d" % draws.size()), false,
 			"invisible Java atlas status item skipped"):
 		return false
-	if not _verify_network_atlas_draws(view, oracle, font):
-		return false
 
 	view.free()
-	return true
-
-
-func _verify_network_atlas_draws(view: Node, oracle: Dictionary, font: Dictionary) -> bool:
-	var network_draws: Variant = oracle.get("networkDraws")
-	if not network_draws is Array:
-		push_error("Expected status text oracle networkDraws array.")
-		quit(1)
-		return false
-
-	var network_texts: Array[String] = []
-	for raw_draw: Variant in network_draws:
-		if not raw_draw is Dictionary:
-			push_error("Expected status text oracle network draw object.")
-			quit(1)
-			return false
-		network_texts.append(str(raw_draw.get("text", "")))
-
-	view.update_hud_state({
-		"statusTexts": [],
-		"networkStatusTexts": network_texts,
-	})
-	for i in range(network_draws.size()):
-		if not _verify_atlas_draw(view, "NetworkStatusText_%03d" % i, network_draws[i],
-				oracle.get("networkLayout", {}), font):
-			return false
-	if not _expect_bool(view.has_node("NetworkStatusText_%03d" % network_draws.size()), false,
-			"invisible Java atlas network status item skipped"):
-		return false
 	return true
 
 

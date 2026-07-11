@@ -3,20 +3,6 @@ extends SceneTree
 const AppState = preload("res://scripts/app_state.gd")
 const MainUi = preload("res://scripts/main_ui.gd")
 
-
-class FakePartytimeServer:
-	extends RefCounted
-
-	func status_texts() -> Array:
-		return []
-
-	func poll() -> void:
-		pass
-
-	func start_game() -> void:
-		pass
-
-
 class MenuFlowExporter:
 	extends RefCounted
 
@@ -98,6 +84,10 @@ func _init() -> void:
 	if not _expect_bool(ui.has_node("Content/Menu/StartButton"), true, "start button"):
 		return
 	if not _expect_bool(ui.has_node("Content/Menu/SettingsButton"), true, "settings button"):
+		return
+	if not _expect_bool(ui.has_node("Content/Menu/ExitButton"), true, "exit button"):
+		return
+	if not _expect_string(ui.get_node("Content/Menu/ExitButton").text, "Exit", "exit button text"):
 		return
 
 	ui.get_node("Content/Menu/SettingsButton").emit_signal("pressed")
@@ -185,9 +175,9 @@ func _init() -> void:
 		return
 	if not _expect_bool(_has_settings_node(ui, "StartPausedCheckBox"), true, "start paused checkbox"):
 		return
-	if not _expect_bool(_has_settings_node(ui, "LocalMatchingServerInput"), true, "local matching server input"):
+	if not _expect_bool(_has_settings_node(ui, "LocalMatchingServerInput"), false, "local matching server input removed"):
 		return
-	if not _expect_bool(_has_settings_node(ui, "CreatePartytimeServerButton"), true, "create partytime server button"):
+	if not _expect_bool(_has_settings_node(ui, "CreatePartytimeServerButton"), false, "create partytime server button removed"):
 		return
 	if not _expect_bool(_has_settings_node(ui, "ChannelModifierOption"), true, "channel modifier option"):
 		return
@@ -219,7 +209,6 @@ func _init() -> void:
 	_settings_node(ui, "HasteModeCheckBox").button_pressed = true
 	_settings_node(ui, "HasteNormalizeSpeedCheckBox").button_pressed = false
 	_settings_node(ui, "StartPausedCheckBox").button_pressed = true
-	_settings_node(ui, "LocalMatchingServerInput").text = "localhost:1234"
 	_settings_node(ui, "ChannelModifierOption").select(1)
 	_settings_node(ui, "SpeedTypeOption").select(3)
 	_settings_node(ui, "SpeedMultiplierSpinBox").value = 2.0
@@ -260,8 +249,6 @@ func _init() -> void:
 	if not _expect_bool(_settings_node(ui, "HasteNormalizeSpeedCheckBox").button_pressed, false, "persisted haste normalize speed"):
 		return
 	if not _expect_bool(_settings_node(ui, "StartPausedCheckBox").button_pressed, true, "persisted start paused"):
-		return
-	if not _expect_string(_settings_node(ui, "LocalMatchingServerInput").text, "localhost:1234", "persisted local matching server"):
 		return
 	if not _expect_string(_settings_node(ui, "ChannelModifierOption").get_item_text(
 			_settings_node(ui, "ChannelModifierOption").selected), "Mirror", "persisted channel modifier"):
@@ -306,14 +293,10 @@ func _init() -> void:
 		return
 	if not _expect_bool(option_overrides.get("manualStart", false), true, "start paused gameplay override"):
 		return
-	if not _expect_string(str(option_overrides.get("localMatchingServer", "")), "localhost:1234", "local matching server gameplay override"):
+	if not _expect_bool(option_overrides.has("localMatchingServer"), false, "local matching server gameplay override removed"):
 		return
-	ui._partytime_server = FakePartytimeServer.new()
-	var server_overrides: Dictionary = ui._gameplay_option_overrides()
-	if not _expect_bool(server_overrides.get("partytimeServerObject") == ui._partytime_server, true, "partytime server gameplay override"):
+	if not _expect_bool(option_overrides.has("partytimeServerObject"), false, "partytime server gameplay override removed"):
 		return
-	ui._partytime_server = null
-	_settings_node(ui, "LocalMatchingServerInput").text = ""
 	_settings_node(ui, "AutoplayCheckBox").button_pressed = false
 	ui.get_node("Content/BackButton").emit_signal("pressed")
 
@@ -662,8 +645,6 @@ func _expected_settings_descriptions() -> Dictionary:
 		"HasteModeCheckBoxDescription": "Enables Java-style haste: chart speed and audio pitch change over time.",
 		"HasteNormalizeSpeedCheckBoxDescription": "Keeps note travel distance stable while haste changes pitch. Disable it to let scroll speed change with haste.",
 		"StartPausedCheckBoxDescription": "Keeps chart time at zero until the first lane key is pressed.",
-		"LocalMatchingServerInputDescription": "Optional Java partytime host:port. When valid, gameplay waits for matching readiness instead of first-key start.",
-		"CreatePartytimeServerButtonDescription": "Starts a Java-compatible partytime server on the port from Local matching server, or 7273 when the field is empty.",
 		"ChannelModifierOptionDescription": "Lane remap before play: None keeps lanes, Mirror reverses lanes, Shuffle picks one chart-wide map, Random changes by measure while preserving held lanes.",
 		"SpeedTypeOptionDescription": "Scroll math mode: HiSpeed follows BPM, xRSpeed varies each lane, WSpeed waves over time, RegulSpeed uses a fixed 150 BPM baseline.",
 		"SpeedMultiplierSpinBoxDescription": "Base scroll multiplier from 0.5 to 10.0. Higher values move notes faster toward the judgment line.",
@@ -687,7 +668,6 @@ func _expected_settings_control_texts() -> Dictionary:
 		"AutoplayCheckBox": "Auto-hit lane notes",
 		"AutoSoundCheckBox": "Play keysounds automatically",
 		"StartPausedCheckBox": "Wait for first lane key",
-		"CreatePartytimeServerButton": "Create server",
 		"HasteModeCheckBox": "Enable haste speed changes",
 		"HasteNormalizeSpeedCheckBox": "Keep scroll distance stable",
 	}
@@ -696,7 +676,6 @@ func _expected_settings_control_texts() -> Dictionary:
 func _expected_settings_placeholders() -> Dictionary:
 	return {
 		"SongDirectoryDisplay": "No folder selected",
-		"LocalMatchingServerInput": "host:port",
 	}
 
 

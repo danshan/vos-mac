@@ -142,26 +142,6 @@ const TRANSLATIONS: Dictionary = {
 		LANGUAGE_EN: "Wait for first lane key",
 		LANGUAGE_ZH: "等待第一次轨道按键",
 	},
-	"settings.local_matching.label": {
-		LANGUAGE_EN: "Local matching server",
-		LANGUAGE_ZH: "本地联机服务器",
-	},
-	"settings.local_matching.description": {
-		LANGUAGE_EN: "Optional Java partytime host:port. When valid, gameplay waits for matching readiness instead of first-key start.",
-		LANGUAGE_ZH: "可选 Java partytime host:port. 有效时, 游戏等待联机就绪, 而不是第一次按键开始.",
-	},
-	"settings.local_matching.placeholder": {
-		LANGUAGE_EN: "host:port",
-		LANGUAGE_ZH: "host:port",
-	},
-	"settings.create_server.label": {
-		LANGUAGE_EN: "Create server",
-		LANGUAGE_ZH: "创建服务器",
-	},
-	"settings.create_server.description": {
-		LANGUAGE_EN: "Starts a Java-compatible partytime server on the port from Local matching server, or 7273 when the field is empty.",
-		LANGUAGE_ZH: "使用本地联机服务器字段中的端口启动 Java 兼容 partytime server. 字段为空时使用 7273.",
-	},
 	"settings.section.timing.title": {
 		LANGUAGE_EN: "Timing",
 		LANGUAGE_ZH: "时序",

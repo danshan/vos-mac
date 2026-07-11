@@ -47,9 +47,7 @@ rewrite/tools/capture_godot_gameplay_screenshot.sh
 - Speed 和 volume misc keys 生效, 长按不会重复触发一次性动作.
 - Audio latency 和 display latency 分别影响 keysound/autosound 与 visual/judgment 时间.
 - Autosync display/audio 使用 Java `Latency.autosync` 的 64-sample 平滑规则, 且只在普通 tap 判定完成后更新 latency.
-- Local matching server 的 `host:port` 配置会带入 Gameplay, valid 配置会按 Java gate 暂停 `gameTime`, 通过 partytime TCP client 响应 `time?`, 处理 `status:` / `synced` / `play:` 消息, 并显示 local matching status. 默认自动 gate 使用 fake peer 覆盖协议状态机, 真实 localhost TCP 需要在允许监听端口的环境中验收.
-- Partytime server 状态按 Java network status layout 显示 `Server: ...` 和每个 connection status, `Return` 会触发 Java `server.startGame()` 可见语义并清除 server 状态. 默认自动 gate 覆盖 HUD 和输入行为, 真实 TCP listener 需要在允许监听端口的环境中验收.
-- Partytime 真实 loopback TCP 验收命令: `godot --headless --path rewrite/godot --script res://scripts/tests/partytime_loopback_manual_test.gd`. 默认 sandbox 中 `TCPServer.listen()` 可能返回 `Cannot start server:22`, 这只说明环境禁止监听端口, 不能作为协议失败证据.
+- Online local matching 和 Partytime server 已移除. Settings 不应出现 host:port 输入或 create server 按钮, Gameplay 不应创建 TCP client/server 或等待联机就绪.
 - Autoplay, AutoSound, Haste, visibility modifier, speed type, judgment type 都能从 Settings 带入 Gameplay. Visibility modifier 需要按 Java runtime 验收: layer side effects 生效, 但 mask overlay 会因为 `CompositeEntity.isDead()` 在首帧被移除而不绘制.
 
 ## Song select

@@ -64,11 +64,10 @@ func _init() -> void:
 	if not _expect_bool(store.has_method("set_start_paused_enabled"), true, "start paused setter"):
 		return
 	store.set_start_paused_enabled(true)
-	if not _expect_bool(store.has_method("set_local_matching_server"), true, "local matching server setter"):
+	if not _expect_bool(store.has_method("set_local_matching_server"), false, "local matching server setter removed"):
 		return
-	if not _expect_bool(store.has_method("local_matching_server"), true, "local matching server getter"):
+	if not _expect_bool(store.has_method("local_matching_server"), false, "local matching server getter removed"):
 		return
-	store.set_local_matching_server(" localhost:1234 ")
 	if not _expect_bool(store.has_method("set_settings_language"), true, "settings language setter"):
 		return
 	if not _expect_bool(store.has_method("settings_language"), true, "settings language getter"):
@@ -129,8 +128,6 @@ func _init() -> void:
 	if not _expect_bool(store.haste_mode_normalize_speed(), false, "haste normalize speed"):
 		return
 	if not _expect_bool(store.start_paused_enabled(), true, "start paused enabled"):
-		return
-	if not _expect_string(store.local_matching_server(), "localhost:1234", "local matching server"):
 		return
 	if not _expect_string(store.settings_language(), "zh", "settings language"):
 		return
@@ -203,8 +200,6 @@ func _init() -> void:
 	if not _expect_bool(loaded_store.haste_mode_normalize_speed(), false, "loaded haste normalize speed"):
 		return
 	if not _expect_bool(loaded_store.start_paused_enabled(), true, "loaded start paused enabled"):
-		return
-	if not _expect_string(loaded_store.local_matching_server(), "localhost:1234", "loaded local matching server"):
 		return
 	if not _expect_string(loaded_store.channel_modifier(), "Mirror", "loaded channel modifier"):
 		return

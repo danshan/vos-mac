@@ -41,14 +41,6 @@ class RenderStatusTextOracleFixtureTest {
             y += 30;
         }
 
-        RecordingTextRenderer networkTextRenderer = new RecordingTextRenderer();
-        y = 64;
-        networkTextRenderer.drawString(780, y, "Server: WAITING", 1, -1, TextRenderer.ALIGN_RIGHT);
-        y += 24;
-        networkTextRenderer.drawString(780, y, "Player 1: READY", 1, -1, TextRenderer.ALIGN_RIGHT);
-        y += 18;
-        networkTextRenderer.drawString(780, y, "Player 2: LOADING", 1, -1, TextRenderer.ALIGN_RIGHT);
-
         return object(
                 field("schemaVersion", 1),
                 field("source", "Render statusList draw loop"),
@@ -66,23 +58,7 @@ class RenderStatusTextOracleFixtureTest {
                         field("horizontalAlignment", "right"),
                         field("scaleX", 1.0),
                         field("scaleY", -1.0))),
-                rawField("draws", array(textRenderer.draws)),
-                rawField("networkLayout", object(
-                        field("rightX", 780.0),
-                        field("startY", 64.0),
-                        field("serverLineHeight", 24.0),
-                        field("connectionLineHeight", 18.0),
-                        field("labelWidth", 260.0),
-                        field("fontFamily", "Tahoma"),
-                        field("fontSize", 14),
-                        field("glyphHeight", 20.0),
-                        field("bold", true),
-                        field("antiAlias", false),
-                        field("fontColor", "#ffffffff"),
-                        field("horizontalAlignment", "right"),
-                        field("scaleX", 1.0),
-                        field("scaleY", -1.0))),
-                rawField("networkDraws", array(networkTextRenderer.draws)));
+                rawField("draws", array(textRenderer.draws)));
     }
 
     private static StatusItem item(final String text, final boolean visible) {

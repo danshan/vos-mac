@@ -31,7 +31,6 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"horizontalAlignment\":\"right\""));
         assertTrue(json.contains("\"scaleX\":1.0"));
         assertTrue(json.contains("\"scaleY\":-1.0"));
-        assertTrue(json.contains("\"networkStatusTextLayout\":{\"rightX\":780.0,\"startY\":64.0,\"serverLineHeight\":24.0,\"connectionLineHeight\":18.0"));
         assertTrue(json.contains("\"statusTextTemplates\":{\"speed\":\"{speedType}: x{speedMultiplier}\""));
         assertTrue(json.contains("\"measure\":\"Current Measure: {measure}\""));
         assertTrue(json.contains("\"gameSpeed\":\"Game Speed: {gameSpeedPitch}\""));

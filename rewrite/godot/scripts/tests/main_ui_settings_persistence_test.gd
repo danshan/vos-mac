@@ -32,11 +32,9 @@ func _init() -> void:
 	if not _expect_string(_settings_label_text(first, "VSyncCheckBoxDescription"),
 			"Synchronizes frame presentation with the display refresh, matching Java's launch-time VSync option.", "vsync description"):
 		return
-	if not _expect_string(_settings_label_text(first, "LocalMatchingServerInputDescription"),
-			"Optional Java partytime host:port. When valid, gameplay waits for matching readiness instead of first-key start.", "local matching server description"):
+	if not _expect_bool(_has_settings_node(first, "LocalMatchingServerInput"), false, "local matching server input removed"):
 		return
-	if not _expect_string(_settings_label_text(first, "CreatePartytimeServerButtonDescription"),
-			"Starts a Java-compatible partytime server on the port from Local matching server, or 7273 when the field is empty.", "create partytime server description"):
+	if not _expect_bool(_has_settings_node(first, "CreatePartytimeServerButton"), false, "create partytime server button removed"):
 		return
 
 	if not _expect_bool(_has_settings_node(first, "SongDirectoryDisplay"), true, "song directory display"):
@@ -62,9 +60,6 @@ func _init() -> void:
 	_settings_node(first, "AutoplayCheckBox").button_pressed = true
 	_settings_node(first, "AudioLatencySpinBox").value = 88.0
 	_settings_node(first, "DisplayLatencySpinBox").value = 44.0
-	_settings_node(first, "LocalMatchingServerInput").text = "localhost:1234"
-	if not _expect_bool(_has_settings_node(first, "CreatePartytimeServerButton"), true, "create partytime server button"):
-		return
 	if not _expect_bool(_has_settings_node(first, "AutosyncModeOption"), true, "first autosync mode option"):
 		return
 	_settings_node(first, "AutosyncModeOption").select(1)
@@ -98,7 +93,7 @@ func _init() -> void:
 		return
 	if not _expect_float(_settings_node(second, "DisplayLatencySpinBox").value, 44.0, "loaded display latency"):
 		return
-	if not _expect_string(_settings_node(second, "LocalMatchingServerInput").text, "localhost:1234", "loaded local matching server"):
+	if not _expect_bool(_has_settings_node(second, "LocalMatchingServerInput"), false, "loaded local matching server removed"):
 		return
 	if not _expect_string(_settings_node(second, "AutosyncModeOption").get_item_text(
 			_settings_node(second, "AutosyncModeOption").selected), "Display", "loaded autosync mode"):

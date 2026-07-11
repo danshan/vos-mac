@@ -41,9 +41,6 @@ public final class VosRenderMetadataExporter {
     private static final double STATUS_TEXT_GLYPH_HEIGHT = 20.0;
     private static final double STATUS_TEXT_SCALE_X = 1.0;
     private static final double STATUS_TEXT_SCALE_Y = -1.0;
-    private static final double NETWORK_STATUS_TEXT_START_Y = 64.0;
-    private static final double NETWORK_STATUS_SERVER_LINE_HEIGHT = 24.0;
-    private static final double NETWORK_STATUS_CONNECTION_LINE_HEIGHT = 18.0;
     private static final int STATUS_FONT_TEXTURE_WIDTH = 512;
     private static final int STATUS_FONT_TEXTURE_HEIGHT = 512;
     private static final int STATUS_FONT_CORRECT_LEFT = 9;
@@ -80,7 +77,6 @@ public final class VosRenderMetadataExporter {
                 JsonWriter.rawField("visibilityMasks", visibilityMasksJson()),
                 JsonWriter.field("measureSize", JAVA_MEASURE_SIZE),
                 JsonWriter.rawField("statusTextLayout", statusTextLayoutJson()),
-                JsonWriter.rawField("networkStatusTextLayout", networkStatusTextLayoutJson()),
                 JsonWriter.rawField("statusTextTemplates", statusTextTemplatesJson()),
                 JsonWriter.rawField("statusFont", statusFontJson()),
                 JsonWriter.rawField("entities", JsonWriter.array(entities.toArray(new String[0]))),
@@ -334,24 +330,6 @@ public final class VosRenderMetadataExporter {
                 JsonWriter.field("rightX", STATUS_TEXT_RIGHT_X),
                 JsonWriter.field("startY", STATUS_TEXT_START_Y),
                 JsonWriter.field("lineHeight", STATUS_TEXT_LINE_HEIGHT),
-                JsonWriter.field("labelWidth", STATUS_TEXT_LABEL_WIDTH),
-                JsonWriter.field("fontFamily", "Tahoma"),
-                JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
-                JsonWriter.field("glyphHeight", STATUS_TEXT_GLYPH_HEIGHT),
-                JsonWriter.field("bold", true),
-                JsonWriter.field("antiAlias", false),
-                JsonWriter.field("fontColor", "#ffffffff"),
-                JsonWriter.field("horizontalAlignment", "right"),
-                JsonWriter.field("scaleX", STATUS_TEXT_SCALE_X),
-                JsonWriter.field("scaleY", STATUS_TEXT_SCALE_Y));
-    }
-
-    private static String networkStatusTextLayoutJson() {
-        return JsonWriter.object(
-                JsonWriter.field("rightX", STATUS_TEXT_RIGHT_X),
-                JsonWriter.field("startY", NETWORK_STATUS_TEXT_START_Y),
-                JsonWriter.field("serverLineHeight", NETWORK_STATUS_SERVER_LINE_HEIGHT),
-                JsonWriter.field("connectionLineHeight", NETWORK_STATUS_CONNECTION_LINE_HEIGHT),
                 JsonWriter.field("labelWidth", STATUS_TEXT_LABEL_WIDTH),
                 JsonWriter.field("fontFamily", "Tahoma"),
                 JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),

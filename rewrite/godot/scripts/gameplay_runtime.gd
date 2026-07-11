@@ -5,13 +5,9 @@ signal completed(result: Dictionary)
 const AudioPlayerPool = preload("res://scripts/audio_player_pool.gd")
 const GameplayController = preload("res://scripts/gameplay_controller.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
-const PartytimeClient = preload("res://scripts/partytime_client.gd")
-const PartytimeServer = preload("res://scripts/partytime_server.gd")
 
 const JAVA_FINISH_DELAY_MS: float = 10000.0
 const JAVA_MANUAL_START_PROMPT: String = "Press any note button to start the game."
-const JAVA_LOCAL_MATCHING_CONNECTING_STATUS: String = "Connecting..."
-const JAVA_LOCAL_MATCHING_STARTED_STATUS: String = "Game start!"
 
 var _controller = GameplayController.new()
 var _input_map = InputMapStore.new()
@@ -33,13 +29,6 @@ var _game_started: bool = true
 var _autosound_enabled: bool = true
 var _audio_latency_ms: float = 0.0
 var _display_latency_ms: float = 0.0
-var _local_matching_enabled: bool = false
-var _local_matching_ready: bool = false
-var _local_matching_status: String = ""
-var _local_matching_client = null
-var _partytime_server = null
-var _partytime_server_owned: bool = false
-var _partytime_server_start_game_count: int = 0
 
 
 func _ready() -> void:
@@ -57,11 +46,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and event.echo:
 		return
-	if event is InputEventKey and event.pressed and _is_return_key(event):
-		if _partytime_server != null:
-			_start_partytime_server_game()
-			_mark_input_handled()
-			return
 
 	for action: String in _input_map.misc_actions():
 		if event.is_action_pressed(action):
@@ -115,10 +99,8 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 	_autosound_enabled = bool(chart.get("autosound", false))
 	_audio_latency_ms = float(chart.get("audioLatencyMs", 0.0))
 	_display_latency_ms = float(chart.get("displayLatencyMs", 0.0))
-	_load_partytime_server_state(chart)
 	_sync_latency_from_controller()
-	_start_local_matching_client(chart)
-	_game_started = not _manual_start and not _local_matching_enabled
+	_game_started = not _manual_start
 	_paused = false
 	if _audio_pool.has_method("set_paused"):
 		_audio_pool.set_paused(false)
@@ -129,13 +111,6 @@ func start(chart: Dictionary, audio_manifest: Dictionary) -> bool:
 func stop() -> void:
 	if _audio_pool != null:
 		_audio_pool.stop_all()
-	if _local_matching_client != null:
-		_local_matching_client.disconnect_from_host()
-		_local_matching_client = null
-	if _partytime_server_owned and _partytime_server != null:
-		_partytime_server.stop()
-		_partytime_server = null
-		_partytime_server_owned = false
 	_finish_after_ms = -1.0
 	_running = false
 	_paused = false
@@ -210,19 +185,6 @@ func set_audio_pool(audio_pool: Node) -> bool:
 	return true
 
 
-func set_local_matching_ready(ready: bool, status: String = "") -> void:
-	if not _local_matching_enabled:
-		return
-	_local_matching_ready = ready
-	if not status.is_empty():
-		_local_matching_status = status
-	elif ready:
-		_local_matching_status = JAVA_LOCAL_MATCHING_STARTED_STATUS
-	if ready and _local_matching_client != null:
-		_local_matching_client.disconnect_from_host()
-		_local_matching_client = null
-
-
 func advance_to(now_ms: float) -> void:
 	if not _running or _paused:
 		return
@@ -232,13 +194,8 @@ func advance_to(now_ms: float) -> void:
 	var audio_state := _controller.audio_state()
 	_elapsed_ms = next_elapsed_ms
 	_update_fps_counter(delta_ms)
-	_poll_partytime_server()
-	_poll_local_matching_client()
 	if not _game_started:
-		if _local_matching_enabled and _local_matching_ready:
-			_game_started = true
-		else:
-			return
+		return
 
 	_game_time_ms += delta_ms * float(audio_state.get("pitchScale", 1.0))
 	_controller.advance_to(_judgment_time_ms(), _display_time_ms(), _game_time_ms, _game_time_ms, delta_ms)
@@ -260,13 +217,6 @@ func press_action(action: String, now_ms: float = -1.0) -> Dictionary:
 			"hitTime": _time_for_input(now_ms),
 			"reason": "paused",
 		}
-	if _local_matching_enabled and not _game_started:
-		return {
-			"accepted": false,
-			"action": action,
-			"hitTime": _time_for_input(now_ms),
-			"reason": "local_matching_wait",
-		}
 	var starts_game := _starts_game(action)
 	if starts_game:
 		_game_started = true
@@ -286,13 +236,6 @@ func release_action(action: String, now_ms: float = -1.0) -> Dictionary:
 			"hitTime": _time_for_input(now_ms),
 			"reason": "paused",
 		}
-	if _local_matching_enabled and not _game_started:
-		return {
-			"accepted": false,
-			"action": action,
-			"hitTime": _time_for_input(now_ms),
-			"reason": "local_matching_wait",
-		}
 	var hit_time := _time_for_input(now_ms)
 	var response: Dictionary = _controller.release_action(action, hit_time)
 	_sync_latency_from_controller()
@@ -304,10 +247,6 @@ func result() -> Dictionary:
 	if _last_result.is_empty():
 		return _result_with_runtime_state(_controller.result())
 	return _last_result.duplicate(true)
-
-
-func partytime_server_start_game_count() -> int:
-	return _partytime_server_start_game_count
 
 
 func hud_state() -> Dictionary:
@@ -323,16 +262,10 @@ func hud_state() -> Dictionary:
 	state["second"] = _display_second
 	state["pressedLanes"] = _controller.pressed_lanes()
 	state.merge(_controller.render_state(_judgment_time_ms(), _game_time_ms), true)
-	if _local_matching_enabled:
-		var matching_status_texts: Array = state.get("statusTexts", []).duplicate()
-		matching_status_texts.append(_local_matching_status)
-		state["statusTexts"] = matching_status_texts
-	elif not _game_started:
+	if not _game_started:
 		var status_texts: Array = state.get("statusTexts", []).duplicate()
 		status_texts.append(JAVA_MANUAL_START_PROMPT)
 		state["statusTexts"] = status_texts
-	if _partytime_server != null:
-		state["networkStatusTexts"] = _partytime_server.status_texts()
 	return state
 
 
@@ -388,85 +321,7 @@ func _sync_latency_from_controller() -> void:
 func _starts_game(action: String) -> bool:
 	if _game_started:
 		return false
-	if _local_matching_enabled:
-		return false
 	return _input_map.lane_for_action(action) >= 0
-
-
-func _start_local_matching_client(chart: Dictionary) -> void:
-	_local_matching_client = null
-	_local_matching_ready = bool(chart.get("localMatchingReady", false))
-	_local_matching_status = str(chart.get("localMatchingStatus", JAVA_LOCAL_MATCHING_CONNECTING_STATUS))
-	var server_parts := _local_matching_server_parts(str(chart.get("localMatchingServer", "")))
-	_local_matching_enabled = not server_parts.is_empty()
-	if not _local_matching_enabled:
-		return
-	if not bool(chart.get("localMatchingClientEnabled", true)):
-		return
-	_local_matching_client = PartytimeClient.new()
-	_local_matching_client.start(str(server_parts[0]), int(server_parts[1]), int(_audio_latency_ms))
-	_local_matching_status = _local_matching_client.status()
-
-
-func _poll_local_matching_client() -> void:
-	if _local_matching_client == null:
-		return
-	_local_matching_client.poll()
-	_local_matching_status = _local_matching_client.status()
-	if _local_matching_client.is_ready():
-		_local_matching_ready = true
-		_local_matching_client = null
-
-
-func _local_matching_server_parts(value: String) -> Array:
-	var parts := value.strip_edges().split(":")
-	if parts.size() != 2:
-		return []
-	if not str(parts[1]).is_valid_int():
-		return []
-	return [str(parts[0]), int(parts[1])]
-
-
-func _load_partytime_server_state(chart: Dictionary) -> void:
-	if _partytime_server_owned and _partytime_server != null:
-		_partytime_server.stop()
-	_partytime_server = null
-	_partytime_server_owned = false
-	_partytime_server_start_game_count = 0
-
-	var raw_connections: Variant = chart.get("partytimeServerConnections", [])
-	var external_server: Variant = chart.get("partytimeServerObject", null)
-	if external_server != null and external_server.has_method("status_texts"):
-		_partytime_server = external_server
-		return
-
-	if chart.has("partytimeServerPort") and str(chart.get("partytimeServerPort", "")).is_valid_int():
-		_partytime_server = PartytimeServer.new()
-		_partytime_server_owned = true
-		_partytime_server.start(int(chart.get("partytimeServerPort", 0)))
-		return
-
-	if bool(chart.get("partytimeServerEnabled", false)) or chart.has("partytimeServerStatus") or chart.has("partytimeServerConnections"):
-		_partytime_server = PartytimeServer.new()
-		_partytime_server.start_with_state(str(chart.get("partytimeServerStatus", "Creating server...")),
-				raw_connections if raw_connections is Array else [])
-
-
-func _poll_partytime_server() -> void:
-	if _partytime_server != null and _partytime_server.has_method("poll"):
-		_partytime_server.poll()
-
-
-func _start_partytime_server_game() -> void:
-	_partytime_server_start_game_count += 1
-	if _partytime_server != null and _partytime_server.has_method("start_game"):
-		_partytime_server.start_game()
-	_partytime_server = null
-	_partytime_server_owned = false
-
-
-func _is_return_key(event: InputEventKey) -> bool:
-	return event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER
 
 
 func _update_fps_counter(delta_ms: float) -> void:

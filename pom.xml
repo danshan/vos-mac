@@ -137,13 +137,6 @@
             <systemPath>${project.basedir}/lib/voile.jar</systemPath>
         </dependency>
         <dependency>
-            <groupId>org.open2jam.local</groupId>
-            <artifactId>partytime</artifactId>
-            <version>0.0.0</version>
-            <scope>system</scope>
-            <systemPath>${project.basedir}/lib/partytime.jar</systemPath>
-        </dependency>
-        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>5.11.4</version>
@@ -222,7 +215,6 @@
                                 <extraJar>${project.basedir}/lib/chardet.jar</extraJar>
                                 <extraJar>${project.basedir}/lib/vlcj-2.0.0.jar</extraJar>
                                 <extraJar>${project.basedir}/lib/voile.jar</extraJar>
-                                <extraJar>${project.basedir}/lib/partytime.jar</extraJar>
                             </extraJars>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">

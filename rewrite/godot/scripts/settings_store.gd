@@ -34,7 +34,6 @@ var _bgm_volume: float = 1.0
 var _haste_mode_enabled: bool = false
 var _haste_mode_normalize_speed: bool = true
 var _start_paused_enabled: bool = false
-var _local_matching_server: String = ""
 var _key_bindings: Array[String] = []
 var _misc_key_bindings: Dictionary = InputMapStore.DEFAULT_MISC_KEY_BINDINGS.duplicate(true)
 var _channel_modifier: String = CHANNEL_MOD_NONE
@@ -170,14 +169,6 @@ func start_paused_enabled() -> bool:
 	return _start_paused_enabled
 
 
-func set_local_matching_server(server: String) -> void:
-	_local_matching_server = server.strip_edges()
-
-
-func local_matching_server() -> String:
-	return _local_matching_server
-
-
 func set_key_bindings(bindings: Array[String]) -> void:
 	_key_bindings = bindings.duplicate()
 
@@ -279,7 +270,6 @@ func save_to_file(path: String) -> bool:
 	config.set_value("gameplay", "haste_mode", _haste_mode_enabled)
 	config.set_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed)
 	config.set_value("gameplay", "start_paused", _start_paused_enabled)
-	config.set_value("gameplay", "local_matching_server", _local_matching_server)
 	config.set_value("gameplay", "channel_modifier", _channel_modifier)
 	config.set_value("gameplay", "speed_type", _speed_type)
 	config.set_value("gameplay", "speed_multiplier", _speed_multiplier)
@@ -287,7 +277,10 @@ func save_to_file(path: String) -> bool:
 	config.set_value("gameplay", "judgment_type", _judgment_type)
 	config.set_value("input", "key_bindings", _key_bindings)
 	config.set_value("input", "misc_key_bindings", _misc_key_bindings)
-	return config.save(path) == OK
+	var error := config.save(path)
+	if error != OK:
+		push_error("Unable to save settings to %s: %s" % [path, error])
+	return error == OK
 
 
 func load_from_file(path: String) -> bool:
@@ -310,7 +303,6 @@ func load_from_file(path: String) -> bool:
 	set_haste_mode_enabled(_bool_value(config.get_value("gameplay", "haste_mode", _haste_mode_enabled), _haste_mode_enabled))
 	set_haste_mode_normalize_speed(_bool_value(config.get_value("gameplay", "haste_mode_normalize_speed", _haste_mode_normalize_speed), _haste_mode_normalize_speed))
 	set_start_paused_enabled(_bool_value(config.get_value("gameplay", "start_paused", _start_paused_enabled), _start_paused_enabled))
-	set_local_matching_server(_string_value(config.get_value("gameplay", "local_matching_server", _local_matching_server), _local_matching_server))
 	set_channel_modifier(_string_value(config.get_value("gameplay", "channel_modifier", _channel_modifier), _channel_modifier))
 	set_speed_type(_string_value(config.get_value("gameplay", "speed_type", _speed_type), _speed_type))
 	set_speed_multiplier(_float_value(config.get_value("gameplay", "speed_multiplier", _speed_multiplier), _speed_multiplier))

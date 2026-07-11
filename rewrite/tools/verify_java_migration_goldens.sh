@@ -51,7 +51,7 @@ require_file() {
 	fi
 }
 
-for required_command in bash git grep mise rg rm sed shasum tr; do
+for required_command in awk bash git grep mise rg rm sed shasum tr wc; do
 	require_command "$required_command"
 done
 
@@ -62,6 +62,7 @@ for required_file in \
 	rewrite/tools/test_verify_java_migration_goldens.sh \
 	rewrite/tools/test_verify_java_migration_goldens_behavior.sh \
 	rewrite/tools/test_java_migration_nested_tmpdir.sh \
+	rewrite/tools/test_java_migration_nested_tmpdir_behavior.sh \
 	rewrite/tools/test_verify_java_oracle_provenance.sh \
 	rewrite/tools/test_verify_java_migration_package.sh \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \

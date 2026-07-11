@@ -10,6 +10,7 @@ INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 MISE_CONFIG="mise.toml"
 BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
 NESTED_TMPDIR_TEST="rewrite/tools/test_java_migration_nested_tmpdir.sh"
+NESTED_TMPDIR_BEHAVIOR_TEST="rewrite/tools/test_java_migration_nested_tmpdir_behavior.sh"
 ORACLE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_oracle_provenance.sh"
 PACKAGE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_package.sh"
 REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
@@ -24,6 +25,7 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 [[ -f "$MISE_CONFIG" ]] || { printf 'Missing mise configuration.\n' >&2; exit 1; }
 [[ -f "$BEHAVIOR_TEST" ]] || { printf 'Missing golden verifier behavioral contract.\n' >&2; exit 1; }
 [[ -x "$NESTED_TMPDIR_TEST" ]] || { printf 'Missing nested TMPDIR regression.\n' >&2; exit 1; }
+[[ -x "$NESTED_TMPDIR_BEHAVIOR_TEST" ]] || { printf 'Missing nested TMPDIR behavior test.\n' >&2; exit 1; }
 [[ -x "$ORACLE_BEHAVIOR_TEST" ]] || { printf 'Missing oracle provenance behavioral contract.\n' >&2; exit 1; }
 [[ -x "$PACKAGE_BEHAVIOR_TEST" ]] || { printf 'Missing package behavioral contract.\n' >&2; exit 1; }
 [[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
@@ -103,6 +105,50 @@ reject_pattern() {
 	fi
 }
 
+require_active_top_level_invocation() {
+	local invocation="$1"
+	local count
+	local scan_status
+	if count="$(awk -v invocation="$invocation" '
+		BEGIN { depth = 0; matches = 0; malformed = 0 }
+		{
+			line = $0
+			sub(/^[[:space:]]+/, "", line)
+			sub(/[[:space:]]+$/, "", line)
+			if ($0 == invocation && depth == 0) {
+				matches++
+			}
+			if (line ~ /^(if|for|while|until|case|select)([[:space:]]|$)/ || line ~ /^[[:alnum:]_]+\(\)[[:space:]]*\{$/) {
+				depth++
+			}
+			if (line ~ /^(fi|done|esac|\})([[:space:];]|$)/) {
+				depth--
+				if (depth < 0) {
+					malformed = 1
+				}
+			}
+		}
+		END {
+			if (malformed || depth != 0) {
+				exit 2
+			}
+			print matches
+		}
+	' "$VERIFIER")"; then
+		scan_status=0
+	else
+		scan_status=$?
+	fi
+	if [[ "$scan_status" -ne 0 ]]; then
+		printf 'Unable to inspect verifier top-level shell structure.\n' >&2
+		exit 1
+	fi
+	if [[ "$count" != "1" ]]; then
+		printf 'Nested TMPDIR verifier invocation is not one active top-level command.\n' >&2
+		exit 1
+	fi
+}
+
 expected_classes="$(printf '%s\n' "${EXPECTED_TEST_CLASSES[@]}")"
 actual_classes="$(extract_array TEST_CLASSES)"
 if [[ "$actual_classes" != "$expected_classes" ]]; then
@@ -127,13 +173,12 @@ done
 for required_text in \
 	'bash rewrite/tools/test_verify_java_migration_goldens.sh' \
 	'bash rewrite/tools/test_verify_vos_godot_manifest.sh' \
-	'bash rewrite/tools/test_java_migration_nested_tmpdir.sh' \
 	'bash rewrite/tools/test_verify_java_oracle_provenance.sh' \
 	'bash rewrite/tools/test_verify_java_migration_package.sh' \
 	'bash rewrite/tools/verify_java_oracle_provenance.sh' \
 	'rewrite/tools/JavaOracleFilesystemVerifier.java' \
 	'"$CORPUS_DIR/oracle-files.sha256"' \
-	'for required_command in bash git grep mise rg rm sed shasum tr' \
+	'for required_command in awk bash git grep mise rg rm sed shasum tr wc' \
 	'for test_source in "${TEST_SOURCES[@]}"' \
 	'class_path="$(printf '\''%s'\'' "$fully_qualified_class" | tr '\''.'\'' '\''/'\'')"' \
 	'expected_source="src/test/java/$class_path.java"' \
@@ -154,6 +199,9 @@ for required_text in \
 	require_literal "$required_text" "$VERIFIER" \
 		'Golden verifier omits fail-closed contract'
 done
+
+require_active_top_level_invocation \
+	'bash rewrite/tools/test_java_migration_nested_tmpdir.sh'
 
 reject_pattern \
 	'assumeTrue[[:space:]]*\(|/Users/[[:alnum:]_.-]+|Skipping|\|\|[[:space:]]*true' \
@@ -205,6 +253,8 @@ require_literal 'Build workflow does not match the pinned canonical contract.' \
 	"$WORKFLOW_VERIFIER" 'Build workflow verifier is not fail-closed on drift'
 
 bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
+
+bash "$NESTED_TMPDIR_BEHAVIOR_TEST"
 
 bash "$BEHAVIOR_TEST"
 

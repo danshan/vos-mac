@@ -16,7 +16,9 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -791,22 +793,78 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
-    void trustsJvmTempRootOnlyWhenItContainsTheCanonicalProcessTmpdir() throws Exception {
+    void pinsJvmTempRootAtClassInitializationAgainstBroadStartupAndRuntimeValues()
+            throws Exception {
+        Path broadRoot = Path.of("/private");
+        assertTrue(Files.isDirectory(broadRoot), "The macOS /private root must exist");
+        Path processTmpdir = tempDir.toRealPath();
+        Path sentinel = processTmpdir.resolve("temp-root-probe-sentinel.txt");
+        Files.writeString(sentinel, "keep\n");
+        String suffix = Long.toString(ProcessHandle.current().pid());
+        Path output = broadRoot.resolve("etc/open2jam-temp-root-output-" + suffix);
+        Path work = broadRoot.resolve("etc/open2jam-temp-root-work-" + suffix);
+
+        TempRootProbeResult broadAtStartup = runTempRootProbe(
+                processTmpdir, broadRoot, null, output, work);
+        assertEquals(23, broadAtStartup.exitCode(), broadAtStartup.output());
+        assertTrue(broadAtStartup.output().contains("REJECTED"), broadAtStartup.output());
+
+        TempRootProbeResult broadFromPlainDirectProcessTmpdir = runTempRootProbe(
+                Path.of("/private/tmp"), broadRoot, null, output, work);
+        assertEquals(
+                23,
+                broadFromPlainDirectProcessTmpdir.exitCode(),
+                broadFromPlainDirectProcessTmpdir.output());
+        assertTrue(
+                broadFromPlainDirectProcessTmpdir.output().contains("REJECTED"),
+                broadFromPlainDirectProcessTmpdir.output());
+
+        TempRootProbeResult broadAfterInitialization = runTempRootProbe(
+                processTmpdir, processTmpdir, broadRoot, output, work);
+        assertEquals(23, broadAfterInitialization.exitCode(), broadAfterInitialization.output());
+        assertTrue(
+                broadAfterInitialization.output().contains("REJECTED"),
+                broadAfterInitialization.output());
+        assertEquals("keep\n", Files.readString(sentinel));
+        assertFalse(Files.exists(output));
+        assertFalse(Files.exists(work));
+        assertJvmTempRootRelationships();
+    }
+
+    private void assertJvmTempRootRelationships() throws Exception {
         Path base = tempDir.toRealPath();
         Path jvmTempRoot = base.resolve("jvm-temp");
-        Path processTmpdir = jvmTempRoot.resolve("nested-process-tmp");
+        Path directProcessTmpdir = jvmTempRoot.resolve(".ctx-mode-direct");
+        Path unapprovedDirectTmpdir = jvmTempRoot.resolve("plain-direct");
+        Path deeperProcessTmpdir = jvmTempRoot.resolve("nested/.ctx-mode-deeper");
+        Path linkedProcessTmpdir = jvmTempRoot.resolve(".ctx-mode-linked");
         Path unrelatedJvmTempRoot = base.resolve("unrelated-jvm-temp");
-        Files.createDirectories(processTmpdir);
+        Files.createDirectories(directProcessTmpdir);
+        Files.createDirectories(unapprovedDirectTmpdir);
+        Files.createDirectories(deeperProcessTmpdir);
+        Files.createSymbolicLink(linkedProcessTmpdir, deeperProcessTmpdir);
         Files.createDirectories(unrelatedJvmTempRoot);
 
         assertEquals(
                 jvmTempRoot,
                 MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
-                        processTmpdir.toString(), jvmTempRoot.toString()));
+                        jvmTempRoot.toString(), jvmTempRoot.toString()));
+        assertEquals(
+                jvmTempRoot,
+                MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                        directProcessTmpdir.toString(), jvmTempRoot.toString()));
         assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
-                processTmpdir.toString(), unrelatedJvmTempRoot.toString()));
+                unapprovedDirectTmpdir.toString(), jvmTempRoot.toString()));
         assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
-                processTmpdir.resolve("missing").toString(), jvmTempRoot.toString()));
+                deeperProcessTmpdir.toString(), jvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                linkedProcessTmpdir.toString(), jvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                directProcessTmpdir.toString(), unrelatedJvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                directProcessTmpdir.resolve("missing").toString(), jvmTempRoot.toString()));
+        assertNull(MigrationGoldenCorpusGenerator.canonicalRelatedJvmTempRoot(
+                "/", jvmTempRoot.toString()));
     }
 
     @Test
@@ -918,5 +976,54 @@ class MigrationGoldenCorpusGeneratorTest {
                             PosixFilePermission.OWNER_WRITE,
                             PosixFilePermission.OWNER_EXECUTE));
         }
+    }
+
+    private static TempRootProbeResult runTempRootProbe(
+            Path processTmpdir,
+            Path startupJvmTmpdir,
+            Path mutatedJvmTmpdir,
+            Path output,
+            Path work) throws Exception {
+        String classpath = System.getProperty(
+                "surefire.test.class.path", System.getProperty("java.class.path"));
+        List<String> command = new ArrayList<>();
+        command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
+        command.add("-Djava.io.tmpdir=" + startupJvmTmpdir);
+        command.add("-cp");
+        command.add(classpath);
+        command.add(TempRootProbe.class.getName());
+        command.add(mutatedJvmTmpdir == null ? "-" : mutatedJvmTmpdir.toString());
+        command.add(output.toString());
+        command.add(work.toString());
+
+        ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true);
+        builder.environment().put("TMPDIR", processTmpdir.toString());
+        Process process = builder.start();
+        String processOutput = new String(process.getInputStream().readAllBytes());
+        return new TempRootProbeResult(process.waitFor(), processOutput);
+    }
+
+    public static final class TempRootProbe {
+        private TempRootProbe() {
+        }
+
+        public static void main(String[] args) throws Exception {
+            Class.forName(MigrationGoldenCorpusGenerator.class.getName(), true,
+                    MigrationGoldenCorpusGenerator.class.getClassLoader());
+            if (!"-".equals(args[0])) {
+                System.setProperty("java.io.tmpdir", args[0]);
+            }
+            try {
+                MigrationGoldenCorpusGenerator.validateProgrammaticPaths(
+                        Path.of(args[1]), Path.of(args[2]));
+                System.out.println("ACCEPTED");
+            } catch (IllegalArgumentException expected) {
+                System.out.println("REJECTED: " + expected.getMessage());
+                System.exit(23);
+            }
+        }
+    }
+
+    private record TempRootProbeResult(int exitCode, String output) {
     }
 }

@@ -46,7 +46,9 @@ public final class MigrationGoldenCorpusGenerator {
             "04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
+    private static final String CONTEXT_PROCESS_TMPDIR_PREFIX = ".ctx-mode-";
     private static final String PROCESS_START_TMPDIR = System.getenv("TMPDIR");
+    private static final String PROCESS_START_JVM_TMPDIR = System.getProperty("java.io.tmpdir");
     private static final Path CORPUS_RELATIVE_PATH = Path.of("rewrite/golden/java-migration");
     private static final String FILE_TYPE_MANIFEST = "manifest.files";
     private static final String HASH_MANIFEST = "manifest.sha256";
@@ -1148,7 +1150,7 @@ public final class MigrationGoldenCorpusGenerator {
             roots.add(new TempRoot(processTmpdir, processTmpdir));
         }
         Path relatedJvmTempRoot = canonicalRelatedJvmTempRoot(
-                PROCESS_START_TMPDIR, System.getProperty("java.io.tmpdir"));
+                PROCESS_START_TMPDIR, PROCESS_START_JVM_TMPDIR);
         if (relatedJvmTempRoot != null) {
             roots.add(new TempRoot(relatedJvmTempRoot, relatedJvmTempRoot));
         }
@@ -1159,9 +1161,17 @@ public final class MigrationGoldenCorpusGenerator {
             throws Exception {
         Path canonicalProcessTmpdir = canonicalExistingTempDirectory(processTmpdir);
         Path canonicalJvmTempRoot = canonicalExistingTempDirectory(javaTmpdir);
+        Path processTmpdirName = canonicalProcessTmpdir == null
+                ? null
+                : canonicalProcessTmpdir.getFileName();
+        boolean approvedDirectChild = processTmpdirName != null
+                && canonicalJvmTempRoot != null
+                && canonicalJvmTempRoot.equals(canonicalProcessTmpdir.getParent())
+                && processTmpdirName.toString().startsWith(CONTEXT_PROCESS_TMPDIR_PREFIX)
+                && processTmpdirName.toString().length() > CONTEXT_PROCESS_TMPDIR_PREFIX.length();
         if (canonicalProcessTmpdir == null || canonicalJvmTempRoot == null
                 || (!canonicalProcessTmpdir.equals(canonicalJvmTempRoot)
-                        && !canonicalProcessTmpdir.startsWith(canonicalJvmTempRoot))) {
+                        && !approvedDirectChild)) {
             return null;
         }
         return canonicalJvmTempRoot;

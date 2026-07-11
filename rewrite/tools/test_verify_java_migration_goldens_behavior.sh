@@ -31,7 +31,7 @@ if [[ -z "$FIXTURE_TEMP_ROOT" || "$FIXTURE_TEMP_ROOT" == "/" \
 fi
 
 for required_command in \
-	awk bash cat chmod cp dirname git grep kill ln mkdir mise mktemp mv rg rm sed shasum tr; do
+	awk bash cat chmod cp dirname git grep kill ln mkdir mise mktemp mv rg rm sed shasum tr wc; do
 	if ! command -v "$required_command" >/dev/null 2>&1; then
 		printf 'Missing behavioral contract command: %s\n' "$required_command" >&2
 		exit 1
@@ -176,6 +176,26 @@ EOF
 	fi
 	if ! chmod +x "$output_path"; then
 		printf 'Unable to make contract stub executable: %s\n' "$output_path" >&2
+		return 1
+	fi
+}
+
+write_nested_tmpdir_stub() {
+	local output_path="$1"
+	if ! cat >"$output_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GOLDEN_NESTED_INVOCATION_MARKER:?}"
+printf 'invoked\n' >>"$GOLDEN_NESTED_INVOCATION_MARKER"
+EOF
+	then
+		printf 'Unable to write nested TMPDIR stub: %s\n' "$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make nested TMPDIR stub executable: %s\n' \
+			"$output_path" >&2
 		return 1
 	fi
 }
@@ -342,8 +362,10 @@ create_fixture() {
 			"$fixture_root/rewrite/tools/test_verify_java_migration_goldens_behavior.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_vos_godot_manifest.sh" \
-		|| ! write_contract_stub \
+		|| ! write_nested_tmpdir_stub \
 			"$fixture_root/rewrite/tools/test_java_migration_nested_tmpdir.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_java_migration_nested_tmpdir_behavior.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_java_oracle_provenance.sh" \
 		|| ! write_contract_stub \
@@ -395,14 +417,33 @@ create_fixture() {
 run_verifier() {
 	local fixture_root="$1"
 	local mode="${2:-valid}"
+	local nested_marker="$fixture_root/nested-tmpdir-invocations.log"
 	assert_fixture_path "$fixture_root" || return 1
+	rm -f "$nested_marker"
 	(
 		cd "$fixture_root"
 		PATH="$fixture_root/bin:/usr/bin:/bin" \
 			REAL_JAVA_PATH="$REAL_JAVA_PATH" \
 			GOLDEN_FIXTURE_MAVEN_MODE="$mode" \
+			GOLDEN_NESTED_INVOCATION_MARKER="$nested_marker" \
 			bash rewrite/tools/verify_java_migration_goldens.sh
 	)
+}
+
+assert_nested_invocation_count() {
+	local fixture_root="$1"
+	local expected_count="$2"
+	local marker="$fixture_root/nested-tmpdir-invocations.log"
+	local actual_count=0
+	assert_fixture_path "$fixture_root" || return 1
+	if [[ -f "$marker" ]]; then
+		actual_count="$(wc -l <"$marker" | tr -d '[:space:]')"
+	fi
+	if [[ "$actual_count" != "$expected_count" ]]; then
+		printf 'Nested TMPDIR verifier invocation count was %s, expected %s.\n' \
+			"$actual_count" "$expected_count" >&2
+		exit 1
+	fi
 }
 
 expect_verifier_pass() {
@@ -414,6 +455,7 @@ expect_verifier_pass() {
 		printf '%s unexpectedly failed:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
+	assert_nested_invocation_count "$fixture_root" 1
 }
 
 expect_verifier_failure() {
@@ -913,6 +955,41 @@ install_real_contract() {
 	fi
 }
 
+mutate_nested_invocation() {
+	local fixture_root="$1"
+	local mutation="$2"
+	local verifier="$fixture_root/rewrite/tools/verify_java_migration_goldens.sh"
+	local rewritten="$fixture_root/rewrite/tools/.verify-java-migration-goldens.rewritten"
+	local invocation='bash rewrite/tools/test_java_migration_nested_tmpdir.sh'
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v invocation="$invocation" -v mutation="$mutation" '
+		$0 == invocation && mutation == "comment" {
+			print "# " $0
+			next
+		}
+		$0 == invocation && mutation == "remove" { next }
+		$0 == invocation && mutation == "duplicate" {
+			print
+			print
+			next
+		}
+		$0 == invocation && mutation == "dead" {
+			print "if false; then"
+			print "\t" $0
+			print "fi"
+			next
+		}
+		{ print }
+	' "$verifier" >"$rewritten"; then
+		printf 'Unable to mutate nested TMPDIR invocation: %s\n' "$mutation" >&2
+		return 1
+	fi
+	if ! mv "$rewritten" "$verifier" || ! chmod +x "$verifier"; then
+		printf 'Unable to install nested TMPDIR mutation: %s\n' "$mutation" >&2
+		return 1
+	fi
+}
+
 write_rg_error_stub() {
 	local fixture_root="$1"
 	local output_path="$fixture_root/bin/rg"
@@ -1109,6 +1186,17 @@ create_fixture
 fixture="$CREATED_FIXTURE"
 install_real_contract "$fixture"
 expect_contract_pass "$fixture"
+
+for nested_mutation in comment remove duplicate dead; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	mutate_nested_invocation "$fixture" "$nested_mutation"
+	expect_contract_failure \
+		"$nested_mutation nested TMPDIR verifier invocation" \
+		"$fixture" \
+		"Nested TMPDIR verifier invocation is not one active top-level command"
+done
 
 create_fixture
 fixture="$CREATED_FIXTURE"

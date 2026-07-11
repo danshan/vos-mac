@@ -440,7 +440,9 @@ public final class OsuFixtureFactory {
     }
 
     private static void writeEntry(ZipOutputStream zip, String name, byte[] bytes) throws Exception {
-        zip.putNextEntry(new ZipEntry(name));
+        ZipEntry entry = new ZipEntry(name);
+        entry.setTime(0L);
+        zip.putNextEntry(entry);
         zip.write(bytes);
         zip.closeEntry();
     }
@@ -536,7 +538,7 @@ class MigrationGoldenCorpusGeneratorTest {
     @Test
     void generatesSourcesExpectedArtifactsAndProvenance() throws Exception {
         Path output = tempDir.resolve("java-migration");
-        Path work = Path.of("/tmp/open2jam-java-golden-v1");
+        Path work = tempDir.resolve("open2jam-java-golden-v1");
 
         MigrationGoldenCorpusGenerator.generate(output, work);
 
@@ -549,7 +551,7 @@ class MigrationGoldenCorpusGeneratorTest {
         assertTrue(output.resolve("expected/vos/gameplay.json").toFile().isFile());
         assertTrue(output.resolve("expected/vos/audio-manifest.json").toFile().isFile());
         assertTrue(output.resolve("expected/ojn/catalog.json").toFile().isFile());
-        assertTrue(output.resolve("expected/osu/catalog.json").toFile().isFile());
+        assertTrue(output.resolve("expected/osu/osu-catalog.json").toFile().isFile());
         assertTrue(output.resolve("manifest.json").toFile().isFile());
         assertTrue(output.resolve("manifest.sha256").toFile().isFile());
     }
@@ -610,6 +612,7 @@ writeUtf8(expected.resolve("catalog.json"), new VosCatalogExporter().exportCatal
 writeUtf8(expected.resolve("gameplay.json"), new VosGameplayExporter().exportGameplay(vos));
 writeUtf8(expected.resolve("audio-manifest.json"),
         new VosAudioExporter().exportAudio(vos, expected.resolve("audio").toFile()));
+writeUtf8(expected.resolve("render-metadata.json"), stableRenderMetadata());
 
 OjnFixtureFactory.OjnFixture ojn = OjnFixtureFactory.writeFixture(
         workRoot.resolve("sources/ojn").toFile(), "o2jam");
@@ -632,6 +635,8 @@ writeUtf8(expected.resolve("gameplay.json"), new VosGameplayExporter().exportGam
 writeUtf8(expected.resolve("audio-manifest.json"),
         new VosAudioExporter().exportAudio(osu, expected.resolve("audio").toFile()));
 ```
+
+Normalize the checkout root in render metadata to the literal `$PROJECT_ROOT/` token before hashing so worktree location cannot change the corpus.
 
 Create directories before each factory call. After generation, copy `workRoot/sources` to `outputRoot/sources` while preserving bytes. Create malformed cases as fixed byte arrays:
 
@@ -716,7 +721,7 @@ Expected: PASS.
 Run:
 
 ```bash
-mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java -Dexec.classpathScope=test -Dexec.mainClass=org.open2jam.export.MigrationGoldenCorpusGenerator -Dexec.args="--output rewrite/golden/java-migration --work-root /tmp/open2jam-java-golden-v1"'
+mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:exec -Dexec.args="--add-exports java.desktop/com.sun.media.sound=ALL-UNNAMED -classpath target/test-classes:lib/*:%classpath org.open2jam.export.MigrationGoldenCorpusGenerator --output rewrite/golden/java-migration --work-root /tmp/open2jam-java-golden-v1"'
 ```
 
 Expected: exit 0 and create the exact source, expected, manifest, hash, and README files listed above.

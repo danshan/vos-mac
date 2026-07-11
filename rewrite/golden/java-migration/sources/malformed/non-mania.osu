@@ -1,0 +1,29 @@
+osu file format v14
+
+[General]
+AudioFilename: audio.wav
+Mode: 0
+
+[Metadata]
+Title:Seven Key Fixture
+Artist:Fixture Artist
+Creator:Fixture Creator
+Version:Test 7K
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:7
+OverallDifficulty:8
+
+[TimingPoints]
+0,500,4,2,1,60,1,0
+
+[HitObjects]
+36,192,0,1,0,0:0:0:0:
+109,192,250,1,0,0:0:0:0:
+182,192,500,1,0,0:0:0:0:
+256,192,750,1,0,0:0:0:0:
+329,192,1000,1,0,0:0:0:0:
+402,192,1250,1,0,0:0:0:0:
+475,192,1500,1,0,0:0:0:0:
+256,192,2000,128,0,3000:0:0:0:0:

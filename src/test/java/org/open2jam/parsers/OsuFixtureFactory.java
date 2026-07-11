@@ -46,7 +46,9 @@ public final class OsuFixtureFactory {
     }
 
     private static void writeEntry(ZipOutputStream zip, String name, byte[] bytes) throws Exception {
-        zip.putNextEntry(new ZipEntry(name));
+        ZipEntry entry = new ZipEntry(name);
+        entry.setTime(0L);
+        zip.putNextEntry(entry);
         zip.write(bytes);
         zip.closeEntry();
     }

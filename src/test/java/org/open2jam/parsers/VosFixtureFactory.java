@@ -216,6 +216,12 @@ public final class VosFixtureFactory {
                         includeLongNote, longNoteOnly, includeDistractorNote);
                 writeInt(out, noteCount);
                 out.write(new byte[14]);
+                if (noteCountOverride != null && channel == playableChannelIndex) {
+                    for (int note = 0; note < noteCountOverride; note++) {
+                        writeNote(out, note * 3, 0, 0, 60 + note % 7, 100, tapKeyboard, 0x00);
+                    }
+                    continue;
+                }
                 if (noteCountOverride == null || noteCountOverride > 0) {
                     if (includeDistractorNote && channel == 0) {
                         writeNote(out, 0x000, 0x000, 0, 90, 100, 0x80, 0x00);

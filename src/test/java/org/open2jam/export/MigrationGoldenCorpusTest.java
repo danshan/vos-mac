@@ -40,12 +40,12 @@ class MigrationGoldenCorpusTest {
         String canonical = Files.readString(source, StandardCharsets.UTF_8);
         Files.writeString(
                 changed,
-                canonical.replace("\"schemaVersion\": 3", "\"schemaVersion\": 2"),
+                canonical.replace("\"schemaVersion\": 4", "\"schemaVersion\": 3"),
                 StandardCharsets.UTF_8);
         Files.writeString(
                 duplicate,
                 canonical.replaceFirst(
-                        "\\{", "{\\n  \\\"schemaVersion\\\": 3,"),
+                        "\\{", "{\\n  \\\"schemaVersion\\\": 4,"),
                 StandardCharsets.UTF_8);
         Files.writeString(fragmentPreserving, canonical + "\n", StandardCharsets.UTF_8);
 

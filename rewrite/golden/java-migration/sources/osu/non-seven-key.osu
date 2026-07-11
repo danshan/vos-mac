@@ -1,0 +1,23 @@
+osu file format v14
+
+[General]
+AudioFilename:
+Mode: 3
+
+[Metadata]
+Title:Unsupported Keys
+TitleUnicode:Unsupported Keys
+Artist:Fixture Artist
+Creator:Fixture Creator
+Version:Test 7K
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:4
+OverallDifficulty:8
+
+[TimingPoints]
+0,500,4,2,1,60,1,0
+
+[HitObjects]
+36,192,0,1,0,0:0:0:0:

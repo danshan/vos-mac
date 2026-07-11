@@ -27,9 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
-import org.open2jam.parsers.OjnFixtureFactory;
-import org.open2jam.parsers.OsuFixtureFactory;
-import org.open2jam.parsers.VosFixtureFactory;
 
 public final class MigrationGoldenCorpusGenerator {
     public static final String JAVA_SOURCE_COMMIT = "05257da";
@@ -43,7 +40,7 @@ public final class MigrationGoldenCorpusGenerator {
     public static final String JAVA_ORACLE_FILES_SHA256 =
             "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca";
     public static final String CANONICAL_MANIFEST_SHA256 =
-            "04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b";
+            "5791c29398844fd1add3db4961da3d7a412eab3072ba32a656b70c9cfb162f0a";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
     private static final String CONTEXT_PROCESS_TMPDIR_PREFIX = ".ctx-mode-";
@@ -54,31 +51,10 @@ public final class MigrationGoldenCorpusGenerator {
     private static final String HASH_MANIFEST = "manifest.sha256";
     private static final List<String> JAVA_ORACLE_PATHS =
             List.of("src/org/open2jam", "parsers/src", "src/resources");
-    private static final String MANIFEST = """
-            {
-              "schemaVersion": 3,
-              "javaSourceCommit": "05257da",
-              "javaDeterminismOverlayCommit": "62ece7083ea473f02ecc9a83ee7d3e151905bf0e",
-              "javaDeterminismOverlayPurpose": "deterministic Liberation Sans font and provenance",
-              "javaTool": "zulu-17.66.19.0",
-              "javaOraclePaths": ["src/org/open2jam", "parsers/src", "src/resources"],
-              "javaOracleTreeFile": "oracle-tree.txt",
-              "javaOracleTreeSha256": "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e",
-              "javaOracleFilesystemManifestFile": "oracle-files.sha256",
-              "javaOracleFilesystemManifestSha256": "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca",
-              "canonicalWorkRoot": "/private/tmp/open2jam-java-golden-v1",
-              "cases": [
-                {"id": "vos-canon", "format": "VOS", "source": "sources/vos/canon.vos", "expected": "expected/vos"},
-                {"id": "ojn-o2jam", "format": "OJN", "source": "sources/ojn/o2jam.ojn", "expected": "expected/ojn"},
-                {"id": "osu-seven-key", "format": "OSU", "source": "sources/osu/seven-key.osu", "expected": "expected/osu"},
-                {"id": "osz-seven-key", "format": "OSU", "source": "sources/osu/seven-key.osz", "expected": "expected/osu/osz-catalog.json"},
-                {"id": "vos-truncated", "format": "VOS", "source": "sources/malformed/truncated.vos", "expectedError": "CORRUPT_CHART"},
-                {"id": "ojn-truncated", "format": "OJN", "source": "sources/malformed/truncated.ojn", "expectedError": "CORRUPT_CHART"},
-                {"id": "osu-non-mania", "format": "OSU", "source": "sources/malformed/non-mania.osu", "expectedError": "UNSUPPORTED_FORMAT"}
-              ]
-            }
-            """;
-
+    private static final List<LegacyAlias> LEGACY_ALIASES = List.of(
+            new LegacyAlias("sources/malformed/truncated.vos", "vos-truncated"),
+            new LegacyAlias("sources/malformed/truncated.ojn", "ojn-truncated"),
+            new LegacyAlias("sources/malformed/non-mania.osu", "osu-non-mania"));
     private MigrationGoldenCorpusGenerator() {
     }
 
@@ -150,12 +126,13 @@ public final class MigrationGoldenCorpusGenerator {
         resetDirectory(paths.workRoot());
         Path stagedCorpus = paths.workRoot().resolve("corpus");
         Files.createDirectories(stagedCorpus);
+        MigrationGoldenFixtureFactory.writeSources(paths.workRoot().resolve("sources"));
         generateVos(stagedCorpus, paths.workRoot());
         generateOjn(stagedCorpus, paths.workRoot());
         generateOsu(stagedCorpus, paths.workRoot());
         normalizeExpectedPaths(stagedCorpus, paths.workRoot());
         copyTree(paths.workRoot().resolve("sources"), stagedCorpus.resolve("sources"));
-        generateMalformedCases(stagedCorpus);
+        writeInputOracle(stagedCorpus);
         writeReadme(stagedCorpus);
         writeProvenance(stagedCorpus);
         writeOracleTree(stagedCorpus);
@@ -166,9 +143,7 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void generateVos(Path stagedCorpus, Path workRoot) throws Exception {
-        Path sourceDir = workRoot.resolve("sources/vos");
-        Files.createDirectories(sourceDir);
-        File vos = VosFixtureFactory.writeFixture(sourceDir.toFile(), "canon.vos", 7, true, true, true);
+        File vos = workRoot.resolve("sources/vos/canon.vos").toFile();
         Path expected = stagedCorpus.resolve("expected/vos");
         Files.createDirectories(expected.resolve("audio"));
         writeUtf8(expected.resolve("catalog.json"), new VosCatalogExporter().exportCatalog(vos));
@@ -179,22 +154,18 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void generateOjn(Path stagedCorpus, Path workRoot) throws Exception {
-        Path sourceDir = workRoot.resolve("sources/ojn");
-        Files.createDirectories(sourceDir);
-        OjnFixtureFactory.OjnFixture ojn = OjnFixtureFactory.writeFixture(sourceDir.toFile(), "o2jam");
+        File ojn = workRoot.resolve("sources/ojn/o2jam.ojn").toFile();
         Path expected = stagedCorpus.resolve("expected/ojn");
         Files.createDirectories(expected.resolve("audio"));
-        writeUtf8(expected.resolve("catalog.json"), new VosCatalogExporter().exportCatalog(ojn.chart()));
-        writeUtf8(expected.resolve("gameplay.json"), new VosGameplayExporter().exportGameplay(ojn.chart(), 0));
+        writeUtf8(expected.resolve("catalog.json"), new VosCatalogExporter().exportCatalog(ojn));
+        writeUtf8(expected.resolve("gameplay.json"), new VosGameplayExporter().exportGameplay(ojn, 0));
         writeUtf8(expected.resolve("audio-manifest.json"),
-                new VosAudioExporter().exportAudio(ojn.chart(), expected.resolve("audio").toFile(), 0));
+                new VosAudioExporter().exportAudio(ojn, expected.resolve("audio").toFile(), 0));
     }
 
     private static void generateOsu(Path stagedCorpus, Path workRoot) throws Exception {
-        Path sourceDir = workRoot.resolve("sources/osu");
-        Files.createDirectories(sourceDir);
-        File osu = OsuFixtureFactory.writeSevenKeyOsu(sourceDir.toFile(), "seven-key.osu");
-        File osz = OsuFixtureFactory.writeSevenKeyOsz(sourceDir.toFile(), "seven-key.osz");
+        File osu = workRoot.resolve("sources/osu/seven-key.osu").toFile();
+        File osz = workRoot.resolve("sources/osu/seven-key.osz").toFile();
         Path expected = stagedCorpus.resolve("expected/osu");
         Files.createDirectories(expected.resolve("audio"));
         writeUtf8(expected.resolve("osu-catalog.json"), new VosCatalogExporter().exportCatalog(osu));
@@ -204,15 +175,11 @@ public final class MigrationGoldenCorpusGenerator {
                 new VosAudioExporter().exportAudio(osu, expected.resolve("audio").toFile()));
     }
 
-    private static void generateMalformedCases(Path stagedCorpus) throws Exception {
-        Path malformed = stagedCorpus.resolve("sources/malformed");
-        Files.createDirectories(malformed);
-        Files.write(malformed.resolve("truncated.vos"), new byte[] {3, 0, 0, 0});
-        Files.write(malformed.resolve("truncated.ojn"), new byte[] {1, 2, 3});
-        Files.writeString(
-                malformed.resolve("non-mania.osu"),
-                OsuFixtureFactory.sevenKeyContent("audio.wav").replace("Mode: 3", "Mode: 0"),
-                StandardCharsets.UTF_8);
+    private static void writeInputOracle(Path stagedCorpus) throws Exception {
+        writeUtf8(
+                stagedCorpus.resolve("expected/parser-oracle.json"),
+                MigrationGoldenInputOracle.render(
+                        stagedCorpus, MigrationGoldenFixtureFactory.definitions()));
     }
 
     private static void writeReadme(Path stagedCorpus) throws Exception {
@@ -220,6 +187,8 @@ public final class MigrationGoldenCorpusGenerator {
                 # Java Migration Golden Corpus
 
                 This corpus preserves Java behavior from source commit `05257da` plus determinism overlay `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, which pins Liberation Sans font bytes and provenance. `oracle-tree.txt` pins Git modes, blob identities, and paths for `src/org/open2jam`, `parsers/src`, and `src/resources`; its SHA-256 is `206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e`. `oracle-files.sha256` independently pins raw file bytes and filesystem-executable modes; its SHA-256 is `b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca`.
+
+                The 27 self-authored logical cases cover 7 VOS, 10 OJN/OJM, and 10 osu!mania/osz inputs. `expected/parser-oracle.json` is generated by executing the pinned Java parsers and records stable accept/reject categories and structural metrics without exception text.
 
                 Normal tests treat this directory as read-only. Regenerate it only from the pinned Java source and toolchain with:
 
@@ -242,7 +211,108 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void writeProvenance(Path stagedCorpus) throws Exception {
-        writeUtf8(stagedCorpus.resolve("manifest.json"), MANIFEST);
+        writeUtf8(stagedCorpus.resolve("manifest.json"), renderProvenance(stagedCorpus));
+    }
+
+    private static String renderProvenance(Path stagedCorpus) throws Exception {
+        StringBuilder manifest = new StringBuilder();
+        manifest.append("{\n")
+                .append("  \"schemaVersion\": 4,\n")
+                .append("  \"javaSourceCommit\": \"").append(JAVA_SOURCE_COMMIT).append("\",\n")
+                .append("  \"javaDeterminismOverlayCommit\": \"")
+                .append(JAVA_DETERMINISM_OVERLAY_COMMIT).append("\",\n")
+                .append("  \"javaDeterminismOverlayPurpose\": \"")
+                .append(JAVA_DETERMINISM_OVERLAY_PURPOSE).append("\",\n")
+                .append("  \"javaTool\": \"").append(JAVA_TOOL).append("\",\n")
+                .append("  \"javaOraclePaths\": [\"src/org/open2jam\", \"parsers/src\", \"src/resources\"],\n")
+                .append("  \"javaOracleTreeFile\": \"oracle-tree.txt\",\n")
+                .append("  \"javaOracleTreeSha256\": \"").append(JAVA_ORACLE_TREE_SHA256)
+                .append("\",\n")
+                .append("  \"javaOracleFilesystemManifestFile\": \"oracle-files.sha256\",\n")
+                .append("  \"javaOracleFilesystemManifestSha256\": \"")
+                .append(JAVA_ORACLE_FILES_SHA256).append("\",\n")
+                .append("  \"canonicalWorkRoot\": \"").append(CANONICAL_WORK_ROOT)
+                .append("\",\n")
+                .append("  \"inputOracleFile\": \"expected/parser-oracle.json\",\n")
+                .append("  \"machineErrorCodes\": [\"UNSUPPORTED_FORMAT\", \"CORRUPT_CHART\", ")
+                .append("\"MISSING_COMPANION\", \"MISSING_ASSET\"],\n")
+                .append("  \"legacyAliases\": ")
+                .append(renderLegacyAliases(stagedCorpus)).append(",\n")
+                .append("  \"cases\": [\n");
+
+        List<MigrationGoldenFixtureFactory.CaseDefinition> definitions =
+                MigrationGoldenFixtureFactory.definitions();
+        for (int i = 0; i < definitions.size(); i++) {
+            MigrationGoldenFixtureFactory.CaseDefinition definition = definitions.get(i);
+            Path source = stagedCorpus.resolve(definition.source());
+            manifest.append("    {\"id\": \"")
+                    .append(MigrationGoldenInputOracle.jsonEscape(definition.id()))
+                    .append("\", \"format\": \"").append(definition.format())
+                    .append("\", \"source\": \"")
+                    .append(MigrationGoldenInputOracle.jsonEscape(definition.source()))
+                    .append("\", \"sourceSha256\": \"")
+                    .append(stableSha256(source, definition.source())).append("\", ")
+                    .append("\"relatedFiles\": ")
+                    .append(renderRelatedFiles(stagedCorpus, definition.relatedFiles()))
+                    .append(", \"coverage\": ").append(renderStringList(definition.coverage()))
+                    .append(", \"expectedOutcome\": \"").append(definition.expectedOutcome())
+                    .append("\", \"expectedError\": ")
+                    .append(definition.expectedError() == null
+                            ? "null"
+                            : "\"" + definition.expectedError() + "\"")
+                    .append(", \"minimumEvents\": ").append(definition.minimumEvents())
+                    .append(", \"provenance\": \"")
+                    .append(MigrationGoldenInputOracle.jsonEscape(definition.provenance()))
+                    .append("\", \"license\": \"")
+                    .append(MigrationGoldenInputOracle.jsonEscape(definition.license()))
+                    .append("\"}")
+                    .append(i + 1 == definitions.size() ? "\n" : ",\n");
+        }
+        return manifest.append("  ]\n}\n").toString();
+    }
+
+    private static String renderRelatedFiles(Path stagedCorpus, List<String> relatedFiles)
+            throws Exception {
+        List<String> rendered = new ArrayList<>();
+        for (String relative : relatedFiles) {
+            Path path = stagedCorpus.resolve(relative);
+            String escaped = MigrationGoldenInputOracle.jsonEscape(relative);
+            if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+                rendered.add("{\"path\": \"" + escaped + "\", \"sha256\": \""
+                        + stableSha256(path, relative) + "\"}");
+            } else {
+                rendered.add("{\"path\": \"" + escaped + "\", \"missing\": true}");
+            }
+        }
+        return rendered.stream().collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String renderLegacyAliases(Path stagedCorpus) throws Exception {
+        List<String> rendered = new ArrayList<>();
+        for (LegacyAlias alias : LEGACY_ALIASES) {
+            rendered.add("{\"path\": \""
+                    + MigrationGoldenInputOracle.jsonEscape(alias.path())
+                    + "\", \"sha256\": \""
+                    + stableSha256(stagedCorpus.resolve(alias.path()), alias.path())
+                    + "\", \"logicalCase\": \""
+                    + MigrationGoldenInputOracle.jsonEscape(alias.logicalCase())
+                    + "\"}");
+        }
+        return rendered.stream().collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String renderStringList(List<String> values) {
+        return values.stream()
+                .map(value -> "\"" + MigrationGoldenInputOracle.jsonEscape(value) + "\"")
+                .collect(java.util.stream.Collectors.joining(", ", "[", "]"));
+    }
+
+    private static String stableSha256(Path path, String label) throws Exception {
+        EntryState state = captureEntry(path, label);
+        if (state.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException("Golden case source is not a regular file: " + label);
+        }
+        return hashStableFile(path, state, label);
     }
 
     private static void writeOracleTree(Path stagedCorpus) throws Exception {
@@ -1305,5 +1375,8 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private record TempRoot(Path lexicalRoot, Path canonicalRoot) {
+    }
+
+    private record LegacyAlias(String path, String logicalCase) {
     }
 }

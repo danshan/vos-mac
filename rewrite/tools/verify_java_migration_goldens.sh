@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
 	org.open2jam.export.MigrationGoldenCorpusTest
+	org.open2jam.export.MigrationGoldenInputOracleTest
 	org.open2jam.parsers.OjnFixtureFactoryTest
 	org.open2jam.parsers.OsuFixtureFactoryTest
 	org.open2jam.parsers.VOSParserTest
@@ -20,6 +21,7 @@ TEST_CLASSES=(
 TEST_SOURCES=(
 	src/test/java/org/open2jam/export/MigrationGoldenCorpusGeneratorTest.java
 	src/test/java/org/open2jam/export/MigrationGoldenCorpusTest.java
+	src/test/java/org/open2jam/export/MigrationGoldenInputOracleTest.java
 	src/test/java/org/open2jam/parsers/OjnFixtureFactoryTest.java
 	src/test/java/org/open2jam/parsers/OsuFixtureFactoryTest.java
 	src/test/java/org/open2jam/parsers/VOSParserTest.java

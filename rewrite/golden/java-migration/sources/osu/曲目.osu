@@ -1,0 +1,23 @@
+osu file format v14
+
+[General]
+AudioFilename: 音频.wav
+Mode: 3
+
+[Metadata]
+Title:节奏测试
+TitleUnicode:节奏测试
+Artist:Fixture Artist
+Creator:Fixture Creator
+Version:Test 7K
+
+[Difficulty]
+HPDrainRate:5
+CircleSize:7
+OverallDifficulty:8
+
+[TimingPoints]
+0,500,4,2,1,60,1,0
+
+[HitObjects]
+36,192,0,1,0,0:0:0:0:

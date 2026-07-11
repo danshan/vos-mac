@@ -153,6 +153,7 @@ fixture_git() {
 TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
 	org.open2jam.export.MigrationGoldenCorpusTest
+	org.open2jam.export.MigrationGoldenInputOracleTest
 	org.open2jam.parsers.OjnFixtureFactoryTest
 	org.open2jam.parsers.OsuFixtureFactoryTest
 	org.open2jam.parsers.VOSParserTest

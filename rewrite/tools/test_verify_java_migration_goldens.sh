@@ -37,6 +37,7 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 EXPECTED_TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
 	org.open2jam.export.MigrationGoldenCorpusTest
+	org.open2jam.export.MigrationGoldenInputOracleTest
 	org.open2jam.parsers.OjnFixtureFactoryTest
 	org.open2jam.parsers.OsuFixtureFactoryTest
 	org.open2jam.parsers.VOSParserTest
@@ -50,6 +51,7 @@ EXPECTED_TEST_CLASSES=(
 EXPECTED_TEST_SOURCES=(
 	src/test/java/org/open2jam/export/MigrationGoldenCorpusGeneratorTest.java
 	src/test/java/org/open2jam/export/MigrationGoldenCorpusTest.java
+	src/test/java/org/open2jam/export/MigrationGoldenInputOracleTest.java
 	src/test/java/org/open2jam/parsers/OjnFixtureFactoryTest.java
 	src/test/java/org/open2jam/parsers/OsuFixtureFactoryTest.java
 	src/test/java/org/open2jam/parsers/VOSParserTest.java
@@ -211,7 +213,7 @@ for required_text in \
 	'git cat-file blob "$object_id" | shasum -a 256' \
 	'mise exec -- java "$FILESYSTEM_VERIFIER" "$FILES_MANIFEST" "${ORACLE_PATHS[@]}"' \
 	'PINNED_FILES_SHA256="b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca"' \
-	'PINNED_MANIFEST_SHA256="04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b"' \
+	'PINNED_MANIFEST_SHA256="5791c29398844fd1add3db4961da3d7a412eab3072ba32a656b70c9cfb162f0a"' \
 	'shasum -a 256 "$PROVENANCE_MANIFEST"' \
 	'Canonical Java oracle provenance manifest digest mismatch'; do
 	require_literal "$required_text" "$ORACLE_PROVENANCE_VERIFIER" \

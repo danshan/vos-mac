@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {"id": "vos-minimal", "format": "VOS", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 2, "sampleCount": 1, "titles": ["Minimal VOS"], "levels": [1]},
+    {"id": "vos-representative", "format": "VOS", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 2, "eventCount": 4, "sampleCount": 2, "titles": ["Canon in D"], "levels": [7]},
+    {"id": "vos-stress-4096", "format": "VOS", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 4096, "eventCount": 4097, "sampleCount": 14, "titles": ["Stress VOS"], "levels": [12]},
+    {"id": "vos-gb2312-title", "format": "VOS", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 2, "sampleCount": 1, "titles": ["节奏测试"], "levels": [5]},
+    {"id": "vos-unicode-basename", "format": "VOS", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 2, "sampleCount": 1, "titles": ["Unicode Basename"], "levels": [6]},
+    {"id": "vos-truncated", "format": "VOS", "outcome": "REJECT", "errorCode": "CORRUPT_CHART", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "vos-corrupt-header", "format": "VOS", "outcome": "REJECT", "errorCode": "CORRUPT_CHART", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "ojn-minimal-plain", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 0, "eventCount": 0, "sampleCount": 1, "titles": ["Minimal O2Jam", "Minimal O2Jam", "Minimal O2Jam"], "levels": [3, 5, 8]},
+    {"id": "ojn-representative-multi-chart", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 60, "eventCount": 0, "sampleCount": 1, "titles": ["O2Jam Fixture", "O2Jam Fixture", "O2Jam Fixture"], "levels": [3, 5, 8]},
+    {"id": "ojn-stress-4096", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 4096, "eventCount": 4096, "sampleCount": 1, "titles": ["O2Jam Stress", "O2Jam Stress", "O2Jam Stress"], "levels": [3, 5, 8]},
+    {"id": "ojn-unicode-basename", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 0, "eventCount": 0, "sampleCount": 1, "titles": ["Unicode Basename", "Unicode Basename", "Unicode Basename"], "levels": [3, 5, 8]},
+    {"id": "ojn-missing-companion", "format": "OJN_OJM", "outcome": "REJECT", "errorCode": "MISSING_COMPANION", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "ojn-truncated", "format": "OJN_OJM", "outcome": "REJECT", "errorCode": "CORRUPT_CHART", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "ojn-corrupt-signature", "format": "OJN_OJM", "outcome": "REJECT", "errorCode": "CORRUPT_CHART", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "ojm-omc-encrypted", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 0, "eventCount": 0, "sampleCount": 1, "titles": ["Encrypted OMC", "Encrypted OMC", "Encrypted OMC"], "levels": [3, 5, 8]},
+    {"id": "ojm-m30-nami", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 0, "eventCount": 0, "sampleCount": 1, "titles": ["M30 Nami", "M30 Nami", "M30 Nami"], "levels": [3, 5, 8]},
+    {"id": "ojm-m30-0412", "format": "OJN_OJM", "outcome": "ACCEPT", "errorCode": null, "chartCount": 3, "noteCount": 0, "eventCount": 0, "sampleCount": 1, "titles": ["M30 0412", "M30 0412", "M30 0412"], "levels": [3, 5, 8]},
+    {"id": "osu-minimal", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 3, "sampleCount": 1, "titles": ["Minimal Mania"], "levels": [8]},
+    {"id": "osu-representative", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 8, "eventCount": 11, "sampleCount": 1, "titles": ["Seven Key Fixture"], "levels": [8]},
+    {"id": "osu-stress-4096", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 4096, "eventCount": 4098, "sampleCount": 1, "titles": ["Stress Mania"], "levels": [8]},
+    {"id": "osu-unicode-basename", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 3, "sampleCount": 1, "titles": ["节奏测试"], "levels": [8]},
+    {"id": "osu-missing-audio", "format": "OSU_OSZ", "outcome": "REJECT", "errorCode": "MISSING_ASSET", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "osu-non-mania", "format": "OSU_OSZ", "outcome": "REJECT", "errorCode": "UNSUPPORTED_FORMAT", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "osu-non-seven-key", "format": "OSU_OSZ", "outcome": "REJECT", "errorCode": "UNSUPPORTED_FORMAT", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "osz-truncated", "format": "OSU_OSZ", "outcome": "REJECT", "errorCode": "CORRUPT_CHART", "chartCount": 0, "noteCount": 0, "eventCount": 0, "sampleCount": 0, "titles": [], "levels": []},
+    {"id": "osz-multi-chart", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 2, "noteCount": 2, "eventCount": 7, "sampleCount": 2, "titles": ["Archive Multi", "Archive Multi"], "levels": [8, 8]},
+    {"id": "osz-case-insensitive-basename", "format": "OSU_OSZ", "outcome": "ACCEPT", "errorCode": null, "chartCount": 1, "noteCount": 1, "eventCount": 4, "sampleCount": 1, "titles": ["Archive Basename"], "levels": [8]}
+  ]
+}

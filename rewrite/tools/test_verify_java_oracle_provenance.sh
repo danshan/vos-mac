@@ -59,18 +59,18 @@ git -C "$WORKTREE" config core.fileMode false
 git -C "$WORKTREE" config core.autocrlf true
 
 cp "$VERIFIER" "$WORKTREE/$VERIFIER"
-cp rewrite/golden/java-migration/manifest.json \
-	"$WORKTREE/rewrite/golden/java-migration/manifest.json"
-cp rewrite/golden/java-migration/README.md \
-	"$WORKTREE/rewrite/golden/java-migration/README.md"
-cp rewrite/golden/java-migration/oracle-tree.txt \
-	"$WORKTREE/rewrite/golden/java-migration/oracle-tree.txt"
-cp rewrite/golden/java-migration/oracle-files.sha256 \
-	"$WORKTREE/rewrite/golden/java-migration/oracle-files.sha256"
-cp rewrite/golden/java-migration/manifest.files \
-	"$WORKTREE/rewrite/golden/java-migration/manifest.files"
-cp rewrite/golden/java-migration/manifest.sha256 \
-	"$WORKTREE/rewrite/golden/java-migration/manifest.sha256"
+SOURCE_CORPUS="rewrite/golden/java-migration"
+if ! unsafe_corpus_entry="$(find "$SOURCE_CORPUS" ! -type d ! -type f -print -quit)"; then
+	printf 'Unable to inspect corpus fixture source entries.\n' >&2
+	exit 1
+fi
+if [[ -n "$unsafe_corpus_entry" ]]; then
+	printf 'Corpus fixture source contains a symlink or special entry: %s\n' \
+		"${unsafe_corpus_entry:-<inspection failed>}" >&2
+	exit 1
+fi
+rm -rf "$WORKTREE/$SOURCE_CORPUS"
+cp -R "$SOURCE_CORPUS" "$WORKTREE/$SOURCE_CORPUS"
 cp rewrite/tools/JavaOracleFilesystemVerifier.java \
 	"$WORKTREE/rewrite/tools/JavaOracleFilesystemVerifier.java"
 
@@ -93,6 +93,69 @@ run_worktree_verifier() {
 			bash "$VERIFIER"
 	)
 }
+
+verify_copied_corpus() {
+	local corpus="$WORKTREE/rewrite/golden/java-migration"
+	local unsafe_entry
+	local actual_files
+	local recorded_files
+	local line
+	local digest
+	local relative_path
+	if ! unsafe_entry="$(find "$corpus" ! -type d ! -type f -print -quit)"; then
+		printf 'Unable to inspect copied corpus fixture entries.\n' >&2
+		return 1
+	fi
+	if [[ -n "$unsafe_entry" ]]; then
+		printf 'Copied corpus fixture contains a symlink or special entry: %s\n' \
+			"$unsafe_entry" >&2
+		return 1
+	fi
+	if [[ ! -s "$corpus/manifest.sha256" || -L "$corpus/manifest.sha256" ]]; then
+		printf 'Copied corpus hash manifest is missing or malformed.\n' >&2
+		return 1
+	fi
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		digest="${line%%  *}"
+		relative_path="${line#*  }"
+		if [[ ${#digest} -ne 64 || "$digest" =~ [^0-9a-f] \
+			|| "${line:64:2}" != "  " || -z "$relative_path" ]]; then
+			printf 'Copied corpus hash manifest is missing or malformed.\n' >&2
+			return 1
+		fi
+		case "$relative_path" in
+			/*|.|..|./*|../*|*/./*|*/../*|*/.|*/..|*//*|*\\*)
+				printf 'Copied corpus hash manifest contains an unsafe path: %s\n' \
+					"$relative_path" >&2
+				return 1
+				;;
+		esac
+	done <"$corpus/manifest.sha256"
+	actual_files="$(
+		cd "$corpus"
+		find . -type f ! -path './manifest.sha256' -print \
+			| sed 's#^\./##' | LC_ALL=C sort
+	)"
+	recorded_files="$(
+		sed 's/^[0-9a-f]\{64\}  //' "$corpus/manifest.sha256" \
+			| LC_ALL=C sort
+	)"
+	if [[ "$actual_files" != "$recorded_files" ]]; then
+		printf 'Copied corpus file set does not match manifest.sha256.\n' >&2
+		return 1
+	fi
+	(
+		cd "$corpus"
+		shasum -a 256 -c manifest.sha256 >/dev/null
+	)
+}
+
+verify_copied_corpus
+if ! fixture_baseline_output="$(run_worktree_verifier 2>&1)"; then
+	printf 'Copied corpus provenance baseline failed:\n%s\n' \
+		"$fixture_baseline_output" >&2
+	exit 1
+fi
 
 CANONICAL_MANIFEST="$TEST_ROOT/canonical-manifest.json"
 WORKTREE_MANIFEST="$WORKTREE/rewrite/golden/java-migration/manifest.json"
@@ -119,14 +182,14 @@ printf '\n' >>"$WORKTREE_MANIFEST"
 expect_manifest_failure "fragment-preserving manifest whitespace mutation" \
 	"Canonical Java oracle provenance manifest digest mismatch"
 
-sed 's/"schemaVersion": 3/"schemaVersion": 2/' \
+sed 's/"schemaVersion": 4/"schemaVersion": 3/' \
 	"$CANONICAL_MANIFEST" >"$WORKTREE_MANIFEST"
 expect_manifest_failure "changed manifest field" \
 	"Canonical Java oracle provenance manifest digest mismatch"
 
 {
 	head -n 1 "$CANONICAL_MANIFEST"
-	printf '  "schemaVersion": 3,\n'
+	printf '  "schemaVersion": 4,\n'
 	tail -n +2 "$CANONICAL_MANIFEST"
 } >"$WORKTREE_MANIFEST"
 expect_manifest_failure "duplicate manifest key" \

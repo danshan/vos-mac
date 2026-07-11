@@ -31,8 +31,8 @@ for class_name in \
 	fi
 done
 
-if retired_matches="$(grep -En \
-	'partytime_(client|server)_test|networkStatusTextLayout|"startY":64\.0|serverLineHeight|connectionLineHeight' \
+if retired_matches="$(grep -Ein \
+	'partytime|networkStatusTextLayout|"startY":64\.0|serverLineHeight|connectionLineHeight' \
 	"$INITIAL" "$PARITY" 2>&1)"; then
 	printf 'Aggregate verification still contains a retired contract:\n%s\n' \
 		"$retired_matches" >&2

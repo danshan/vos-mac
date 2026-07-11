@@ -8,11 +8,15 @@ VERIFIER="rewrite/tools/verify_java_migration_goldens.sh"
 WORKFLOW=".github/workflows/build.yml"
 INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 MISE_CONFIG="mise.toml"
+BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
+REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
 [[ -f "$WORKFLOW" ]] || { printf 'Missing build workflow.\n' >&2; exit 1; }
 [[ -f "$INITIAL" ]] || { printf 'Missing aggregate initial verifier.\n' >&2; exit 1; }
 [[ -f "$MISE_CONFIG" ]] || { printf 'Missing mise configuration.\n' >&2; exit 1; }
+[[ -f "$BEHAVIOR_TEST" ]] || { printf 'Missing golden verifier behavioral contract.\n' >&2; exit 1; }
+[[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
@@ -109,17 +113,18 @@ done
 for required_text in \
 	'bash rewrite/tools/test_verify_java_migration_goldens.sh' \
 	'bash rewrite/tools/test_verify_vos_godot_manifest.sh' \
-	'for required_command in bash git grep mise rg sed shasum' \
+	'for required_command in bash git grep mise rg rm sed shasum tr' \
 	'for test_source in "${TEST_SOURCES[@]}"' \
-	'expected_source="src/test/java/${fully_qualified_class//./\/}.java"' \
+	'class_path="$(printf '\''%s'\'' "$fully_qualified_class" | tr '\''.'\'' '\''/'\'')"' \
+	'expected_source="src/test/java/$class_path.java"' \
 	'rg_status=$?' \
 	'if [[ "$rg_status" -ne 1 ]]' \
+	'@([[:alnum:]_$]+\.)*(Disabled|Enabled)' \
+	'assum(e|ing)[A-Z][[:alnum:]_]*' \
 	'mvn -s "$MAVEN_SETTINGS" clean test' \
 	'REPORT_DIR="target/surefire-reports"' \
-	'TEST-$class_name.xml' \
-	'for attribute in tests failures errors skipped' \
-	'if [[ "$attribute" == "tests" && "$value" -eq 0 ]]' \
-	'if [[ "$attribute" != "tests" && "$value" -ne 0 ]]' \
+	'rm -rf "$REPORT_DIR"' \
+	'mise exec -- java "$REPORT_VERIFIER" "$REPORT_DIR" "${TEST_CLASSES[@]}"' \
 	'shasum -a 256 -c manifest.sha256' \
 	'git diff --exit-code -- "$CORPUS_DIR"' \
 	'git diff --cached --exit-code -- "$CORPUS_DIR"' \
@@ -151,5 +156,7 @@ require_literal 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify' \
 
 reject_pattern 'actions/setup-java|^[[:space:]]*run:[[:space:]]+mvn[[:space:]]' \
 	"$WORKFLOW" 'Build workflow bypasses the project mise runtime'
+
+bash "$BEHAVIOR_TEST"
 
 printf 'Java migration golden verifier contract passed.\n'

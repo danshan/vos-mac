@@ -33,6 +33,7 @@ TEST_SOURCES=(
 REPORT_DIR="target/surefire-reports"
 CORPUS_DIR="rewrite/golden/java-migration"
 MAVEN_SETTINGS_FILE=".mvn/settings.xml"
+REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
 
 require_command() {
 	local command_name="$1"
@@ -50,61 +51,16 @@ require_file() {
 	fi
 }
 
-xml_attribute() {
-	local suite_line="$1"
-	local attribute_name="$2"
-	printf '%s\n' "$suite_line" \
-		| sed -n "s/.* ${attribute_name}=\"\([0-9][0-9]*\)\".*/\1/p"
-}
-
-verify_test_report() {
-	local class_name="$1"
-	local report_path="$REPORT_DIR/TEST-$class_name.xml"
-	local suite_line
-	local attribute
-	local grep_status
-	local value
-
-	require_file "$report_path"
-	if suite_line="$(grep -m 1 '<testsuite ' "$report_path" 2>&1)"; then
-		:
-	else
-		grep_status=$?
-		if [[ "$grep_status" -eq 1 ]]; then
-			printf 'Missing test suite declaration in %s.\n' "$report_path" >&2
-		else
-			printf 'Unable to inspect test report %s:\n%s\n' \
-				"$report_path" "$suite_line" >&2
-		fi
-		exit 1
-	fi
-
-	for attribute in tests failures errors skipped; do
-		value="$(xml_attribute "$suite_line" "$attribute")"
-		if [[ ! "$value" =~ ^[0-9]+$ ]]; then
-			printf 'Invalid %s count in %s.\n' "$attribute" "$report_path" >&2
-			exit 1
-		fi
-		if [[ "$attribute" == "tests" && "$value" -eq 0 ]]; then
-			printf 'No tests executed for %s.\n' "$class_name" >&2
-			exit 1
-		fi
-		if [[ "$attribute" != "tests" && "$value" -ne 0 ]]; then
-			printf 'Test report %s has %s=%s.\n' \
-				"$report_path" "$attribute" "$value" >&2
-			exit 1
-		fi
-	done
-}
-
-for required_command in bash git grep mise rg sed shasum; do
+for required_command in bash git grep mise rg rm sed shasum tr; do
 	require_command "$required_command"
 done
 
 for required_file in \
 	rewrite/tools/test_verify_java_migration_goldens.sh \
+	rewrite/tools/test_verify_java_migration_goldens_behavior.sh \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \
-	pom.xml "$MAVEN_SETTINGS_FILE" "$CORPUS_DIR/manifest.sha256"; do
+	pom.xml "$MAVEN_SETTINGS_FILE" "$REPORT_VERIFIER" \
+	"$CORPUS_DIR/manifest.sha256"; do
 	require_file "$required_file"
 done
 
@@ -123,7 +79,8 @@ fi
 for index in "${!TEST_CLASSES[@]}"; do
 	fully_qualified_class="${TEST_CLASSES[$index]}"
 	test_source="${TEST_SOURCES[$index]}"
-	expected_source="src/test/java/${fully_qualified_class//./\/}.java"
+	class_path="$(printf '%s' "$fully_qualified_class" | tr '.' '/')"
+	expected_source="src/test/java/$class_path.java"
 	package_name="${fully_qualified_class%.*}"
 	class_name="${fully_qualified_class##*.}"
 	if [[ "$test_source" != "$expected_source" ]]; then
@@ -144,7 +101,7 @@ for index in "${!TEST_CLASSES[@]}"; do
 done
 
 if optional_matches="$(rg -n \
-	'@Disabled|@Enabled|Assumptions\.|Assume\.|assume[A-Z][[:alnum:]_]*[[:space:]]*\(' \
+	'@([[:alnum:]_$]+\.)*(Disabled|Enabled)[[:alnum:]_$]*|Assumptions\.[[:space:]]*assum(e|ing)[A-Z][[:alnum:]_]*[[:space:]]*\(|Assume\.[[:space:]]*assum(e|ing)[A-Z][[:alnum:]_]*[[:space:]]*\(|(^|[^[:alnum:]_$])assum(e|ing)[A-Z][[:alnum:]_]*[[:space:]]*\(' \
 	"${TEST_SOURCES[@]}" 2>&1)"; then
 	printf 'Selected migration tests contain conditional execution:\n%s\n' \
 		"$optional_matches" >&2
@@ -169,11 +126,10 @@ mise exec -- bash -lc '
 
 tests_csv="$(IFS=,; printf '%s' "${TEST_CLASSES[*]}")"
 
+rm -rf "$REPORT_DIR"
 mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" clean test -Dtest="$1"' bash "$tests_csv"
 
-for class_name in "${TEST_CLASSES[@]}"; do
-	verify_test_report "$class_name"
-done
+mise exec -- java "$REPORT_VERIFIER" "$REPORT_DIR" "${TEST_CLASSES[@]}"
 
 (
 	cd "$CORPUS_DIR"

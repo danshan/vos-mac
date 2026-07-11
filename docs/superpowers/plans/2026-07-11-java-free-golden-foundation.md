@@ -176,7 +176,7 @@ class OjnFixtureFactoryTest {
         assertEquals(8, charts.get(2).getLevel());
         assertTrue(fixture.samples().isFile());
         assertTrue(charts.get(0).getSamples().containsKey(0));
-        assertEquals(SampleData.Type.WAV, charts.get(0).getSamples().get(0).getType());
+        assertEquals(SampleData.Type.WAV_NO_HEADER, charts.get(0).getSamples().get(0).getType());
     }
 }
 ```

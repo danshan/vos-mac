@@ -3,13 +3,12 @@ package org.open2jam.export;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.File;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.open2jam.parsers.OjnFixtureFactory;
 import org.open2jam.parsers.VosFixtureFactory;
 
 class VosCatalogExporterTest {
@@ -54,7 +53,7 @@ class VosCatalogExporterTest {
 
     @Test
     void exportsOjnCatalogEntriesForEachDifficulty() throws Exception {
-        File chartFile = writeOjnFixture("o2jam.ojn");
+        File chartFile = OjnFixtureFactory.writeFixture(tempDir, "o2jam").chart();
 
         String json = new VosCatalogExporter().exportCatalog(tempDir);
 
@@ -174,57 +173,4 @@ class VosCatalogExporterTest {
         return chartFile;
     }
 
-    private File writeOjnFixture(String name) throws Exception {
-        File chartFile = new File(tempDir, name);
-        ByteBuffer buffer = ByteBuffer.allocate(300).order(ByteOrder.LITTLE_ENDIAN);
-        buffer.putInt(100);
-        buffer.putInt(0x006E6A6F);
-        buffer.putFloat(2.0f);
-        buffer.putInt(2);
-        buffer.putFloat(130.0f);
-        buffer.putShort((short) 3);
-        buffer.putShort((short) 5);
-        buffer.putShort((short) 8);
-        buffer.putShort((short) 0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(10);
-        buffer.putInt(20);
-        buffer.putInt(30);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putInt(0);
-        buffer.putShort((short) 0);
-        buffer.putShort((short) 0);
-        putFixedString(buffer, "", 20);
-        buffer.putInt(0);
-        buffer.putInt(1);
-        putFixedString(buffer, "O2Jam Fixture", 64);
-        putFixedString(buffer, "O2 Artist", 32);
-        putFixedString(buffer, "O2 Noter", 32);
-        putFixedString(buffer, "o2jam.ojm", 32);
-        buffer.putInt(0);
-        buffer.putInt(91);
-        buffer.putInt(91);
-        buffer.putInt(91);
-        buffer.putInt(300);
-        buffer.putInt(300);
-        buffer.putInt(300);
-        buffer.putInt(300);
-        Files.write(chartFile.toPath(), buffer.array());
-        return chartFile;
-    }
-
-    private static void putFixedString(ByteBuffer buffer, String value, int length) {
-        byte[] bytes = value.getBytes(StandardCharsets.US_ASCII);
-        int written = Math.min(bytes.length, length);
-        buffer.put(bytes, 0, written);
-        for (int i = written; i < length; i++) {
-            buffer.put((byte) 0);
-        }
-    }
 }

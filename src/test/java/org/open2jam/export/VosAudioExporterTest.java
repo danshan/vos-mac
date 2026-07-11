@@ -4,13 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.open2jam.parsers.OjnFixtureFactory;
 import org.open2jam.parsers.VosFixtureFactory;
 
 class VosAudioExporterTest {
@@ -53,21 +53,15 @@ class VosAudioExporterTest {
     }
 
     @Test
-    void exportsRealOjnOjmSamplesAsShiftedWavAssetsAndManifest() throws Exception {
-        File chartFile = new File("/Users/honghao.shan/Music/demo/o2ma101.ojn");
-        File sampleFile = new File("/Users/honghao.shan/Music/demo/o2ma101.ojm");
-        assumeTrue(chartFile.isFile(), "OJN demo fixture is not available");
-        assumeTrue(sampleFile.isFile(), "OJM demo fixture is not available");
+    void exportsOjnOjmSampleAsWavAssetAndManifest() throws Exception {
+        OjnFixtureFactory.OjnFixture fixture = OjnFixtureFactory.writeFixture(tempDir, "audio-o2jam");
         File assetDir = new File(tempDir, "ojn-audio");
 
-        String json = new VosAudioExporter().exportAudio(chartFile, assetDir);
+        String json = new VosAudioExporter().exportAudio(fixture.chart(), assetDir);
 
-        assertTrue(assetDir.isDirectory());
         assertTrue(json.contains("\"format\":\"OJN\""));
         assertTrue(json.contains("\"sampleId\":1"));
-        assertTrue(json.contains("\"sampleId\":1001"));
         assertWavFile(new File(assetDir, "sample-1.wav"));
-        assertWavFile(new File(assetDir, "sample-1001.wav"));
     }
 
     private static String audioJson(File source, File assetDir, String... assets) throws Exception {

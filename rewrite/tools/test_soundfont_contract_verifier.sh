@@ -126,6 +126,23 @@ expect_failure() {
 	NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
 }
 
+expect_failure_with_text() {
+	local description="$1"
+	local fixture="$2"
+	local expected_text="$3"
+	local output
+	if output="$(run_verifier "$fixture" 2>&1)"; then
+		printf '%s unexpectedly passed:\n%s\n' "$description" "$output" >&2
+		exit 1
+	fi
+	if [[ "$output" != *"SoundFont contract verification failed:"* \
+		|| "$output" != *"$expected_text"* ]]; then
+		printf '%s failed for the wrong reason:\n%s\n' "$description" "$output" >&2
+		exit 1
+	fi
+	NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
+}
+
 replace_line() {
 	local fixture="$1"
 	local key="$2"
@@ -270,6 +287,15 @@ mv "$fixture/payload/licenses/LICENSE.txt" \
 replace_line "$fixture" license.path 'license.path=assets/FIXTURE.SF2'
 expect_failure "case-colliding declared paths" "$fixture"
 
+fixture="$(create_fixture ancestor-case-collision)"
+mkdir -p "$fixture/payload/ASSETS"
+mv "$fixture/payload/licenses/LICENSE.txt" \
+	"$fixture/payload/ASSETS/LICENSE.txt"
+rmdir "$fixture/payload/licenses"
+replace_line "$fixture" license.path 'license.path=ASSETS/LICENSE.txt'
+expect_failure_with_text "case-colliding ancestor paths" "$fixture" \
+	"path components must not collide by case"
+
 fixture="$(create_fixture symlink-file)"
 cp "$fixture/payload/assets/fixture.sf2" "$fixture/real.sf2"
 rm "$fixture/payload/assets/fixture.sf2"
@@ -344,10 +370,34 @@ fixture="$(create_fixture missing-approval)"
 rm "$fixture/payload/approvals/redistribution.txt"
 expect_failure "missing approval artifact" "$fixture"
 
+for placeholder_variant in \
+	PLACEHOLDER1 \
+	1PLACEHOLDER \
+	PLACE1HOLDER \
+	TESTONLY \
+	PLACEHOLDERABC \
+	DUMMYFINAL \
+	EXAMPLER \
+	LEGAL-PLACEHOLDER1-2026 \
+	LEGAL-2026-1PENDING; do
+	fixture="$(create_fixture "approval-variant-$placeholder_variant")"
+	replace_line "$fixture" approval.id "approval.id=$placeholder_variant"
+	expect_failure_with_text "placeholder approval id variant $placeholder_variant" \
+		"$fixture" "approval.id contains a placeholder token"
+done
+
 for placeholder in TBD TODO PENDING PLACEHOLDER UNKNOWN NONE UNAPPROVED TEST-ONLY; do
 	fixture="$(create_fixture "approval-$placeholder")"
 	replace_line "$fixture" approval.id "approval.id=$placeholder"
 	expect_failure "placeholder approval id $placeholder" "$fixture"
+done
+
+for legitimate_id in \
+	LEGAL-CONTEST-2026 \
+	LEGAL-APPENDING-2026; do
+	fixture="$(create_fixture "approval-legitimate-$legitimate_id")"
+	replace_line "$fixture" approval.id "approval.id=$legitimate_id"
+	expect_pass "non-placeholder approval id $legitimate_id" "$fixture"
 done
 
 fixture="$(create_fixture duplicate-approval-token)"

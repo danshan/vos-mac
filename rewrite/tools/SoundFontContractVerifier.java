@@ -15,6 +15,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -236,16 +237,27 @@ public final class SoundFontContractVerifier {
 
     private static void validateDistinctPaths(List<ExpectedFile> files) {
         Set<String> exact = new HashSet<>();
-        Set<String> folded = new HashSet<>();
+        Map<String, String> caseFoldedPrefixes = new HashMap<>();
         for (ExpectedFile file : files) {
             if (!exact.add(file.relativePath())) {
                 throw failure("declared payload paths must be distinct: "
                         + file.relativePath());
             }
-            String caseFolded = file.relativePath().toLowerCase(Locale.ROOT);
-            if (!folded.add(caseFolded)) {
-                throw failure("declared payload paths must not collide by case: "
-                        + file.relativePath());
+            StringBuilder exactPrefix = new StringBuilder();
+            StringBuilder foldedPrefix = new StringBuilder();
+            for (String component : file.relativePath().split("/")) {
+                if (!exactPrefix.isEmpty()) {
+                    exactPrefix.append('/');
+                    foldedPrefix.append('/');
+                }
+                exactPrefix.append(component);
+                foldedPrefix.append(component.toLowerCase(Locale.ROOT));
+                String previous = caseFoldedPrefixes.putIfAbsent(
+                        foldedPrefix.toString(), exactPrefix.toString());
+                if (previous != null && !previous.equals(exactPrefix.toString())) {
+                    throw failure("path components must not collide by case: "
+                            + previous + " and " + exactPrefix);
+                }
             }
         }
     }
@@ -281,10 +293,13 @@ public final class SoundFontContractVerifier {
                 throw failure("approval.id contains a duplicate token: " + token);
             }
         }
-        for (String placeholder : PLACEHOLDER_APPROVAL_TOKENS) {
-            if (tokens.contains(placeholder)) {
-                throw failure(
-                        "approval.id contains a placeholder token: " + placeholder);
+        for (String token : tokens) {
+            String normalized = token.replaceAll("[0-9]", "");
+            for (String placeholder : PLACEHOLDER_APPROVAL_TOKENS) {
+                if (normalized.startsWith(placeholder)) {
+                    throw failure("approval.id contains a placeholder token: "
+                            + placeholder);
+                }
             }
         }
     }

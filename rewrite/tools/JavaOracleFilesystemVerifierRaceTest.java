@@ -1,6 +1,9 @@
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -14,7 +17,8 @@ public final class JavaOracleFilesystemVerifierRaceTest {
         rejectsAddedEntryAfterInitialSnapshot();
         rejectsRemovedEntryBeforeFinalSnapshot();
         rejectsSameByteSymlinkReplacementBeforeRead();
-        System.out.println("Java oracle filesystem race contract passed: 3 cases.");
+        rejectsSameInodeContentReplacementBeforeFinalSnapshot();
+        System.out.println("Java oracle filesystem race contract passed: 4 cases.");
     }
 
     private static void rejectsAddedEntryAfterInitialSnapshot() throws Exception {
@@ -80,6 +84,40 @@ public final class JavaOracleFilesystemVerifierRaceTest {
         }
     }
 
+    private static void rejectsSameInodeContentReplacementBeforeFinalSnapshot()
+            throws Exception {
+        Fixture fixture = Fixture.create("content-replace", "good\n");
+        try {
+            expectFailure(() -> JavaOracleFilesystemVerifier.verify(
+                    fixture.root(),
+                    fixture.manifest(),
+                    List.of(Path.of("oracle")),
+                    new JavaOracleFilesystemVerifier.VerificationObserver() {
+                        @Override
+                        public void beforeFinalSnapshot() throws Exception {
+                            replaceContentPreservingMtime(fixture.oracleFile(), "evil\n");
+                        }
+                    }), "same-inode oracle content replacement");
+            if (!"evil\n".equals(Files.readString(fixture.oracleFile()))) {
+                throw new AssertionError("Same-inode oracle replacement was not preserved");
+            }
+        } finally {
+            fixture.delete();
+        }
+    }
+
+    private static void replaceContentPreservingMtime(Path path, String content)
+            throws Exception {
+        FileTime originalMtime = Files.getLastModifiedTime(path, LinkOption.NOFOLLOW_LINKS);
+        Files.writeString(
+                path,
+                content,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+        Files.setLastModifiedTime(path, originalMtime);
+    }
+
     private static void expectFailure(ThrowingOperation operation, String description)
             throws Exception {
         try {
@@ -100,15 +138,19 @@ public final class JavaOracleFilesystemVerifierRaceTest {
 
     private record Fixture(Path root, Path oracle, Path oracleFile, Path manifest) {
         static Fixture create(String name) throws Exception {
+            return create(name, "pinned\n");
+        }
+
+        static Fixture create(String name, String content) throws Exception {
             Path root = Files.createTempDirectory("open2jam-oracle-race-" + name + "-")
                     .toRealPath();
             Path oracle = Files.createDirectories(root.resolve("oracle"));
             Path oracleFile = oracle.resolve("a-pinned.txt");
-            Files.writeString(oracleFile, "pinned\n", StandardCharsets.UTF_8);
+            Files.writeString(oracleFile, content, StandardCharsets.UTF_8);
             Path manifest = root.resolve("manifest.sha256");
             Files.writeString(
                     manifest,
-                    "100644 " + sha256("pinned\n") + "  oracle/a-pinned.txt\n",
+                    "100644 " + sha256(content) + "  oracle/a-pinned.txt\n",
                     StandardCharsets.UTF_8);
             return new Fixture(root, oracle, oracleFile, manifest);
         }

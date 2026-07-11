@@ -250,6 +250,37 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void copyTreeRejectsSameInodeSourceContentReplacementBeforeRead() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-source-content-source");
+        Path target = base.resolve("copy-race-source-content-target");
+        Path sourceFile = source.resolve("data.txt");
+        Files.createDirectories(source);
+        Files.writeString(sourceFile, "good\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFileRead(String operation, Path relativePath)
+                                    throws Exception {
+                                FileTime originalMtime = Files.getLastModifiedTime(
+                                        sourceFile, LinkOption.NOFOLLOW_LINKS);
+                                Files.writeString(
+                                        sourceFile,
+                                        "evil\n",
+                                        StandardOpenOption.WRITE,
+                                        StandardOpenOption.TRUNCATE_EXISTING);
+                                Files.setLastModifiedTime(sourceFile, originalMtime);
+                            }
+                        }));
+        assertEquals("evil\n", Files.readString(sourceFile));
+        assertEquals("evil\n", Files.readString(target.resolve("data.txt")));
+    }
+
+    @Test
     void copyTreeRejectsSourceEntryAddedAfterSnapshot() throws Exception {
         Path base = tempDir.toRealPath();
         Path source = base.resolve("copy-race-add-source");

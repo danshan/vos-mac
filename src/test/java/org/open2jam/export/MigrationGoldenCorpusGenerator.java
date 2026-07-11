@@ -469,14 +469,14 @@ public final class MigrationGoldenCorpusGenerator {
 
     static void copyTree(Path source, Path target, TreeOperationObserver observer) throws Exception {
         validateNoSymlinkAncestry(source.toAbsolutePath().normalize(), "copy source tree");
-        TreeSnapshot sourceSnapshot = captureTree(source, "copy source tree");
+        StableTreeSnapshot sourceSnapshot = captureStableTree(source, "copy source tree");
         TreeSnapshot targetSnapshot = captureOptionalTree(target, "copy target tree");
-        observer.afterInitialSnapshot("copy", sourceSnapshot.root());
+        observer.afterInitialSnapshot("copy", sourceSnapshot.tree().root());
 
         Map<String, EntryKind> expectedTargetTypes = targetSnapshot == null
                 ? new LinkedHashMap<>()
                 : entryKinds(targetSnapshot);
-        for (Map.Entry<String, EntryState> entry : sourceSnapshot.entries().entrySet()) {
+        for (Map.Entry<String, EntryState> entry : sourceSnapshot.tree().entries().entrySet()) {
             EntryKind previous = expectedTargetTypes.put(entry.getKey(), entry.getValue().kind());
             if (previous != null && previous != entry.getValue().kind()) {
                 throw new IllegalArgumentException(
@@ -486,8 +486,8 @@ public final class MigrationGoldenCorpusGenerator {
 
         ensureDirectoryNoFollow(target.toAbsolutePath().normalize(), "copy target root");
         Map<String, StableFileSnapshot> copiedTargetFiles = new LinkedHashMap<>();
-        for (Map.Entry<String, EntryState> entry : sourceSnapshot.entries().entrySet()) {
-            Path sourcePath = sourceSnapshot.root().resolve(entry.getKey());
+        for (Map.Entry<String, EntryState> entry : sourceSnapshot.tree().entries().entrySet()) {
+            Path sourcePath = sourceSnapshot.tree().root().resolve(entry.getKey());
             Path destination = target.toAbsolutePath().normalize().resolve(entry.getKey());
             if (entry.getValue().kind() == EntryKind.DIRECTORY) {
                 assertEntryUnchanged(sourcePath, entry.getValue(), entry.getKey());
@@ -497,7 +497,12 @@ public final class MigrationGoldenCorpusGenerator {
                 copiedTargetFiles.put(
                         entry.getKey(),
                         copyStableRegularFile(
-                                sourcePath, entry.getValue(), entry.getKey(), destination));
+                                sourcePath,
+                                new StableFileSnapshot(
+                                        entry.getValue(),
+                                        sourceSnapshot.regularFileSha256().get(entry.getKey())),
+                                entry.getKey(),
+                                destination));
             } else {
                 throw unsafeTreeEntry(sourcePath);
             }
@@ -507,8 +512,11 @@ public final class MigrationGoldenCorpusGenerator {
             throw new IllegalArgumentException("Copy target tree entry set or types changed");
         }
         assertCopiedTargetFilesMatch(copiedTargetFiles, postCopyTarget);
-        observer.beforeFinalSnapshot("copy", sourceSnapshot.root());
-        assertTreeUnchanged(sourceSnapshot, "copy source tree");
+        observer.beforeFinalSnapshot("copy", sourceSnapshot.tree().root());
+        StableTreeSnapshot finalSource = captureStableTree(source, "copy source tree");
+        if (!sourceSnapshot.equals(finalSource)) {
+            throw new IllegalArgumentException("Copy source tree changed after snapshotting");
+        }
         StableTreeSnapshot finalTarget = captureStableTree(target, "copy target tree");
         if (!postCopyTarget.equals(finalTarget)) {
             throw new IllegalArgumentException("Copy target tree changed after copying");
@@ -686,11 +694,11 @@ public final class MigrationGoldenCorpusGenerator {
 
     private static StableFileSnapshot copyStableRegularFile(
             Path source,
-            EntryState expected,
+            StableFileSnapshot expected,
             String label,
             Path destination) throws Exception {
         EntryState before = captureEntry(source, label);
-        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+        if (!expected.state().equals(before) || before.kind() != EntryKind.REGULAR) {
             throw new IllegalArgumentException("Copy source changed before reading: " + label);
         }
         ensureDirectoryNoFollow(destination.getParent(), "copy target parent");
@@ -728,13 +736,16 @@ public final class MigrationGoldenCorpusGenerator {
         if (!before.equals(after) || bytesRead != before.size()) {
             throw new IllegalArgumentException("Copy source changed while reading: " + label);
         }
+        String sourceSha256 = HexFormat.of().formatHex(sourceDigest.digest());
+        if (!expected.sha256().equals(sourceSha256)) {
+            throw new IllegalArgumentException("Copy source content changed before reading: " + label);
+        }
         EntryState destinationAfter = captureEntry(destination, destination.toString());
         if (!Objects.equals(destinationIdentity.fileKey(), destinationAfter.fileKey())
                 || destinationAfter.kind() != EntryKind.REGULAR
                 || destinationAfter.size() != bytesRead) {
             throw new IllegalArgumentException("Copy target changed while writing: " + destination);
         }
-        String sourceSha256 = HexFormat.of().formatHex(sourceDigest.digest());
         String destinationSha256 = hashStableFile(
                 destination, destinationAfter, destination.toString());
         if (!sourceSha256.equals(destinationSha256)) {

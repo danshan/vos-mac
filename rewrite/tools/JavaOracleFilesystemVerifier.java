@@ -68,17 +68,20 @@ public final class JavaOracleFilesystemVerifier {
         if (manifestState.kind() != EntryKind.REGULAR) {
             throw failure("manifest is not a regular file: " + manifest);
         }
-        String manifestContent = readStableUtf8(manifest, manifestState, "manifest");
+        byte[] manifestBytes = readStableBytes(manifest, manifestState, "manifest");
+        StableFileSnapshot manifestSnapshot = new StableFileSnapshot(
+                manifestState, sha256(manifestBytes));
+        String manifestContent = new String(manifestBytes, StandardCharsets.UTF_8);
         Map<String, ExpectedFile> expectedFiles =
                 readManifest(manifestContent, oracleRoots);
         Set<String> expectedDirectories = expectedDirectories(expectedFiles, oracleRoots);
 
-        TreeSnapshot initialTree = captureTree(project, oracleRoots);
+        StableTreeSnapshot initialTree = captureStableTree(project, oracleRoots);
         observer.afterInitialSnapshot();
         Map<String, ActualFile> actualFiles = new HashMap<>();
         Set<String> actualDirectories = new HashSet<>();
 
-        for (Map.Entry<String, EntryState> entry : initialTree.entries().entrySet()) {
+        for (Map.Entry<String, EntryState> entry : initialTree.tree().entries().entrySet()) {
             String relative = entry.getKey();
             EntryState state = entry.getValue();
             if (state.kind() == EntryKind.DIRECTORY) {
@@ -126,12 +129,15 @@ public final class JavaOracleFilesystemVerifier {
         }
 
         observer.beforeFinalSnapshot();
-        TreeSnapshot finalTree = captureTree(project, oracleRoots);
+        StableTreeSnapshot finalTree = captureStableTree(project, oracleRoots);
         if (!initialTree.equals(finalTree)) {
             throw failure(treeDifference(initialTree, finalTree));
         }
         EntryState finalManifestState = captureEntry(manifest, "manifest");
-        if (!manifestState.equals(finalManifestState)) {
+        StableFileSnapshot finalManifestSnapshot = new StableFileSnapshot(
+                finalManifestState,
+                hashStableFile(manifest, finalManifestState, "manifest"));
+        if (!manifestSnapshot.equals(finalManifestSnapshot)) {
             throw failure("manifest changed during verification");
         }
 
@@ -221,6 +227,27 @@ public final class JavaOracleFilesystemVerifier {
         return new TreeSnapshot(Map.copyOf(entries));
     }
 
+    private static StableTreeSnapshot captureStableTree(
+            Path projectRoot, List<Path> oracleRoots) throws Exception {
+        TreeSnapshot tree = captureTree(projectRoot, oracleRoots);
+        Map<String, String> hashes = new LinkedHashMap<>();
+        for (Map.Entry<String, EntryState> entry : tree.entries().entrySet()) {
+            if (entry.getValue().kind() == EntryKind.REGULAR) {
+                hashes.put(
+                        entry.getKey(),
+                        hashStableFile(
+                                projectRoot.resolve(entry.getKey()),
+                                entry.getValue(),
+                                entry.getKey()));
+            }
+        }
+        TreeSnapshot finalMetadata = captureTree(projectRoot, oracleRoots);
+        if (!tree.equals(finalMetadata)) {
+            throw failure("oracle tree changed while snapshotting stable content");
+        }
+        return new StableTreeSnapshot(tree, Map.copyOf(hashes));
+    }
+
     private static EntryState captureEntry(Path path, String label) throws IOException {
         BasicFileAttributes before = readAttributes(path);
         EntryKind kind = entryKind(before, label);
@@ -278,6 +305,10 @@ public final class JavaOracleFilesystemVerifier {
         long bytesRead = 0L;
         try (FileChannel channel = FileChannel.open(
                 path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            EntryState afterOpen = captureEntry(path, label);
+            if (!before.equals(afterOpen)) {
+                throw failure("oracle file changed while opening: " + label);
+            }
             ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
             int read;
             while ((read = channel.read(buffer)) != -1) {
@@ -297,7 +328,7 @@ public final class JavaOracleFilesystemVerifier {
         return HexFormat.of().formatHex(digest.digest());
     }
 
-    private static String readStableUtf8(Path path, EntryState expected, String label)
+    private static byte[] readStableBytes(Path path, EntryState expected, String label)
             throws Exception {
         EntryState before = captureEntry(path, label);
         if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
@@ -307,6 +338,10 @@ public final class JavaOracleFilesystemVerifier {
         long bytesRead = 0L;
         try (FileChannel channel = FileChannel.open(
                 path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            EntryState afterOpen = captureEntry(path, label);
+            if (!before.equals(afterOpen)) {
+                throw failure(label + " changed while opening");
+            }
             ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
             while (channel.read(buffer) != -1) {
                 if (buffer.position() == 0) {
@@ -321,23 +356,33 @@ public final class JavaOracleFilesystemVerifier {
         if (!before.equals(after) || bytesRead != before.size()) {
             throw failure(label + " changed while reading");
         }
-        return output.toString(StandardCharsets.UTF_8);
+        return output.toByteArray();
     }
 
-    private static String treeDifference(TreeSnapshot expected, TreeSnapshot actual) {
-        Set<String> missing = new HashSet<>(expected.entries().keySet());
-        missing.removeAll(actual.entries().keySet());
-        Set<String> extra = new HashSet<>(actual.entries().keySet());
-        extra.removeAll(expected.entries().keySet());
+    private static String treeDifference(
+            StableTreeSnapshot expected, StableTreeSnapshot actual) {
+        Set<String> missing = new HashSet<>(expected.tree().entries().keySet());
+        missing.removeAll(actual.tree().entries().keySet());
+        Set<String> extra = new HashSet<>(actual.tree().entries().keySet());
+        extra.removeAll(expected.tree().entries().keySet());
         if (!missing.isEmpty() || !extra.isEmpty()) {
             return "oracle tree changed during verification; missing=" + missing + ", extra=" + extra;
         }
-        List<String> changed = expected.entries().entrySet().stream()
-                .filter(entry -> !entry.getValue().equals(actual.entries().get(entry.getKey())))
+        List<String> changed = expected.tree().entries().entrySet().stream()
+                .filter(entry -> !entry.getValue().equals(
+                                actual.tree().entries().get(entry.getKey()))
+                        || !Objects.equals(
+                                expected.regularFileSha256().get(entry.getKey()),
+                                actual.regularFileSha256().get(entry.getKey())))
                 .map(Map.Entry::getKey)
                 .sorted()
                 .toList();
         return "oracle tree entries changed during verification: " + changed;
+    }
+
+    private static String sha256(byte[] bytes) throws Exception {
+        return HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(bytes));
     }
 
     private static Path parseRelativePath(String value) {
@@ -414,5 +459,12 @@ public final class JavaOracleFilesystemVerifier {
     }
 
     private record TreeSnapshot(Map<String, EntryState> entries) {
+    }
+
+    private record StableFileSnapshot(EntryState state, String sha256) {
+    }
+
+    private record StableTreeSnapshot(
+            TreeSnapshot tree, Map<String, String> regularFileSha256) {
     }
 }

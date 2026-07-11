@@ -323,6 +323,8 @@ create_fixture() {
 		|| ! cp mise.toml pom.xml "$fixture_root/" \
 		|| ! cp rewrite/tools/SurefireReportVerifier.java \
 			"$fixture_root/rewrite/tools/" \
+		|| ! cp rewrite/tools/JarResourceVerifier.java \
+			"$fixture_root/rewrite/tools/" \
 		|| ! cp rewrite/tools/verify_build_workflow.sh \
 			"$fixture_root/rewrite/tools/" \
 		|| ! cp rewrite/tools/verify_java_migration_goldens.sh \
@@ -338,6 +340,14 @@ create_fixture() {
 			"$fixture_root/rewrite/tools/test_verify_java_migration_goldens_behavior.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_vos_godot_manifest.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_verify_java_oracle_provenance.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_verify_java_migration_package.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/verify_java_oracle_provenance.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/verify_java_migration_package.sh" \
 		|| ! write_mise_stub "$fixture_root/bin/mise" \
 		|| ! ln -s "$REAL_RG_PATH" "$fixture_root/bin/rg"; then
 		printf 'Unable to install verifier fixture stubs.\n' >&2
@@ -650,6 +660,42 @@ continue_on_error_golden_step() {
 	fi
 }
 
+comment_package_run() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! sed 's|^        run: bash rewrite/tools/verify_java_migration_package.sh$|        # run: bash rewrite/tools/verify_java_migration_package.sh|' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to comment fixture package gate.\n' >&2
+		return 1
+	fi
+}
+
+disable_package_step() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk '{ print; if ($0 == "        run: bash rewrite/tools/verify_java_migration_package.sh") print "        if: false" }' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to disable fixture package gate.\n' >&2
+		return 1
+	fi
+}
+
+continue_on_error_package_step() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk '{ print; if ($0 == "        run: bash rewrite/tools/verify_java_migration_package.sh") print "        continue-on-error: true" }' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to weaken fixture package gate.\n' >&2
+		return 1
+	fi
+}
+
 write_reordered_workflow() {
 	local fixture_root="$1"
 	local workflow="$fixture_root/.github/workflows/build.yml"
@@ -664,6 +710,8 @@ jobs:
         uses: jdx/mise-action@v4
       - name: Build and test
         run: mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'
+      - name: Verify packaged migration resources
+        run: bash rewrite/tools/verify_java_migration_package.sh
       - name: Verify migration goldens
         run: mise run verify-goldens
 EOF
@@ -922,7 +970,28 @@ fixture="$CREATED_FIXTURE"
 install_real_contract "$fixture"
 write_reordered_workflow "$fixture"
 expect_contract_failure "reordered workflow gates" "$fixture" \
-	"Build workflow steps must run runtime, goldens, then clean build in order"
+	"Build workflow steps must run runtime, goldens, clean build, then package verification in order"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+comment_package_run "$fixture"
+expect_contract_failure "commented workflow package gate" "$fixture" \
+	"Build workflow does not verify the final packaged JAR"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+disable_package_step "$fixture"
+expect_contract_failure "disabled workflow package gate" "$fixture" \
+	"Required workflow step must be unconditional"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+continue_on_error_package_step "$fixture"
+expect_contract_failure "continue-on-error workflow package gate" "$fixture" \
+	"Required workflow step cannot set continue-on-error"
 
 create_fixture
 fixture="$CREATED_FIXTURE"

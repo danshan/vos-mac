@@ -32,6 +32,9 @@ jobs:
       - name: Build and test
         run: mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'
 
+      - name: Verify packaged migration resources
+        run: bash rewrite/tools/verify_java_migration_package.sh
+
       - name: Stage packaged jar
         run: |
           mkdir -p staging

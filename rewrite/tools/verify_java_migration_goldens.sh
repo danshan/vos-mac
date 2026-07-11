@@ -57,10 +57,15 @@ done
 
 for required_file in \
 	rewrite/tools/verify_build_workflow.sh \
+	rewrite/tools/verify_java_oracle_provenance.sh \
+	rewrite/tools/verify_java_migration_package.sh \
 	rewrite/tools/test_verify_java_migration_goldens.sh \
 	rewrite/tools/test_verify_java_migration_goldens_behavior.sh \
+	rewrite/tools/test_verify_java_oracle_provenance.sh \
+	rewrite/tools/test_verify_java_migration_package.sh \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \
 	pom.xml "$MAVEN_SETTINGS_FILE" "$REPORT_VERIFIER" \
+	rewrite/tools/JarResourceVerifier.java \
 	"$CORPUS_DIR/manifest.sha256"; do
 	require_file "$required_file"
 done
@@ -71,6 +76,9 @@ done
 
 bash rewrite/tools/test_verify_java_migration_goldens.sh
 bash rewrite/tools/test_verify_vos_godot_manifest.sh
+bash rewrite/tools/test_verify_java_oracle_provenance.sh
+bash rewrite/tools/test_verify_java_migration_package.sh
+bash rewrite/tools/verify_java_oracle_provenance.sh
 
 if [[ "${#TEST_CLASSES[@]}" -ne "${#TEST_SOURCES[@]}" ]]; then
 	printf 'Golden test class and source manifests have different lengths.\n' >&2
@@ -131,6 +139,9 @@ rm -rf "$REPORT_DIR"
 mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" clean test -Dtest="$1"' bash "$tests_csv"
 
 mise exec -- java "$REPORT_VERIFIER" "$REPORT_DIR" "${TEST_CLASSES[@]}"
+
+mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" package -DskipTests'
+bash rewrite/tools/verify_java_migration_package.sh
 
 (
 	cd "$CORPUS_DIR"

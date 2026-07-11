@@ -20,6 +20,8 @@ golden_count=0
 golden_index=0
 build_count=0
 build_index=0
+package_count=0
+package_index=0
 inside_maven=false
 inside_steps=false
 maven_job_count=0
@@ -69,6 +71,16 @@ finish_step() {
 			reject_conditionals "$step_name" "$step_if" "$step_continue"
 			if [[ "$step_run" != "mise exec -- bash -lc 'mvn --batch-mode -s \"\$MAVEN_SETTINGS\" clean verify'" || -n "$step_uses" ]]; then
 				printf 'Build workflow does not run clean Maven verification through mise.\n' >&2
+				exit 1
+			fi
+			;;
+		"Verify packaged migration resources")
+			package_count=$((package_count + 1))
+			package_index="$step_index"
+			reject_conditionals "$step_name" "$step_if" "$step_continue"
+			if [[ "$step_run" != "bash rewrite/tools/verify_java_migration_package.sh" \
+				|| -n "$step_uses" ]]; then
+				printf 'Build workflow does not verify the final packaged JAR.\n' >&2
 				exit 1
 			fi
 			;;
@@ -141,12 +153,14 @@ if [[ -n "$job_if" ]]; then
 	printf 'Maven build job must be unconditional.\n' >&2
 	exit 1
 fi
-if [[ "$runtime_count" -ne 1 || "$golden_count" -ne 1 || "$build_count" -ne 1 ]]; then
+if [[ "$runtime_count" -ne 1 || "$golden_count" -ne 1 || "$build_count" -ne 1 \
+	|| "$package_count" -ne 1 ]]; then
 	printf 'Build workflow is missing or duplicates a required enabled step.\n' >&2
 	exit 1
 fi
-if (( runtime_index >= golden_index || golden_index >= build_index )); then
-	printf 'Build workflow steps must run runtime, goldens, then clean build in order.\n' >&2
+if (( runtime_index >= golden_index || golden_index >= build_index \
+	|| build_index >= package_index )); then
+	printf 'Build workflow steps must run runtime, goldens, clean build, then package verification in order.\n' >&2
 	exit 1
 fi
 

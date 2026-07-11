@@ -3,12 +3,17 @@ package org.open2jam.export;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import org.open2jam.parsers.OjnFixtureFactory;
 import org.open2jam.parsers.OsuFixtureFactory;
@@ -21,15 +26,25 @@ public final class MigrationGoldenCorpusGenerator {
     public static final String JAVA_DETERMINISM_OVERLAY_PURPOSE =
             "deterministic Liberation Sans font and provenance";
     public static final String JAVA_TOOL = "zulu-17.66.19.0";
+    public static final String JAVA_ORACLE_TREE_SHA256 =
+            "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
+    private static final Path CORPUS_RELATIVE_PATH = Path.of("rewrite/golden/java-migration");
+    private static final String FILE_TYPE_MANIFEST = "manifest.files";
+    private static final String HASH_MANIFEST = "manifest.sha256";
+    private static final List<String> JAVA_ORACLE_PATHS =
+            List.of("src/org/open2jam", "parsers/src", "src/resources");
     private static final String MANIFEST = """
             {
-              "schemaVersion": 1,
+              "schemaVersion": 2,
               "javaSourceCommit": "05257da",
               "javaDeterminismOverlayCommit": "62ece7083ea473f02ecc9a83ee7d3e151905bf0e",
               "javaDeterminismOverlayPurpose": "deterministic Liberation Sans font and provenance",
               "javaTool": "zulu-17.66.19.0",
+              "javaOraclePaths": ["src/org/open2jam", "parsers/src", "src/resources"],
+              "javaOracleTreeFile": "oracle-tree.txt",
+              "javaOracleTreeSha256": "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e",
               "canonicalWorkRoot": "/private/tmp/open2jam-java-golden-v1",
               "cases": [
                 {"id": "vos-canon", "format": "VOS", "source": "sources/vos/canon.vos", "expected": "expected/vos"},
@@ -51,24 +66,69 @@ public final class MigrationGoldenCorpusGenerator {
             throw new IllegalArgumentException(
                     "Usage: MigrationGoldenCorpusGenerator --output <path> --work-root <path>");
         }
-        generate(Path.of(args[1]), Path.of(args[3]));
+        GenerationPaths paths = validateCliPaths(Path.of("").toRealPath(), args[1], args[3]);
+        generateValidated(paths);
     }
 
     public static void generate(Path outputRoot, Path workRoot) throws Exception {
-        resetDirectory(workRoot);
-        Path stagedCorpus = workRoot.resolve("corpus");
+        generateValidated(validateProgrammaticPaths(outputRoot, workRoot));
+    }
+
+    static GenerationPaths validateProgrammaticPaths(Path outputRoot, Path workRoot) throws Exception {
+        Path projectRoot = Path.of("").toRealPath();
+        Path output = canonicalTempDescendant(outputRoot, "output root");
+        Path work = canonicalTempDescendant(workRoot, "work root");
+        rejectProjectTree(output, projectRoot, "output root");
+        rejectProjectTree(work, projectRoot, "work root");
+        rejectOverlappingRoots(output, work);
+        return new GenerationPaths(output, work, projectRoot, false);
+    }
+
+    static GenerationPaths validateCliPaths(
+            Path projectRoot, String outputArgument, String workArgument) throws Exception {
+        Path project = requireCanonicalProjectRoot(projectRoot);
+        if (outputArgument == null || outputArgument.isEmpty()
+                || workArgument == null || workArgument.isEmpty()) {
+            throw new IllegalArgumentException("Generator paths must not be empty");
+        }
+
+        Path rawOutput = Path.of(outputArgument);
+        Path output = rawOutput.isAbsolute()
+                ? rawOutput.normalize()
+                : project.resolve(rawOutput).normalize();
+        Path expectedOutput = project.resolve(CORPUS_RELATIVE_PATH).normalize();
+        if (!output.equals(expectedOutput)) {
+            throw new IllegalArgumentException(
+                    "CLI output must be the repository migration corpus: " + expectedOutput);
+        }
+        validateNoSymlinkComponents(project, output, "output root");
+
+        Path rawWork = Path.of(workArgument);
+        Path work = canonicalTempDescendant(rawWork, "work root");
+        rejectProjectTree(work, project, "work root");
+        rejectOverlappingRoots(output, work);
+        return new GenerationPaths(output, work, project, true);
+    }
+
+    private static void generateValidated(GenerationPaths paths) throws Exception {
+        revalidateGenerationPaths(paths);
+        resetDirectory(paths.workRoot());
+        Path stagedCorpus = paths.workRoot().resolve("corpus");
         Files.createDirectories(stagedCorpus);
-        generateVos(stagedCorpus, workRoot);
-        generateOjn(stagedCorpus, workRoot);
-        generateOsu(stagedCorpus, workRoot);
-        normalizeExpectedPaths(stagedCorpus, workRoot);
-        copyTree(workRoot.resolve("sources"), stagedCorpus.resolve("sources"));
+        generateVos(stagedCorpus, paths.workRoot());
+        generateOjn(stagedCorpus, paths.workRoot());
+        generateOsu(stagedCorpus, paths.workRoot());
+        normalizeExpectedPaths(stagedCorpus, paths.workRoot());
+        copyTree(paths.workRoot().resolve("sources"), stagedCorpus.resolve("sources"));
         generateMalformedCases(stagedCorpus);
         writeReadme(stagedCorpus);
         writeProvenance(stagedCorpus);
+        writeOracleTree(stagedCorpus);
+        writeFileTypes(stagedCorpus);
         writeHashes(stagedCorpus);
-        resetDirectory(outputRoot);
-        copyTree(stagedCorpus, outputRoot);
+        revalidateGenerationPaths(paths);
+        resetDirectory(paths.outputRoot());
+        copyTree(stagedCorpus, paths.outputRoot());
     }
 
     private static void generateVos(Path stagedCorpus, Path workRoot) throws Exception {
@@ -125,7 +185,7 @@ public final class MigrationGoldenCorpusGenerator {
         String readme = """
                 # Java Migration Golden Corpus
 
-                This corpus preserves Java behavior from source commit `05257da` plus determinism overlay `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, which pins Liberation Sans font bytes and provenance.
+                This corpus preserves Java behavior from source commit `05257da` plus determinism overlay `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, which pins Liberation Sans font bytes and provenance. `oracle-tree.txt` pins Git modes, blob identities, and paths for `src/org/open2jam`, `parsers/src`, and `src/resources`; its SHA-256 is `206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e`.
 
                 Normal tests treat this directory as read-only. Regenerate it only from the pinned Java source and toolchain with:
 
@@ -151,21 +211,57 @@ public final class MigrationGoldenCorpusGenerator {
         writeUtf8(stagedCorpus.resolve("manifest.json"), MANIFEST);
     }
 
+    private static void writeOracleTree(Path stagedCorpus) throws Exception {
+        List<String> command = new ArrayList<>();
+        command.add("git");
+        command.add("ls-tree");
+        command.add("-r");
+        command.add("--full-tree");
+        command.add(JAVA_DETERMINISM_OVERLAY_COMMIT);
+        command.add("--");
+        command.addAll(JAVA_ORACLE_PATHS);
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().put("LC_ALL", "C");
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        byte[] output = process.getInputStream().readAllBytes();
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || output.length == 0) {
+            throw new IllegalStateException(
+                    "Unable to read pinned Java oracle tree: "
+                            + new String(output, StandardCharsets.UTF_8));
+        }
+        String tree = new String(output, StandardCharsets.UTF_8);
+        String sha256 = HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256").digest(tree.getBytes(StandardCharsets.UTF_8)));
+        if (!JAVA_ORACLE_TREE_SHA256.equals(sha256)) {
+            throw new IllegalStateException(
+                    "Pinned Java oracle tree digest mismatch: " + sha256);
+        }
+        writeUtf8(stagedCorpus.resolve("oracle-tree.txt"), tree);
+    }
+
     private static void writeHashes(Path stagedCorpus) throws Exception {
-        writeUtf8(stagedCorpus.resolve("manifest.sha256"), hashManifest(stagedCorpus));
+        writeUtf8(stagedCorpus.resolve(HASH_MANIFEST), hashManifest(stagedCorpus));
+    }
+
+    private static void writeFileTypes(Path stagedCorpus) throws Exception {
+        writeUtf8(stagedCorpus.resolve(FILE_TYPE_MANIFEST), "");
+        writeUtf8(stagedCorpus.resolve(FILE_TYPE_MANIFEST), fileTypeManifest(stagedCorpus));
     }
 
     private static void normalizeExpectedPaths(Path stagedCorpus, Path workRoot) throws Exception {
         String actualWorkRoot = workRoot.toFile().getCanonicalPath().replace(File.separatorChar, '/');
-        try (Stream<Path> paths = Files.walk(stagedCorpus.resolve("expected"))) {
-            for (Path path : paths.filter(Files::isRegularFile)
-                    .filter(file -> file.getFileName().toString().endsWith(".json"))
-                    .toList()) {
-                String content = Files.readString(path, StandardCharsets.UTF_8);
-                String normalized = normalizeCatalogIds(content, actualWorkRoot)
-                        .replace(actualWorkRoot, CANONICAL_WORK_ROOT);
-                writeUtf8(path, normalized);
-            }
+        Path expectedRoot = stagedCorpus.resolve("expected");
+        List<Path> expectedEntries = validateTree(expectedRoot, "expected artifact tree");
+        for (Path path : expectedEntries.stream()
+                .filter(file -> isRegularFileNoFollow(file))
+                .filter(file -> file.getFileName().toString().endsWith(".json"))
+                .toList()) {
+            String content = Files.readString(path, StandardCharsets.UTF_8);
+            String normalized = normalizeCatalogIds(content, actualWorkRoot)
+                    .replace(actualWorkRoot, CANONICAL_WORK_ROOT);
+            writeUtf8(path, normalized);
         }
     }
 
@@ -200,13 +296,22 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     public static String hashManifest(Path root) throws Exception {
-        List<Path> files;
-        try (Stream<Path> paths = Files.walk(root)) {
-            files = paths.filter(Files::isRegularFile)
-                    .filter(path -> !path.equals(root.resolve("manifest.sha256")))
-                    .sorted(Comparator.comparing(path -> relativePath(root, path)))
-                    .toList();
+        List<Path> entries = validateTree(root, "golden corpus");
+        Path fileTypes = root.resolve(FILE_TYPE_MANIFEST);
+        if (!isRegularFileNoFollow(fileTypes)) {
+            throw new IllegalArgumentException("Missing regular corpus file-type manifest: " + fileTypes);
         }
+        String expectedTypes = fileTypeManifest(root);
+        String actualTypes = Files.readString(fileTypes, StandardCharsets.UTF_8);
+        if (!actualTypes.equals(expectedTypes)) {
+            throw new IllegalArgumentException("Corpus file-type manifest does not match the tree");
+        }
+
+        List<Path> files = entries.stream()
+                .filter(MigrationGoldenCorpusGenerator::isRegularFileNoFollow)
+                .filter(path -> !path.equals(root.resolve(HASH_MANIFEST)))
+                .sorted(Comparator.comparing(path -> relativePath(root, path)))
+                .toList();
 
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         StringBuilder hashes = new StringBuilder();
@@ -215,6 +320,26 @@ public final class MigrationGoldenCorpusGenerator {
             hashes.append(sha256).append("  ").append(relativePath(root, file)).append('\n');
         }
         return hashes.toString();
+    }
+
+    public static String fileTypeManifest(Path root) throws Exception {
+        List<Path> entries = validateTree(root, "golden corpus");
+        StringBuilder types = new StringBuilder();
+        for (Path path : entries.stream()
+                .filter(entry -> !entry.equals(root))
+                .filter(entry -> !entry.equals(root.resolve(HASH_MANIFEST)))
+                .sorted(Comparator.comparing(entry -> relativePath(root, entry)))
+                .toList()) {
+            BasicFileAttributes attributes = readAttributesNoFollow(path);
+            if (attributes.isDirectory()) {
+                types.append("directory  ").append(relativePath(root, path)).append("/\n");
+            } else if (attributes.isRegularFile()) {
+                types.append("regular  ").append(relativePath(root, path)).append('\n');
+            } else {
+                throw unsafeTreeEntry(path);
+            }
+        }
+        return types.toString();
     }
 
     private static String relativePath(Path root, Path path) {
@@ -227,27 +352,200 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void resetDirectory(Path root) throws Exception {
-        if (Files.exists(root)) {
-            try (Stream<Path> paths = Files.walk(root)) {
-                for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                    Files.delete(path);
-                }
+        if (Files.exists(root, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(root)) {
+            List<Path> entries = validateTree(root, "reset directory");
+            for (Path path : entries.stream().sorted(Comparator.reverseOrder()).toList()) {
+                Files.delete(path);
             }
         }
         Files.createDirectories(root);
     }
 
-    private static void copyTree(Path source, Path target) throws Exception {
-        try (Stream<Path> paths = Files.walk(source)) {
-            for (Path path : paths.toList()) {
-                Path destination = target.resolve(source.relativize(path));
-                if (Files.isDirectory(path)) {
-                    Files.createDirectories(destination);
-                } else {
-                    Files.createDirectories(destination.getParent());
-                    Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+    static void copyTree(Path source, Path target) throws Exception {
+        validateNoSymlinkAncestry(source.toAbsolutePath().normalize(), "copy source tree");
+        List<Path> entries = validateTree(source, "copy source tree");
+        validateExistingTargetTree(target);
+        for (Path path : entries) {
+            Path destination = target.resolve(source.relativize(path));
+            BasicFileAttributes attributes = readAttributesNoFollow(path);
+            if (attributes.isDirectory()) {
+                Files.createDirectories(destination);
+            } else if (attributes.isRegularFile()) {
+                Files.createDirectories(destination.getParent());
+                Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING,
+                        LinkOption.NOFOLLOW_LINKS);
+            } else {
+                throw unsafeTreeEntry(path);
+            }
+        }
+    }
+
+    private static void validateExistingTargetTree(Path target) throws Exception {
+        Path absolute = target.toAbsolutePath().normalize();
+        validateNoSymlinkAncestry(absolute, "copy target tree");
+        if (Files.exists(absolute, LinkOption.NOFOLLOW_LINKS)) {
+            validateTree(absolute, "copy target tree");
+        }
+    }
+
+    private static void validateNoSymlinkAncestry(Path absolute, String role) {
+        Path current = absolute.getRoot();
+        if (current == null) {
+            throw new IllegalArgumentException(role + " must be absolute: " + absolute);
+        }
+        for (Path component : absolute) {
+            current = current.resolve(component);
+            if (Files.isSymbolicLink(current)) {
+                throw unsafeTreeEntry(current);
+            }
+            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)
+                    && !current.equals(absolute)) {
+                throw unsafeTreeEntry(current);
+            }
+        }
+    }
+
+    private static List<Path> validateTree(Path root, String role) throws Exception {
+        if (Files.isSymbolicLink(root)) {
+            throw new IllegalArgumentException(role + " contains a symbolic link: " + root);
+        }
+        BasicFileAttributes rootAttributes = readAttributesNoFollow(root);
+        if (!rootAttributes.isDirectory()) {
+            throw new IllegalArgumentException(role + " root is not a directory: " + root);
+        }
+        List<Path> entries;
+        try (Stream<Path> paths = Files.walk(root)) {
+            entries = paths.sorted(Comparator.comparing(path -> relativePath(root, path))).toList();
+        }
+        for (Path path : entries) {
+            BasicFileAttributes attributes = readAttributesNoFollow(path);
+            if (Files.isSymbolicLink(path)
+                    || (!attributes.isDirectory() && !attributes.isRegularFile())) {
+                throw unsafeTreeEntry(path);
+            }
+        }
+        return entries;
+    }
+
+    private static IllegalArgumentException unsafeTreeEntry(Path path) {
+        return new IllegalArgumentException("Tree entry must be a regular file or directory: " + path);
+    }
+
+    private static BasicFileAttributes readAttributesNoFollow(Path path) throws Exception {
+        return Files.readAttributes(path, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+    }
+
+    private static boolean isRegularFileNoFollow(Path path) {
+        return Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(path);
+    }
+
+    private static Path requireCanonicalProjectRoot(Path projectRoot) throws Exception {
+        if (projectRoot == null || !projectRoot.isAbsolute()) {
+            throw new IllegalArgumentException("Project root must be absolute");
+        }
+        Path normalized = projectRoot.normalize();
+        Path canonical = normalized.toRealPath();
+        if (!canonical.equals(normalized) || canonical.getParent() == null) {
+            throw new IllegalArgumentException("Project root must be canonical and non-root: " + projectRoot);
+        }
+        return canonical;
+    }
+
+    private static Path canonicalTempDescendant(Path rawPath, String role) throws Exception {
+        if (rawPath == null || !rawPath.isAbsolute() || !rawPath.equals(rawPath.normalize())) {
+            throw new IllegalArgumentException(role + " must be an absolute normalized path: " + rawPath);
+        }
+        Path normalized = rawPath.normalize();
+        for (TempRoot tempRoot : controlledTempRoots()) {
+            if (!normalized.startsWith(tempRoot.lexicalRoot())
+                    || normalized.equals(tempRoot.lexicalRoot())) {
+                continue;
+            }
+            Path suffix = tempRoot.lexicalRoot().relativize(normalized);
+            Path canonical = tempRoot.canonicalRoot().resolve(suffix).normalize();
+            if (canonical.equals(tempRoot.canonicalRoot())
+                    || !canonical.startsWith(tempRoot.canonicalRoot())) {
+                throw new IllegalArgumentException(role + " escapes the controlled temp root");
+            }
+            validateNoSymlinkComponents(tempRoot.canonicalRoot(), canonical, role);
+            return canonical;
+        }
+        throw new IllegalArgumentException(role + " must be below a controlled temp root: " + rawPath);
+    }
+
+    private static List<TempRoot> controlledTempRoots() throws Exception {
+        Set<String> candidates = new LinkedHashSet<>();
+        candidates.add(System.getProperty("java.io.tmpdir"));
+        candidates.add("/private/tmp");
+        candidates.add("/tmp");
+        List<TempRoot> roots = new ArrayList<>();
+        for (String candidate : candidates) {
+            if (candidate == null || candidate.isEmpty()) {
+                continue;
+            }
+            Path lexical = Path.of(candidate).toAbsolutePath().normalize();
+            if (!Files.isDirectory(lexical) || lexical.getParent() == null) {
+                continue;
+            }
+            Path canonical = lexical.toRealPath();
+            if (canonical.getParent() != null) {
+                roots.add(new TempRoot(lexical, canonical));
+                if (!canonical.equals(lexical)) {
+                    roots.add(new TempRoot(canonical, canonical));
                 }
             }
         }
+        return roots;
+    }
+
+    private static void validateNoSymlinkComponents(
+            Path existingRoot, Path candidate, String role) throws Exception {
+        if (!candidate.startsWith(existingRoot) || candidate.equals(existingRoot)) {
+            throw new IllegalArgumentException(role + " is not a strict descendant: " + candidate);
+        }
+        Path current = existingRoot;
+        for (Path component : existingRoot.relativize(candidate)) {
+            current = current.resolve(component);
+            if (Files.isSymbolicLink(current)) {
+                throw new IllegalArgumentException(role + " contains a symbolic link: " + current);
+            }
+            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)
+                    && !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)
+                    && !current.equals(candidate)) {
+                throw new IllegalArgumentException(role + " has a non-directory component: " + current);
+            }
+        }
+    }
+
+    private static void rejectProjectTree(Path candidate, Path projectRoot, String role) {
+        if (candidate.equals(projectRoot) || candidate.startsWith(projectRoot)) {
+            throw new IllegalArgumentException(role + " must not be inside the project tree: " + candidate);
+        }
+    }
+
+    private static void rejectOverlappingRoots(Path output, Path work) {
+        if (output.equals(work) || output.startsWith(work) || work.startsWith(output)) {
+            throw new IllegalArgumentException("Output and work roots must not overlap");
+        }
+    }
+
+    private static void revalidateGenerationPaths(GenerationPaths paths) throws Exception {
+        if (paths.cli()) {
+            validateCliPaths(paths.projectRoot(), paths.outputRoot().toString(), paths.workRoot().toString());
+        } else {
+            GenerationPaths validated = validateProgrammaticPaths(paths.outputRoot(), paths.workRoot());
+            if (!validated.outputRoot().equals(paths.outputRoot())
+                    || !validated.workRoot().equals(paths.workRoot())) {
+                throw new IllegalArgumentException("Generator roots changed after validation");
+            }
+        }
+    }
+
+    record GenerationPaths(
+            Path outputRoot, Path workRoot, Path projectRoot, boolean cli) {
+    }
+
+    private record TempRoot(Path lexicalRoot, Path canonicalRoot) {
     }
 }

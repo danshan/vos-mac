@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,9 @@ class VosRenderMetadataExporterTest {
     private static final String STATUS_FONT_RESOURCE = "/resources/fonts/LiberationSans-Bold.ttf";
     private static final String STATUS_FONT_SHA256 =
             "361c61b82d575c5c35fd9157fda8b0194bcfcd0d88ea8521a4fb5dd53d33dddc";
+    private static final String STATUS_FONT_LICENSE_RESOURCE = "/resources/fonts/LICENSE_LIBERATION";
+    private static final String STATUS_FONT_LICENSE_SHA256 =
+            "3b169ed27ce05b624bc8bf173906286150fc729bad72bda86c98aee7a4631f2f";
 
     @Test
     void usesBundledPinnedStatusFont() throws Exception {
@@ -28,6 +32,20 @@ class VosRenderMetadataExporterTest {
             assertNotNull(input);
             assertEquals(STATUS_FONT_SHA256,
                     HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes())));
+        }
+    }
+
+    @Test
+    void bundlesPinnedStatusFontLicense() throws Exception {
+        try (InputStream input = VosRenderMetadataExporter.class
+                .getResourceAsStream(STATUS_FONT_LICENSE_RESOURCE)) {
+            assertNotNull(input);
+            byte[] license = input.readAllBytes();
+            assertEquals(STATUS_FONT_LICENSE_SHA256,
+                    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(license)));
+            String text = new String(license, StandardCharsets.UTF_8);
+            assertTrue(text.contains("SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007"));
+            assertTrue(text.contains("Reserved Font Name Liberation"));
         }
     }
 

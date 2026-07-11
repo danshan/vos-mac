@@ -9,7 +9,10 @@ WORKFLOW=".github/workflows/build.yml"
 INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 MISE_CONFIG="mise.toml"
 BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
+ORACLE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_oracle_provenance.sh"
+PACKAGE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_package.sh"
 REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
+JAR_VERIFIER="rewrite/tools/JarResourceVerifier.java"
 WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
@@ -17,7 +20,10 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 [[ -f "$INITIAL" ]] || { printf 'Missing aggregate initial verifier.\n' >&2; exit 1; }
 [[ -f "$MISE_CONFIG" ]] || { printf 'Missing mise configuration.\n' >&2; exit 1; }
 [[ -f "$BEHAVIOR_TEST" ]] || { printf 'Missing golden verifier behavioral contract.\n' >&2; exit 1; }
+[[ -x "$ORACLE_BEHAVIOR_TEST" ]] || { printf 'Missing oracle provenance behavioral contract.\n' >&2; exit 1; }
+[[ -x "$PACKAGE_BEHAVIOR_TEST" ]] || { printf 'Missing package behavioral contract.\n' >&2; exit 1; }
 [[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
+[[ -f "$JAR_VERIFIER" ]] || { printf 'Missing JAR resource verifier.\n' >&2; exit 1; }
 [[ -x "$WORKFLOW_VERIFIER" ]] || { printf 'Missing build workflow verifier.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
@@ -115,6 +121,9 @@ done
 for required_text in \
 	'bash rewrite/tools/test_verify_java_migration_goldens.sh' \
 	'bash rewrite/tools/test_verify_vos_godot_manifest.sh' \
+	'bash rewrite/tools/test_verify_java_oracle_provenance.sh' \
+	'bash rewrite/tools/test_verify_java_migration_package.sh' \
+	'bash rewrite/tools/verify_java_oracle_provenance.sh' \
 	'for required_command in bash git grep mise rg rm sed shasum tr' \
 	'for test_source in "${TEST_SOURCES[@]}"' \
 	'class_path="$(printf '\''%s'\'' "$fully_qualified_class" | tr '\''.'\'' '\''/'\'')"' \
@@ -124,9 +133,11 @@ for required_text in \
 	'@([[:alnum:]_$]+\.)*(Disabled|Enabled)' \
 	'assum(e|ing)[A-Z][[:alnum:]_]*' \
 	'mvn -s "$MAVEN_SETTINGS" clean test' \
+	'mvn -s "$MAVEN_SETTINGS" package -DskipTests' \
 	'REPORT_DIR="target/surefire-reports"' \
 	'rm -rf "$REPORT_DIR"' \
 	'mise exec -- java "$REPORT_VERIFIER" "$REPORT_DIR" "${TEST_CLASSES[@]}"' \
+	'bash rewrite/tools/verify_java_migration_package.sh' \
 	'shasum -a 256 -c manifest.sha256' \
 	'git diff --exit-code -- "$CORPUS_DIR"' \
 	'git diff --cached --exit-code -- "$CORPUS_DIR"' \
@@ -146,6 +157,10 @@ require_literal 'run = "mvn -s $MAVEN_SETTINGS clean verify"' \
 
 require_literal 'bash rewrite/tools/verify_java_migration_goldens.sh' \
 	"$INITIAL" 'Aggregate initial gate does not invoke the golden verifier'
+require_literal 'run: bash rewrite/tools/verify_java_migration_package.sh' \
+	"$WORKFLOW" 'Build workflow does not verify the final packaged JAR'
+require_literal '"Verify packaged migration resources"' \
+	"$WORKFLOW_VERIFIER" 'Build workflow verifier omits the package gate'
 
 bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
 

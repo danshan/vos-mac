@@ -4,7 +4,7 @@
 
 **Goal:** Repair the current migration gates and freeze a hermetic, reproducible Java oracle for VOS, OJN/OJM, and osu!mania before any production Java behavior is replaced.
 
-**Architecture:** Reuse the existing Java fixture builders and exporters to generate small self-authored source files and deterministic expected artifacts under `rewrite/golden/java-migration`. A strict verifier checks provenance, source/output hashes, reproduction, and the absence of optional external-path skips. This phase changes tests and migration artifacts only; it does not introduce Rust or change production runtime behavior.
+**Architecture:** Reuse the existing Java fixture builders and exporters to generate small self-authored source files and deterministic expected artifacts under `rewrite/golden/java-migration`. A strict verifier checks provenance, source/output hashes, reproduction, and the absence of optional external-path skips. The only production behavior change permitted in this phase is the already-approved deterministic fixed-font overlay at commit `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`; all subsequent Phase 0 work is limited to tests, verification tooling, documentation, and migration artifacts, and does not introduce Rust.
 
 **Tech Stack:** Java 17, Maven 3.9.9, JUnit Jupiter 5, Bash, existing Open2Jam parsers/exporters, Godot 4.6.3 only for the repaired aggregate gate.
 
@@ -17,7 +17,7 @@
 - Selected migration tests must not use `assumeTrue`, `/Users/...`, downloads, or machine-local song directories.
 - Java goldens are generated only by the explicit generator command; normal tests are read-only.
 - VOS Java WAV bytes are frozen as historical evidence, but later Rust VOS parity follows ADR 0003 and does not require Java PCM byte equality.
-- Do not change production parser/export behavior in this phase.
+- Permit only the deterministic Liberation Sans production exporter overlay already frozen at commit `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`; do not make any further Phase 0 production parser/export behavior changes.
 - Every task follows RED, GREEN, focused regression, and commit.
 
 ## File Map

@@ -4,6 +4,32 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+FIXTURE_TEMP_ROOT=""
+FIXTURE_PARENT=""
+CLEANUP_DONE=false
+CREATED_FIXTURE=""
+TMPDIR_INPUT=""
+
+if [[ "${TMPDIR+x}" == "x" ]]; then
+	TMPDIR_INPUT="$TMPDIR"
+else
+	TMPDIR_INPUT="/tmp"
+fi
+if [[ -z "$TMPDIR_INPUT" || "$TMPDIR_INPUT" == "/" \
+	|| "$TMPDIR_INPUT" == "//" ]]; then
+	printf 'Unsafe verifier TMPDIR: %s\n' "${TMPDIR_INPUT:-<empty>}" >&2
+	exit 1
+fi
+if ! FIXTURE_TEMP_ROOT="$(cd "$TMPDIR_INPUT" 2>/dev/null && pwd -P)"; then
+	printf 'Unable to resolve verifier TMPDIR: %s\n' "$TMPDIR_INPUT" >&2
+	exit 1
+fi
+if [[ -z "$FIXTURE_TEMP_ROOT" || "$FIXTURE_TEMP_ROOT" == "/" \
+	|| "$FIXTURE_TEMP_ROOT" == "//" ]]; then
+	printf 'Unsafe verifier TMPDIR root: %s\n' "$FIXTURE_TEMP_ROOT" >&2
+	exit 1
+fi
+
 for required_command in \
 	awk bash cat chmod cp dirname git grep kill ln mkdir mise mktemp mv rg rm sed shasum tr; do
 	if ! command -v "$required_command" >/dev/null 2>&1; then
@@ -14,10 +40,6 @@ done
 
 REAL_JAVA_PATH="$(mise which java)"
 REAL_RG_PATH="$(command -v rg)"
-FIXTURE_TEMP_ROOT=""
-FIXTURE_PARENT=""
-CLEANUP_DONE=false
-CREATED_FIXTURE=""
 
 is_safe_fixture_parent() {
 	local candidate="$1"
@@ -63,10 +85,6 @@ handle_signal() {
 	exit "$exit_code"
 }
 
-if ! FIXTURE_TEMP_ROOT="$(cd "${TMPDIR:-/tmp}" && pwd -P)"; then
-	printf 'Unable to resolve the temporary directory.\n' >&2
-	exit 1
-fi
 if ! FIXTURE_PARENT="$(mktemp -d "$FIXTURE_TEMP_ROOT/open2jam-golden-verifier.XXXXXX")"; then
 	printf 'Unable to create the fixture parent.\n' >&2
 	exit 1
@@ -511,6 +529,68 @@ assert_no_root_fixture_artifacts() {
 	done
 }
 
+root_temp_snapshot() {
+	local root_path
+	for root_path in /open2jam-golden-verifier.*; do
+		if [[ -e "$root_path" || -L "$root_path" ]]; then
+			printf '%s\n' "$root_path"
+		fi
+	done
+}
+
+create_unsafe_tmpdir_probe() {
+	local probe_root
+	CREATED_FIXTURE=""
+	if ! probe_root="$(mktemp -d "$FIXTURE_PARENT/tmpdir-probe.XXXXXX")" \
+		|| ! probe_root="$(cd "$probe_root" && pwd -P)" \
+		|| ! assert_fixture_path "$probe_root" \
+		|| ! mkdir -p "$probe_root/bin"; then
+		printf 'Unable to create unsafe TMPDIR probe.\n' >&2
+		return 1
+	fi
+	if ! cat >"$probe_root/bin/mktemp" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'mktemp-called\n' >"$UNSAFE_TMPDIR_MARKER"
+exit 97
+EOF
+	then
+		printf 'Unable to write unsafe TMPDIR mktemp probe.\n' >&2
+		return 1
+	fi
+	if ! chmod +x "$probe_root/bin/mktemp"; then
+		printf 'Unable to make unsafe TMPDIR probe executable.\n' >&2
+		return 1
+	fi
+	CREATED_FIXTURE="$probe_root"
+}
+
+expect_unsafe_tmpdir_rejected() {
+	local description="$1"
+	local tmpdir_value="$2"
+	local probe_root="$3"
+	local marker="$probe_root/$description.marker"
+	local root_before
+	local root_after
+	local output
+	assert_fixture_path "$probe_root" || return 1
+	root_before="$(root_temp_snapshot)"
+	if output="$(TMPDIR="$tmpdir_value" \
+		UNSAFE_TMPDIR_MARKER="$marker" \
+		PATH="$probe_root/bin:$PATH" \
+		/bin/bash "$ROOT_DIR/rewrite/tools/test_verify_java_migration_goldens_behavior.sh" \
+		--unsafe-temp-root-probe 2>&1)"; then
+		printf 'Unsafe TMPDIR unexpectedly passed: %s\n' "$description" >&2
+		exit 1
+	fi
+	root_after="$(root_temp_snapshot)"
+	if [[ "$output" != *"Unsafe verifier TMPDIR"* || -e "$marker" \
+		|| "$root_after" != "$root_before" ]]; then
+		printf 'Unsafe TMPDIR probe had write side effects: %s\n' "$description" >&2
+		exit 1
+	fi
+}
+
 install_hostile_git_environment() {
 	local hostile_root="$1"
 	local hook_path="$hostile_root/hooks/pre-commit"
@@ -641,6 +721,19 @@ append_partytime_declaration() {
 }
 
 assert_no_root_fixture_artifacts
+create_unsafe_tmpdir_probe
+tmpdir_probe="$CREATED_FIXTURE"
+if ! ln -s / "$tmpdir_probe/root-link"; then
+	printf 'Unable to create root-equivalent TMPDIR symlink.\n' >&2
+	exit 1
+fi
+expect_unsafe_tmpdir_rejected empty "" "$tmpdir_probe"
+expect_unsafe_tmpdir_rejected root / "$tmpdir_probe"
+expect_unsafe_tmpdir_rejected double-root // "$tmpdir_probe"
+expect_unsafe_tmpdir_rejected normalized-root /./ "$tmpdir_probe"
+expect_unsafe_tmpdir_rejected symlink-root "$tmpdir_probe/root-link" "$tmpdir_probe"
+assert_no_root_fixture_artifacts
+
 for unsafe_path in \
 	"" / "$FIXTURE_TEMP_ROOT" "$FIXTURE_PARENT" \
 	"$FIXTURE_PARENT/../escape" /private/tmp/outside-fixture; do

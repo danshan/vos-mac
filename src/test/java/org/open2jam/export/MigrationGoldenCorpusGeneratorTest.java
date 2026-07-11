@@ -67,6 +67,94 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void rejectsSameByteSymlinkReplacementDuringHashing() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path root = base.resolve("racing-hash-corpus");
+        Path target = root.resolve("z-target.txt");
+        Path external = base.resolve("same-bytes.txt");
+        Files.createDirectories(root);
+        Files.writeString(target, "same bytes\n");
+        Files.writeString(external, "same bytes\n");
+        writeFileTypeManifest(root);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.hashManifest(
+                        root,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFileRead(String operation, Path relativePath)
+                                    throws Exception {
+                                if ("hash".equals(operation)
+                                        && relativePath.equals(Path.of("z-target.txt"))) {
+                                    Files.delete(target);
+                                    Files.createSymbolicLink(target, external);
+                                }
+                            }
+                        }));
+        assertTrue(Files.isSymbolicLink(target));
+        assertEquals("same bytes\n", Files.readString(external));
+    }
+
+    @Test
+    void hashManifestRejectsEntryAddedAfterSnapshot() throws Exception {
+        Path root = tempDir.toRealPath().resolve("hash-add-corpus");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("data.txt"), "data\n");
+        writeFileTypeManifest(root);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.hashManifest(
+                        root,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void afterInitialSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.writeString(snapshotRoot.resolve("z-added.txt"), "added\n");
+                            }
+                        }));
+        assertEquals("added\n", Files.readString(root.resolve("z-added.txt")));
+    }
+
+    @Test
+    void hashManifestRejectsEntryRemovedAfterHashing() throws Exception {
+        Path root = tempDir.toRealPath().resolve("hash-remove-corpus");
+        Path data = root.resolve("data.txt");
+        Files.createDirectories(root);
+        Files.writeString(data, "data\n");
+        writeFileTypeManifest(root);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.hashManifest(
+                        root,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.delete(data);
+                            }
+                        }));
+        assertFalse(Files.exists(data));
+    }
+
+    @Test
+    void fileTypeManifestRejectsEntryAddedAfterSnapshot() throws Exception {
+        Path root = tempDir.toRealPath().resolve("type-add-corpus");
+        Files.createDirectories(root);
+        Files.writeString(root.resolve("data.txt"), "data\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.fileTypeManifest(
+                        root,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.writeString(snapshotRoot.resolve("z-added.txt"), "added\n");
+                            }
+                        }));
+    }
+
+    @Test
     void rejectsDirectorySymlinkFromFileTypeManifest() throws Exception {
         Path base = tempDir.toRealPath();
         Path root = base.resolve("directory-symlink-corpus");
@@ -128,6 +216,102 @@ class MigrationGoldenCorpusGeneratorTest {
         assertThrows(IllegalArgumentException.class,
                 () -> MigrationGoldenCorpusGenerator.copyTree(source, target));
         assertFalse(Files.exists(target));
+    }
+
+    @Test
+    void copyTreeRejectsSameByteSymlinkReplacementBeforeRead() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-replace-source");
+        Path target = base.resolve("copy-race-replace-target");
+        Path sourceFile = source.resolve("z-target.txt");
+        Path external = base.resolve("copy-race-same-bytes.txt");
+        Files.createDirectories(source);
+        Files.writeString(sourceFile, "same bytes\n");
+        Files.writeString(external, "same bytes\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFileRead(String operation, Path relativePath)
+                                    throws Exception {
+                                Files.delete(sourceFile);
+                                Files.createSymbolicLink(sourceFile, external);
+                            }
+                        }));
+        assertTrue(Files.isSymbolicLink(sourceFile));
+        assertEquals("same bytes\n", Files.readString(external));
+    }
+
+    @Test
+    void copyTreeRejectsSourceEntryAddedAfterSnapshot() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-add-source");
+        Path target = base.resolve("copy-race-add-target");
+        Files.createDirectories(source);
+        Files.writeString(source.resolve("data.txt"), "data\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void afterInitialSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.writeString(snapshotRoot.resolve("z-added.txt"), "added\n");
+                            }
+                        }));
+        assertEquals("added\n", Files.readString(source.resolve("z-added.txt")));
+        assertFalse(Files.exists(target.resolve("z-added.txt")));
+    }
+
+    @Test
+    void copyTreeRejectsSourceEntryRemovedBeforeFinalSnapshot() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-remove-source");
+        Path target = base.resolve("copy-race-remove-target");
+        Path sourceFile = source.resolve("data.txt");
+        Files.createDirectories(source);
+        Files.writeString(sourceFile, "data\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.delete(sourceFile);
+                            }
+                        }));
+        assertFalse(Files.exists(sourceFile));
+        assertEquals("data\n", Files.readString(target.resolve("data.txt")));
+    }
+
+    @Test
+    void copyTreeRejectsTargetEntryAddedDuringCopy() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-race-target-add-source");
+        Path target = base.resolve("copy-race-target-add-target");
+        Files.createDirectories(source);
+        Files.writeString(source.resolve("data.txt"), "data\n");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(
+                        source,
+                        target,
+                        new MigrationGoldenCorpusGenerator.TreeOperationObserver() {
+                            @Override
+                            public void beforeFinalSnapshot(String operation, Path snapshotRoot)
+                                    throws Exception {
+                                Files.writeString(target.resolve("z-unexpected.txt"), "unexpected\n");
+                            }
+                        }));
+        assertEquals("unexpected\n", Files.readString(target.resolve("z-unexpected.txt")));
     }
 
     @Test
@@ -379,6 +563,12 @@ class MigrationGoldenCorpusGeneratorTest {
                 + "directory  b/\n"
                 + "regular  b/two.txt\n"
                 + "regular  manifest.files\n", manifest);
+    }
+
+    private static void writeFileTypeManifest(Path root) throws Exception {
+        Files.writeString(root.resolve("manifest.files"), "");
+        Files.writeString(root.resolve("manifest.files"),
+                MigrationGoldenCorpusGenerator.fileTypeManifest(root));
     }
 
     private static void deleteTestTree(Path root) throws Exception {

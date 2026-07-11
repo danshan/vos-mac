@@ -1,18 +1,27 @@
 package org.open2jam.export;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.open2jam.parsers.OjnFixtureFactory;
@@ -304,7 +313,10 @@ public final class MigrationGoldenCorpusGenerator {
                 .filter(file -> isRegularFileNoFollow(file))
                 .filter(file -> file.getFileName().toString().endsWith(".json"))
                 .toList()) {
-            String content = Files.readString(path, StandardCharsets.UTF_8);
+            EntryState state = captureEntry(path, relativePath(expectedRoot, path));
+            String content = new String(
+                    readStableBytes(path, state, relativePath(expectedRoot, path)),
+                    StandardCharsets.UTF_8);
             String normalized = normalizeCatalogIds(content, actualWorkRoot)
                     .replace(actualWorkRoot, CANONICAL_WORK_ROOT);
             writeUtf8(path, normalized);
@@ -342,47 +354,75 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     public static String hashManifest(Path root) throws Exception {
-        List<Path> entries = validateTree(root, "golden corpus");
-        Path fileTypes = root.resolve(FILE_TYPE_MANIFEST);
-        if (!isRegularFileNoFollow(fileTypes)) {
-            throw new IllegalArgumentException("Missing regular corpus file-type manifest: " + fileTypes);
+        return hashManifest(root, TreeOperationObserver.NONE);
+    }
+
+    static String hashManifest(Path root, TreeOperationObserver observer) throws Exception {
+        TreeSnapshot snapshot = captureTree(root, "golden corpus");
+        observer.afterInitialSnapshot("hash", snapshot.root());
+        String fileTypesRelative = relativePath(snapshot.root(), snapshot.root().resolve(FILE_TYPE_MANIFEST));
+        EntryState fileTypesState = snapshot.entries().get(fileTypesRelative);
+        if (fileTypesState == null || fileTypesState.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException(
+                    "Missing regular corpus file-type manifest: "
+                            + snapshot.root().resolve(FILE_TYPE_MANIFEST));
         }
-        String expectedTypes = fileTypeManifest(root);
-        String actualTypes = Files.readString(fileTypes, StandardCharsets.UTF_8);
+        observer.beforeFileRead("hash", Path.of(fileTypesRelative));
+        String expectedTypes = renderFileTypeManifest(snapshot);
+        String actualTypes = new String(
+                readStableBytes(
+                        snapshot.root().resolve(fileTypesRelative),
+                        fileTypesState,
+                        fileTypesRelative),
+                StandardCharsets.UTF_8);
         if (!actualTypes.equals(expectedTypes)) {
             throw new IllegalArgumentException("Corpus file-type manifest does not match the tree");
         }
 
-        List<Path> files = entries.stream()
-                .filter(MigrationGoldenCorpusGenerator::isRegularFileNoFollow)
-                .filter(path -> !path.equals(root.resolve(HASH_MANIFEST)))
-                .sorted(Comparator.comparing(path -> relativePath(root, path)))
+        List<Map.Entry<String, EntryState>> files = snapshot.entries().entrySet().stream()
+                .filter(entry -> entry.getValue().kind() == EntryKind.REGULAR)
+                .filter(entry -> !entry.getKey().equals(HASH_MANIFEST))
+                .sorted(Map.Entry.comparingByKey())
                 .toList();
 
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         StringBuilder hashes = new StringBuilder();
-        for (Path file : files) {
-            String sha256 = HexFormat.of().formatHex(digest.digest(Files.readAllBytes(file)));
-            hashes.append(sha256).append("  ").append(relativePath(root, file)).append('\n');
+        for (Map.Entry<String, EntryState> file : files) {
+            observer.beforeFileRead("hash", Path.of(file.getKey()));
+            String sha256 = hashStableFile(
+                    snapshot.root().resolve(file.getKey()), file.getValue(), file.getKey());
+            hashes.append(sha256).append("  ").append(file.getKey()).append('\n');
         }
+        observer.beforeFinalSnapshot("hash", snapshot.root());
+        assertTreeUnchanged(snapshot, "golden corpus");
         return hashes.toString();
     }
 
     public static String fileTypeManifest(Path root) throws Exception {
-        List<Path> entries = validateTree(root, "golden corpus");
+        return fileTypeManifest(root, TreeOperationObserver.NONE);
+    }
+
+    static String fileTypeManifest(Path root, TreeOperationObserver observer) throws Exception {
+        TreeSnapshot snapshot = captureTree(root, "golden corpus");
+        observer.afterInitialSnapshot("file-types", snapshot.root());
+        String manifest = renderFileTypeManifest(snapshot);
+        observer.beforeFinalSnapshot("file-types", snapshot.root());
+        assertTreeUnchanged(snapshot, "golden corpus");
+        return manifest;
+    }
+
+    private static String renderFileTypeManifest(TreeSnapshot snapshot) {
         StringBuilder types = new StringBuilder();
-        for (Path path : entries.stream()
-                .filter(entry -> !entry.equals(root))
-                .filter(entry -> !entry.equals(root.resolve(HASH_MANIFEST)))
-                .sorted(Comparator.comparing(entry -> relativePath(root, entry)))
+        for (Map.Entry<String, EntryState> entry : snapshot.entries().entrySet().stream()
+                .filter(item -> !item.getKey().isEmpty())
+                .filter(item -> !item.getKey().equals(HASH_MANIFEST))
+                .sorted(Map.Entry.comparingByKey())
                 .toList()) {
-            BasicFileAttributes attributes = readAttributesNoFollow(path);
-            if (attributes.isDirectory()) {
-                types.append("directory  ").append(relativePath(root, path)).append("/\n");
-            } else if (attributes.isRegularFile()) {
-                types.append("regular  ").append(relativePath(root, path)).append('\n');
+            if (entry.getValue().kind() == EntryKind.DIRECTORY) {
+                types.append("directory  ").append(entry.getKey()).append("/\n");
+            } else if (entry.getValue().kind() == EntryKind.REGULAR) {
+                types.append("regular  ").append(entry.getKey()).append('\n');
             } else {
-                throw unsafeTreeEntry(path);
+                throw new IllegalStateException("Unsupported captured tree entry: " + entry.getKey());
             }
         }
         return types.toString();
@@ -393,8 +433,23 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static void writeUtf8(Path path, String content) throws Exception {
-        Files.createDirectories(path.getParent());
-        Files.writeString(path, content, StandardCharsets.UTF_8);
+        ensureDirectoryNoFollow(path.getParent(), "write target parent");
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
+        EntryState identity;
+        try (FileChannel channel = openDestinationNoFollow(path)) {
+            identity = captureEntry(path, path.toString());
+            ByteBuffer buffer = ByteBuffer.wrap(bytes);
+            while (buffer.hasRemaining()) {
+                channel.write(buffer);
+            }
+            channel.force(true);
+        }
+        EntryState after = captureEntry(path, path.toString());
+        if (!Objects.equals(identity.fileKey(), after.fileKey())
+                || after.kind() != EntryKind.REGULAR
+                || after.size() != bytes.length) {
+            throw new IllegalArgumentException("Write target changed while writing: " + path);
+        }
     }
 
     static void resetDirectory(Path root) throws Exception {
@@ -409,30 +464,55 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     static void copyTree(Path source, Path target) throws Exception {
+        copyTree(source, target, TreeOperationObserver.NONE);
+    }
+
+    static void copyTree(Path source, Path target, TreeOperationObserver observer) throws Exception {
         validateNoSymlinkAncestry(source.toAbsolutePath().normalize(), "copy source tree");
-        List<Path> entries = validateTree(source, "copy source tree");
-        validateExistingTargetTree(target);
-        for (Path path : entries) {
-            Path destination = target.resolve(source.relativize(path));
-            BasicFileAttributes attributes = readAttributesNoFollow(path);
-            if (attributes.isDirectory()) {
-                Files.createDirectories(destination);
-            } else if (attributes.isRegularFile()) {
-                Files.createDirectories(destination.getParent());
-                Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING,
-                        LinkOption.NOFOLLOW_LINKS);
-            } else {
-                throw unsafeTreeEntry(path);
+        TreeSnapshot sourceSnapshot = captureTree(source, "copy source tree");
+        TreeSnapshot targetSnapshot = captureOptionalTree(target, "copy target tree");
+        observer.afterInitialSnapshot("copy", sourceSnapshot.root());
+
+        Map<String, EntryKind> expectedTargetTypes = targetSnapshot == null
+                ? new LinkedHashMap<>()
+                : entryKinds(targetSnapshot);
+        for (Map.Entry<String, EntryState> entry : sourceSnapshot.entries().entrySet()) {
+            EntryKind previous = expectedTargetTypes.put(entry.getKey(), entry.getValue().kind());
+            if (previous != null && previous != entry.getValue().kind()) {
+                throw new IllegalArgumentException(
+                        "Copy source and target entry types conflict: " + entry.getKey());
             }
+        }
+
+        ensureDirectoryNoFollow(target.toAbsolutePath().normalize(), "copy target root");
+        for (Map.Entry<String, EntryState> entry : sourceSnapshot.entries().entrySet()) {
+            Path sourcePath = sourceSnapshot.root().resolve(entry.getKey());
+            Path destination = target.toAbsolutePath().normalize().resolve(entry.getKey());
+            if (entry.getValue().kind() == EntryKind.DIRECTORY) {
+                assertEntryUnchanged(sourcePath, entry.getValue(), entry.getKey());
+                ensureDirectoryNoFollow(destination, "copy target directory");
+            } else if (entry.getValue().kind() == EntryKind.REGULAR) {
+                observer.beforeFileRead("copy", Path.of(entry.getKey()));
+                copyStableRegularFile(sourcePath, entry.getValue(), entry.getKey(), destination);
+            } else {
+                throw unsafeTreeEntry(sourcePath);
+            }
+        }
+        observer.beforeFinalSnapshot("copy", sourceSnapshot.root());
+        assertTreeUnchanged(sourceSnapshot, "copy source tree");
+        TreeSnapshot finalTarget = captureTree(target, "copy target tree");
+        if (!entryKinds(finalTarget).equals(expectedTargetTypes)) {
+            throw new IllegalArgumentException("Copy target tree entry set or types changed");
         }
     }
 
-    private static void validateExistingTargetTree(Path target) throws Exception {
+    private static TreeSnapshot captureOptionalTree(Path target, String role) throws Exception {
         Path absolute = target.toAbsolutePath().normalize();
-        validateNoSymlinkAncestry(absolute, "copy target tree");
+        validateNoSymlinkAncestry(absolute, role);
         if (Files.exists(absolute, LinkOption.NOFOLLOW_LINKS)) {
-            validateTree(absolute, "copy target tree");
+            return captureTree(absolute, role);
         }
+        return null;
     }
 
     private static void validateNoSymlinkAncestry(Path absolute, String role) {
@@ -454,26 +534,289 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static List<Path> validateTree(Path root, String role) throws Exception {
-        validateNoSymlinkAncestry(root.toAbsolutePath().normalize(), role);
-        if (Files.isSymbolicLink(root)) {
-            throw new IllegalArgumentException(role + " contains a symbolic link: " + root);
+        TreeSnapshot snapshot = captureTree(root, role);
+        return snapshot.entries().keySet().stream()
+                .map(snapshot.root()::resolve)
+                .toList();
+    }
+
+    private static TreeSnapshot captureTree(Path root, String role) throws Exception {
+        Path absolute = root.toAbsolutePath().normalize();
+        validateNoSymlinkAncestry(absolute, role);
+        EntryState rootState = captureEntry(absolute, role + " root");
+        if (rootState.kind() != EntryKind.DIRECTORY) {
+            throw new IllegalArgumentException(role + " root is not a directory: " + absolute);
         }
-        BasicFileAttributes rootAttributes = readAttributesNoFollow(root);
-        if (!rootAttributes.isDirectory()) {
-            throw new IllegalArgumentException(role + " root is not a directory: " + root);
+        List<Path> paths;
+        try (Stream<Path> stream = Files.walk(absolute)) {
+            paths = stream.sorted(Comparator.comparing(path -> relativePath(absolute, path))).toList();
         }
-        List<Path> entries;
-        try (Stream<Path> paths = Files.walk(root)) {
-            entries = paths.sorted(Comparator.comparing(path -> relativePath(root, path))).toList();
+        Map<String, EntryState> entries = new LinkedHashMap<>();
+        for (Path path : paths) {
+            String relative = relativePath(absolute, path);
+            EntryState previous = entries.put(relative, captureEntry(path, relative));
+            if (previous != null) {
+                throw new IllegalArgumentException(role + " contains duplicate entry: " + relative);
+            }
         }
-        for (Path path : entries) {
-            BasicFileAttributes attributes = readAttributesNoFollow(path);
-            if (Files.isSymbolicLink(path)
-                    || (!attributes.isDirectory() && !attributes.isRegularFile())) {
+        return new TreeSnapshot(absolute, Map.copyOf(entries));
+    }
+
+    private static EntryState captureEntry(Path path, String label) throws Exception {
+        BasicFileAttributes before = readAttributesNoFollow(path);
+        EntryKind beforeKind = entryKind(before, path);
+        Object beforeKey = before.fileKey();
+        if (beforeKey == null) {
+            throw new IllegalArgumentException(
+                    "Filesystem identity is unavailable for tree entry: " + label);
+        }
+        Set<PosixFilePermission> permissions = Set.copyOf(
+                Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS));
+        BasicFileAttributes after = readAttributesNoFollow(path);
+        EntryState first = entryState(beforeKind, before, permissions);
+        EntryState second = entryState(entryKind(after, path), after, permissions);
+        if (!first.equals(second)) {
+            throw new IllegalArgumentException(
+                    "Tree entry changed while snapshotting: " + label);
+        }
+        return second;
+    }
+
+    private static EntryKind entryKind(BasicFileAttributes attributes, Path path) {
+        if (attributes.isDirectory()) {
+            return EntryKind.DIRECTORY;
+        }
+        if (attributes.isRegularFile()) {
+            return EntryKind.REGULAR;
+        }
+        throw unsafeTreeEntry(path);
+    }
+
+    private static EntryState entryState(
+            EntryKind kind,
+            BasicFileAttributes attributes,
+            Set<PosixFilePermission> permissions) {
+        if (attributes.fileKey() == null) {
+            throw new IllegalArgumentException("Filesystem identity became unavailable");
+        }
+        return new EntryState(
+                kind,
+                attributes.fileKey(),
+                attributes.size(),
+                attributes.lastModifiedTime(),
+                permissions);
+    }
+
+    private static byte[] readStableBytes(Path path, EntryState expected, String label)
+            throws Exception {
+        EntryState before = captureEntry(path, label);
+        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException("Tree entry changed before reading: " + label);
+        }
+        if (before.size() > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Tree entry is too large to read: " + label);
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream((int) before.size());
+        long bytesRead = 0L;
+        try (FileChannel channel = FileChannel.open(
+                path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            EntryState afterOpen = captureEntry(path, label);
+            if (!before.equals(afterOpen)) {
+                throw new IllegalArgumentException("Tree entry changed while opening: " + label);
+            }
+            ByteBuffer buffer = ByteBuffer.allocate(64 * 1024);
+            while (channel.read(buffer) != -1) {
+                if (buffer.position() == 0) {
+                    continue;
+                }
+                bytesRead += buffer.position();
+                output.write(buffer.array(), 0, buffer.position());
+                buffer.clear();
+            }
+        }
+        EntryState after = captureEntry(path, label);
+        if (!before.equals(after) || bytesRead != before.size()) {
+            throw new IllegalArgumentException("Tree entry changed while reading: " + label);
+        }
+        return output.toByteArray();
+    }
+
+    private static String hashStableFile(Path path, EntryState expected, String label)
+            throws Exception {
+        EntryState before = captureEntry(path, label);
+        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException("Tree entry changed before hashing: " + label);
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        long bytesRead = 0L;
+        try (FileChannel channel = FileChannel.open(
+                path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            EntryState afterOpen = captureEntry(path, label);
+            if (!before.equals(afterOpen)) {
+                throw new IllegalArgumentException("Tree entry changed while opening: " + label);
+            }
+            ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
+            int read;
+            while ((read = channel.read(buffer)) != -1) {
+                if (read == 0) {
+                    continue;
+                }
+                bytesRead += read;
+                buffer.flip();
+                digest.update(buffer);
+                buffer.clear();
+            }
+        }
+        EntryState after = captureEntry(path, label);
+        if (!before.equals(after) || bytesRead != before.size()) {
+            throw new IllegalArgumentException("Tree entry changed while hashing: " + label);
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static void copyStableRegularFile(
+            Path source,
+            EntryState expected,
+            String label,
+            Path destination) throws Exception {
+        EntryState before = captureEntry(source, label);
+        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException("Copy source changed before reading: " + label);
+        }
+        ensureDirectoryNoFollow(destination.getParent(), "copy target parent");
+        long bytesRead = 0L;
+        EntryState destinationIdentity;
+        try (FileChannel input = FileChannel.open(
+                        source, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS);
+                FileChannel output = openDestinationNoFollow(destination)) {
+            EntryState afterOpen = captureEntry(source, label);
+            if (!before.equals(afterOpen)) {
+                throw new IllegalArgumentException("Copy source changed while opening: " + label);
+            }
+            destinationIdentity = captureEntry(destination, relativePath(destination.getParent(), destination));
+            if (destinationIdentity.kind() != EntryKind.REGULAR) {
+                throw unsafeTreeEntry(destination);
+            }
+            ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                if (read == 0) {
+                    continue;
+                }
+                bytesRead += read;
+                buffer.flip();
+                while (buffer.hasRemaining()) {
+                    output.write(buffer);
+                }
+                buffer.clear();
+            }
+            output.force(true);
+        }
+        EntryState after = captureEntry(source, label);
+        if (!before.equals(after) || bytesRead != before.size()) {
+            throw new IllegalArgumentException("Copy source changed while reading: " + label);
+        }
+        EntryState destinationAfter = captureEntry(destination, destination.toString());
+        if (!Objects.equals(destinationIdentity.fileKey(), destinationAfter.fileKey())
+                || destinationAfter.kind() != EntryKind.REGULAR
+                || destinationAfter.size() != bytesRead) {
+            throw new IllegalArgumentException("Copy target changed while writing: " + destination);
+        }
+    }
+
+    private static FileChannel openDestinationNoFollow(Path destination) throws Exception {
+        if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
+            EntryState existing = captureEntry(destination, destination.toString());
+            if (existing.kind() != EntryKind.REGULAR) {
+                throw unsafeTreeEntry(destination);
+            }
+            FileChannel channel = FileChannel.open(
+                    destination,
+                    StandardOpenOption.WRITE,
+                    StandardOpenOption.TRUNCATE_EXISTING,
+                    LinkOption.NOFOLLOW_LINKS);
+            EntryState opened = captureEntry(destination, destination.toString());
+            if (!Objects.equals(existing.fileKey(), opened.fileKey())
+                    || opened.kind() != EntryKind.REGULAR) {
+                channel.close();
+                throw new IllegalArgumentException(
+                        "Copy target changed while opening: " + destination);
+            }
+            return channel;
+        }
+        FileChannel channel = FileChannel.open(
+                destination,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.CREATE_NEW,
+                LinkOption.NOFOLLOW_LINKS);
+        EntryState created = captureEntry(destination, destination.toString());
+        if (created.kind() != EntryKind.REGULAR) {
+            channel.close();
+            throw unsafeTreeEntry(destination);
+        }
+        return channel;
+    }
+
+    private static void ensureDirectoryNoFollow(Path directory, String role) throws Exception {
+        Path absolute = directory.toAbsolutePath().normalize();
+        List<Path> missing = new ArrayList<>();
+        Path current = absolute;
+        while (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+            missing.add(current);
+            current = current.getParent();
+            if (current == null) {
+                throw new IllegalArgumentException(role + " has no existing ancestor: " + directory);
+            }
+        }
+        validateNoSymlinkAncestry(current, role);
+        if (captureEntry(current, role).kind() != EntryKind.DIRECTORY) {
+            throw unsafeTreeEntry(current);
+        }
+        for (Path path : missing.stream().sorted(Comparator.comparingInt(Path::getNameCount)).toList()) {
+            try {
+                Files.createDirectory(path);
+            } catch (FileAlreadyExistsException ignored) {
+                // A concurrent creator is accepted only if the final entry is the expected directory.
+            }
+            if (captureEntry(path, role).kind() != EntryKind.DIRECTORY) {
                 throw unsafeTreeEntry(path);
             }
         }
-        return entries;
+        validateNoSymlinkAncestry(absolute, role);
+    }
+
+    private static void assertEntryUnchanged(Path path, EntryState expected, String label)
+            throws Exception {
+        if (!expected.equals(captureEntry(path, label))) {
+            throw new IllegalArgumentException("Tree entry changed: " + label);
+        }
+    }
+
+    private static void assertTreeUnchanged(TreeSnapshot expected, String role) throws Exception {
+        TreeSnapshot actual = captureTree(expected.root(), role);
+        if (!expected.equals(actual)) {
+            Set<String> missing = new LinkedHashSet<>(expected.entries().keySet());
+            missing.removeAll(actual.entries().keySet());
+            Set<String> extra = new LinkedHashSet<>(actual.entries().keySet());
+            extra.removeAll(expected.entries().keySet());
+            List<String> changed = expected.entries().entrySet().stream()
+                    .filter(entry -> actual.entries().containsKey(entry.getKey()))
+                    .filter(entry -> !entry.getValue().equals(actual.entries().get(entry.getKey())))
+                    .map(Map.Entry::getKey)
+                    .sorted()
+                    .toList();
+            throw new IllegalArgumentException(
+                    role + " changed during operation; missing=" + missing
+                            + ", extra=" + extra + ", changed=" + changed);
+        }
+    }
+
+    private static Map<String, EntryKind> entryKinds(TreeSnapshot snapshot) {
+        Map<String, EntryKind> kinds = new LinkedHashMap<>();
+        snapshot.entries().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> kinds.put(entry.getKey(), entry.getValue().kind()));
+        return kinds;
     }
 
     private static IllegalArgumentException unsafeTreeEntry(Path path) {
@@ -604,6 +947,36 @@ public final class MigrationGoldenCorpusGenerator {
                 throw new IllegalArgumentException("Generator roots changed after validation");
             }
         }
+    }
+
+    interface TreeOperationObserver {
+        TreeOperationObserver NONE = new TreeOperationObserver() {
+        };
+
+        default void afterInitialSnapshot(String operation, Path root) throws Exception {
+        }
+
+        default void beforeFileRead(String operation, Path relativePath) throws Exception {
+        }
+
+        default void beforeFinalSnapshot(String operation, Path root) throws Exception {
+        }
+    }
+
+    private enum EntryKind {
+        DIRECTORY,
+        REGULAR
+    }
+
+    private record EntryState(
+            EntryKind kind,
+            Object fileKey,
+            long size,
+            FileTime lastModifiedTime,
+            Set<PosixFilePermission> permissions) {
+    }
+
+    private record TreeSnapshot(Path root, Map<String, EntryState> entries) {
     }
 
     record GenerationPaths(

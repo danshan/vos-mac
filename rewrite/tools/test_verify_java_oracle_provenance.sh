@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 cd "$ROOT_DIR"
 
 VERIFIER="rewrite/tools/verify_java_oracle_provenance.sh"
+FILESYSTEM_VERIFIER_SOURCE="rewrite/tools/JavaOracleFilesystemVerifier.java"
+FILESYSTEM_RACE_TEST_SOURCE="rewrite/tools/JavaOracleFilesystemVerifierRaceTest.java"
 PINNED_OVERLAY_COMMIT="62ece7083ea473f02ecc9a83ee7d3e151905bf0e"
 TEMP_BASE_INPUT="${TMPDIR:-/tmp}"
 TEMP_BASE=""
@@ -16,6 +18,12 @@ REAL_JAVA_PATH="$(mise which java)"
 	printf 'Missing executable Java oracle provenance verifier.\n' >&2
 	exit 1
 }
+for required_source in "$FILESYSTEM_VERIFIER_SOURCE" "$FILESYSTEM_RACE_TEST_SOURCE"; do
+	if [[ ! -f "$required_source" || -L "$required_source" ]]; then
+		printf 'Missing regular Java oracle race source: %s\n' "$required_source" >&2
+		exit 1
+	fi
+done
 if [[ -z "$TEMP_BASE_INPUT" || "$TEMP_BASE_INPUT" == "/" \
 	|| ! -d "$TEMP_BASE_INPUT" ]] \
 	|| ! TEMP_BASE="$(cd "$TEMP_BASE_INPUT" && pwd -P)" \
@@ -40,6 +48,11 @@ fi
 
 TEST_ROOT="$(mktemp -d "$TEMP_BASE/open2jam-oracle-provenance.XXXXXX")"
 TEST_ROOT="$(cd "$TEST_ROOT" && pwd -P)"
+RACE_CLASSES="$TEST_ROOT/race-classes"
+mkdir -p "$RACE_CLASSES"
+mise exec -- javac -Xlint:all -d "$RACE_CLASSES" \
+	"$FILESYSTEM_VERIFIER_SOURCE" "$FILESYSTEM_RACE_TEST_SOURCE"
+mise exec -- java -cp "$RACE_CLASSES" JavaOracleFilesystemVerifierRaceTest
 WORKTREE="$TEST_ROOT/worktree"
 git clone --quiet --local --no-hardlinks "$ROOT_DIR" "$WORKTREE"
 git -C "$WORKTREE" config core.fileMode false

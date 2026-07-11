@@ -1,9 +1,14 @@
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.MessageDigest;
 import java.util.ArrayList;
@@ -32,73 +37,64 @@ public final class JavaOracleFilesystemVerifier {
     }
 
     public static void main(String[] args) throws Exception {
+        verify(args, VerificationObserver.NONE);
+    }
+
+    static void verify(String[] args, VerificationObserver observer) throws Exception {
         if (args.length < 2) {
             throw failure("usage: JavaOracleFilesystemVerifier <manifest> <root>...");
         }
 
         Path projectRoot = Path.of("").toAbsolutePath().normalize();
-        validateNoSymlinkAncestry(projectRoot);
         List<Path> oracleRoots = new ArrayList<>();
         for (int index = 1; index < args.length; index++) {
-            Path relativeRoot = parseRelativePath(args[index]);
-            Path absoluteRoot = projectRoot.resolve(relativeRoot);
-            validateNoSymlinkAncestry(absoluteRoot);
-            BasicFileAttributes attributes = readAttributes(absoluteRoot);
-            if (!attributes.isDirectory()) {
-                throw failure("oracle root is not a directory: " + relativeRoot);
-            }
-            oracleRoots.add(relativeRoot);
+            oracleRoots.add(parseRelativePath(args[index]));
         }
+        verify(projectRoot, Path.of(args[0]).toAbsolutePath().normalize(), oracleRoots, observer);
+    }
 
-        Path manifestPath = Path.of(args[0]);
-        validateNoSymlinkAncestry(manifestPath.toAbsolutePath().normalize());
-        if (!Files.isRegularFile(manifestPath, LinkOption.NOFOLLOW_LINKS)) {
-            throw failure("manifest is not a regular file: " + manifestPath);
+    static void verify(
+            Path projectRoot,
+            Path manifestPath,
+            List<Path> oracleRoots,
+            VerificationObserver observer) throws Exception {
+        Objects.requireNonNull(observer, "observer");
+        Path project = projectRoot.toAbsolutePath().normalize();
+        Path manifest = manifestPath.toAbsolutePath().normalize();
+        validateNoSymlinkAncestry(project);
+        validateNoSymlinkAncestry(manifest);
+
+        EntryState manifestState = captureEntry(manifest, "manifest");
+        if (manifestState.kind() != EntryKind.REGULAR) {
+            throw failure("manifest is not a regular file: " + manifest);
         }
-
-        Map<String, ExpectedFile> expectedFiles = readManifest(manifestPath, oracleRoots);
+        String manifestContent = readStableUtf8(manifest, manifestState, "manifest");
+        Map<String, ExpectedFile> expectedFiles =
+                readManifest(manifestContent, oracleRoots);
         Set<String> expectedDirectories = expectedDirectories(expectedFiles, oracleRoots);
+
+        TreeSnapshot initialTree = captureTree(project, oracleRoots);
+        observer.afterInitialSnapshot();
         Map<String, ActualFile> actualFiles = new HashMap<>();
         Set<String> actualDirectories = new HashSet<>();
 
-        for (Path relativeRoot : oracleRoots) {
-            Path absoluteRoot = projectRoot.resolve(relativeRoot);
-            List<Path> entries;
-            try (Stream<Path> paths = Files.walk(absoluteRoot)) {
-                entries = paths.sorted(Comparator.comparing(Path::toString)).toList();
+        for (Map.Entry<String, EntryState> entry : initialTree.entries().entrySet()) {
+            String relative = entry.getKey();
+            EntryState state = entry.getValue();
+            if (state.kind() == EntryKind.DIRECTORY) {
+                actualDirectories.add(relative);
+                continue;
             }
-            for (Path entry : entries) {
-                BasicFileAttributes attributes = readAttributes(entry);
-                String relative = portable(projectRoot.relativize(entry));
-                if (Files.isSymbolicLink(entry)) {
-                    throw failure("symbolic link is not allowed: " + relative);
-                }
-                if (attributes.isDirectory()) {
-                    actualDirectories.add(relative);
-                    continue;
-                }
-                if (!attributes.isRegularFile()) {
-                    throw failure("special file is not allowed: " + relative);
-                }
-                ExpectedFile expected = expectedFiles.get(relative);
-                if (expected == null) {
-                    throw failure("unexpected oracle file: " + relative);
-                }
-                String mode = filesystemMode(entry);
-                byte[] bytes = Files.readAllBytes(entry);
-                BasicFileAttributes afterRead = readAttributes(entry);
-                if (!afterRead.isRegularFile()
-                        || !Objects.equals(attributes.fileKey(), afterRead.fileKey())
-                        || attributes.size() != afterRead.size()
-                        || !attributes.lastModifiedTime().equals(afterRead.lastModifiedTime())) {
-                    throw failure("oracle file changed while reading: " + relative);
-                }
-                String sha256 = HexFormat.of().formatHex(
-                        MessageDigest.getInstance("SHA-256").digest(bytes));
-                ActualFile previous = actualFiles.put(relative, new ActualFile(mode, sha256));
-                if (previous != null) {
-                    throw failure("duplicate oracle file: " + relative);
-                }
+            ExpectedFile expected = expectedFiles.get(relative);
+            if (expected == null) {
+                throw failure("unexpected oracle file: " + relative);
+            }
+            observer.beforeFileRead(relative);
+            String sha256 = hashStableFile(project.resolve(relative), state, relative);
+            ActualFile previous = actualFiles.put(
+                    relative, new ActualFile(gitMode(state.permissions()), sha256));
+            if (previous != null) {
+                throw failure("duplicate oracle file: " + relative);
             }
         }
 
@@ -129,14 +125,24 @@ public final class JavaOracleFilesystemVerifier {
             }
         }
 
+        observer.beforeFinalSnapshot();
+        TreeSnapshot finalTree = captureTree(project, oracleRoots);
+        if (!initialTree.equals(finalTree)) {
+            throw failure(treeDifference(initialTree, finalTree));
+        }
+        EntryState finalManifestState = captureEntry(manifest, "manifest");
+        if (!manifestState.equals(finalManifestState)) {
+            throw failure("manifest changed during verification");
+        }
+
         System.out.printf(
                 "Java oracle filesystem gate passed: %d files, %d directories.%n",
                 actualFiles.size(), actualDirectories.size());
     }
 
     private static Map<String, ExpectedFile> readManifest(
-            Path manifestPath, List<Path> oracleRoots) throws Exception {
-        List<String> lines = Files.readAllLines(manifestPath, StandardCharsets.UTF_8);
+            String content, List<Path> oracleRoots) {
+        List<String> lines = content.lines().toList();
         if (lines.isEmpty()) {
             throw failure("manifest is empty");
         }
@@ -185,11 +191,153 @@ public final class JavaOracleFilesystemVerifier {
         return directories;
     }
 
-    private static String filesystemMode(Path path) throws IOException {
-        Set<PosixFilePermission> permissions =
-                Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS);
+    private static String gitMode(Set<PosixFilePermission> permissions) {
         boolean executable = permissions.stream().anyMatch(EXECUTE_PERMISSIONS::contains);
         return executable ? "100755" : "100644";
+    }
+
+    private static TreeSnapshot captureTree(Path projectRoot, List<Path> oracleRoots)
+            throws Exception {
+        Map<String, EntryState> entries = new LinkedHashMap<>();
+        for (Path relativeRoot : oracleRoots) {
+            Path absoluteRoot = projectRoot.resolve(relativeRoot).normalize();
+            validateNoSymlinkAncestry(absoluteRoot);
+            EntryState rootState = captureEntry(absoluteRoot, portable(relativeRoot));
+            if (rootState.kind() != EntryKind.DIRECTORY) {
+                throw failure("oracle root is not a directory: " + relativeRoot);
+            }
+            List<Path> rootEntries;
+            try (Stream<Path> paths = Files.walk(absoluteRoot)) {
+                rootEntries = paths.sorted(Comparator.comparing(Path::toString)).toList();
+            }
+            for (Path path : rootEntries) {
+                String relative = portable(projectRoot.relativize(path));
+                EntryState previous = entries.put(relative, captureEntry(path, relative));
+                if (previous != null) {
+                    throw failure("overlapping oracle roots contain: " + relative);
+                }
+            }
+        }
+        return new TreeSnapshot(Map.copyOf(entries));
+    }
+
+    private static EntryState captureEntry(Path path, String label) throws IOException {
+        BasicFileAttributes before = readAttributes(path);
+        EntryKind kind = entryKind(before, label);
+        Object fileKey = before.fileKey();
+        if (fileKey == null) {
+            throw failure("filesystem identity is unavailable for: " + label);
+        }
+        Set<PosixFilePermission> permissions = Set.copyOf(
+                Files.getPosixFilePermissions(path, LinkOption.NOFOLLOW_LINKS));
+        BasicFileAttributes after = readAttributes(path);
+        EntryState first = entryState(kind, before, permissions);
+        EntryState second = entryState(entryKind(after, label), after, permissions);
+        if (!first.equals(second)) {
+            throw failure("filesystem entry changed while snapshotting: " + label);
+        }
+        return second;
+    }
+
+    private static EntryKind entryKind(BasicFileAttributes attributes, String label) {
+        if (attributes.isDirectory()) {
+            return EntryKind.DIRECTORY;
+        }
+        if (attributes.isRegularFile()) {
+            return EntryKind.REGULAR;
+        }
+        if (attributes.isSymbolicLink()) {
+            throw failure("symbolic link is not allowed: " + label);
+        }
+        throw failure("special file is not allowed: " + label);
+    }
+
+    private static EntryState entryState(
+            EntryKind kind,
+            BasicFileAttributes attributes,
+            Set<PosixFilePermission> permissions) {
+        Object fileKey = attributes.fileKey();
+        if (fileKey == null) {
+            throw failure("filesystem identity became unavailable");
+        }
+        return new EntryState(
+                kind,
+                fileKey,
+                attributes.size(),
+                attributes.lastModifiedTime(),
+                permissions);
+    }
+
+    private static String hashStableFile(Path path, EntryState expected, String label)
+            throws Exception {
+        EntryState before = captureEntry(path, label);
+        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+            throw failure("oracle file changed before reading: " + label);
+        }
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        long bytesRead = 0L;
+        try (FileChannel channel = FileChannel.open(
+                path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
+            int read;
+            while ((read = channel.read(buffer)) != -1) {
+                if (read == 0) {
+                    continue;
+                }
+                bytesRead += read;
+                buffer.flip();
+                digest.update(buffer);
+                buffer.clear();
+            }
+        }
+        EntryState after = captureEntry(path, label);
+        if (!before.equals(after) || bytesRead != before.size()) {
+            throw failure("oracle file changed while reading: " + label);
+        }
+        return HexFormat.of().formatHex(digest.digest());
+    }
+
+    private static String readStableUtf8(Path path, EntryState expected, String label)
+            throws Exception {
+        EntryState before = captureEntry(path, label);
+        if (!expected.equals(before) || before.kind() != EntryKind.REGULAR) {
+            throw failure(label + " changed before reading");
+        }
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        long bytesRead = 0L;
+        try (FileChannel channel = FileChannel.open(
+                path, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS)) {
+            ByteBuffer buffer = ByteBuffer.allocate(16 * 1024);
+            while (channel.read(buffer) != -1) {
+                if (buffer.position() == 0) {
+                    continue;
+                }
+                bytesRead += buffer.position();
+                output.write(buffer.array(), 0, buffer.position());
+                buffer.clear();
+            }
+        }
+        EntryState after = captureEntry(path, label);
+        if (!before.equals(after) || bytesRead != before.size()) {
+            throw failure(label + " changed while reading");
+        }
+        return output.toString(StandardCharsets.UTF_8);
+    }
+
+    private static String treeDifference(TreeSnapshot expected, TreeSnapshot actual) {
+        Set<String> missing = new HashSet<>(expected.entries().keySet());
+        missing.removeAll(actual.entries().keySet());
+        Set<String> extra = new HashSet<>(actual.entries().keySet());
+        extra.removeAll(expected.entries().keySet());
+        if (!missing.isEmpty() || !extra.isEmpty()) {
+            return "oracle tree changed during verification; missing=" + missing + ", extra=" + extra;
+        }
+        List<String> changed = expected.entries().entrySet().stream()
+                .filter(entry -> !entry.getValue().equals(actual.entries().get(entry.getKey())))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .toList();
+        return "oracle tree entries changed during verification: " + changed;
     }
 
     private static Path parseRelativePath(String value) {
@@ -236,5 +384,35 @@ public final class JavaOracleFilesystemVerifier {
     }
 
     private record ActualFile(String mode, String sha256) {
+    }
+
+    interface VerificationObserver {
+        VerificationObserver NONE = new VerificationObserver() {
+        };
+
+        default void afterInitialSnapshot() throws Exception {
+        }
+
+        default void beforeFileRead(String relativePath) throws Exception {
+        }
+
+        default void beforeFinalSnapshot() throws Exception {
+        }
+    }
+
+    private enum EntryKind {
+        DIRECTORY,
+        REGULAR
+    }
+
+    private record EntryState(
+            EntryKind kind,
+            Object fileKey,
+            long size,
+            FileTime lastModifiedTime,
+            Set<PosixFilePermission> permissions) {
+    }
+
+    private record TreeSnapshot(Map<String, EntryState> entries) {
     }
 }

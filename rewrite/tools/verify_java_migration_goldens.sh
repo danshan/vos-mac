@@ -56,6 +56,7 @@ for required_command in bash git grep mise rg rm sed shasum tr; do
 done
 
 for required_file in \
+	rewrite/tools/verify_build_workflow.sh \
 	rewrite/tools/test_verify_java_migration_goldens.sh \
 	rewrite/tools/test_verify_java_migration_goldens_behavior.sh \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \

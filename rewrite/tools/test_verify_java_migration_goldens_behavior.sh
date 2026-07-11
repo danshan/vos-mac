@@ -4,9 +4,133 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
+for required_command in \
+	awk bash cat chmod cp dirname git grep kill ln mkdir mise mktemp mv rg rm sed shasum tr; do
+	if ! command -v "$required_command" >/dev/null 2>&1; then
+		printf 'Missing behavioral contract command: %s\n' "$required_command" >&2
+		exit 1
+	fi
+done
+
 REAL_JAVA_PATH="$(mise which java)"
 REAL_RG_PATH="$(command -v rg)"
-FIXTURE_PARENT="$(mktemp -d)"
+FIXTURE_TEMP_ROOT=""
+FIXTURE_PARENT=""
+CLEANUP_DONE=false
+CREATED_FIXTURE=""
+
+is_safe_fixture_parent() {
+	local candidate="$1"
+	local canonical
+	[[ -n "$candidate" && "$candidate" != "/" \
+		&& "$candidate" != "$FIXTURE_TEMP_ROOT" ]] || return 1
+	case "$candidate" in
+		"$FIXTURE_TEMP_ROOT"/*) ;;
+		*) return 1 ;;
+	esac
+	case "$candidate" in
+		*"/../"*|*"/./"*) return 1 ;;
+	esac
+	if [[ ! -e "$candidate" ]]; then
+		return 0
+	fi
+	if ! canonical="$(cd "$candidate" 2>/dev/null && pwd -P)"; then
+		return 1
+	fi
+	[[ "$canonical" == "$candidate" ]]
+}
+
+cleanup_fixtures() {
+	if [[ "$CLEANUP_DONE" == true ]]; then
+		return 0
+	fi
+	if ! is_safe_fixture_parent "$FIXTURE_PARENT"; then
+		printf 'Refusing unsafe fixture cleanup path: %s\n' \
+			"${FIXTURE_PARENT:-<empty>}" >&2
+		return 1
+	fi
+	if [[ -e "$FIXTURE_PARENT" ]] && ! rm -rf "$FIXTURE_PARENT"; then
+		printf 'Unable to clean fixture root: %s\n' "$FIXTURE_PARENT" >&2
+		return 1
+	fi
+	CLEANUP_DONE=true
+}
+
+handle_signal() {
+	local exit_code="$1"
+	trap - EXIT INT TERM HUP
+	cleanup_fixtures || true
+	exit "$exit_code"
+}
+
+if ! FIXTURE_TEMP_ROOT="$(cd "${TMPDIR:-/tmp}" && pwd -P)"; then
+	printf 'Unable to resolve the temporary directory.\n' >&2
+	exit 1
+fi
+if ! FIXTURE_PARENT="$(mktemp -d "$FIXTURE_TEMP_ROOT/open2jam-golden-verifier.XXXXXX")"; then
+	printf 'Unable to create the fixture parent.\n' >&2
+	exit 1
+fi
+trap cleanup_fixtures EXIT
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
+trap 'handle_signal 129' HUP
+if ! FIXTURE_PARENT="$(cd "$FIXTURE_PARENT" && pwd -P)" \
+	|| ! is_safe_fixture_parent "$FIXTURE_PARENT"; then
+	printf 'Fixture parent is not a safe temporary path.\n' >&2
+	exit 1
+fi
+if [[ "${1:-}" == "--interrupt-cleanup-probe" ]]; then
+	printf '%s\n' "$FIXTURE_PARENT"
+	kill -TERM "$$"
+	exit 1
+fi
+
+assert_fixture_path() {
+	local candidate="$1"
+	local canonical
+	if ! is_safe_fixture_parent "$FIXTURE_PARENT" \
+		|| [[ -z "$candidate" || "$candidate" == "/" \
+			|| "$candidate" == "$FIXTURE_PARENT" ]]; then
+		printf 'Unsafe fixture path: %s\n' "${candidate:-<empty>}" >&2
+		return 1
+	fi
+	case "$candidate" in
+		"$FIXTURE_PARENT"/*) ;;
+		*)
+			printf 'Fixture path escapes parent: %s\n' "$candidate" >&2
+			return 1
+			;;
+	esac
+	case "$candidate" in
+		*"/../"*|*"/./"*)
+			printf 'Fixture path is not normalized: %s\n' "$candidate" >&2
+			return 1
+			;;
+	esac
+	if [[ ! -d "$candidate" ]]; then
+		printf 'Fixture path is not a directory: %s\n' "$candidate" >&2
+		return 1
+	fi
+	if ! canonical="$(cd "$candidate" 2>/dev/null && pwd -P)" \
+		|| [[ "$canonical" != "$candidate" ]]; then
+		printf 'Fixture path is not canonical: %s\n' "$candidate" >&2
+		return 1
+	fi
+}
+
+fixture_git() {
+	local fixture_root="$1"
+	shift
+	assert_fixture_path "$fixture_root" || return 1
+	GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+		git -C "$fixture_root" \
+		-c core.hooksPath="$fixture_root/.git-hooks-empty" \
+		-c commit.gpgSign=false \
+		-c user.name="Golden Verifier Test" \
+		-c user.email=verifier@example.invalid \
+		"$@"
+}
 
 TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
@@ -23,17 +147,24 @@ TEST_CLASSES=(
 
 write_contract_stub() {
 	local output_path="$1"
-	cat >"$output_path" <<'EOF'
+	if ! cat >"$output_path" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 exit 0
 EOF
-	chmod +x "$output_path"
+	then
+		printf 'Unable to write contract stub: %s\n' "$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make contract stub executable: %s\n' "$output_path" >&2
+		return 1
+	fi
 }
 
 write_mise_stub() {
 	local output_path="$1"
-	cat >"$output_path" <<'EOF'
+	if ! cat >"$output_path" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -107,7 +238,14 @@ if [[ "$mode" == "mutate_corpus_and_manifest" ]]; then
 	)
 fi
 EOF
-	chmod +x "$output_path"
+	then
+		printf 'Unable to write mise stub: %s\n' "$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make mise stub executable: %s\n' "$output_path" >&2
+		return 1
+	fi
 }
 
 write_test_source() {
@@ -117,59 +255,110 @@ write_test_source() {
 	local package_name="${class_name%.*}"
 	local simple_name="${class_name##*.}"
 	local class_path
+	local source_directory
 
-	class_path="$(printf '%s' "$class_name" | tr '.' '/')"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! class_path="$(printf '%s' "$class_name" | tr '.' '/')"; then
+		printf 'Unable to map fixture test class: %s\n' "$class_name" >&2
+		return 1
+	fi
 	source_path="$fixture_root/src/test/java/$class_path.java"
-	mkdir -p "$(dirname "$source_path")"
-	printf 'package %s;\n\nclass %s {\n}\n' \
-		"$package_name" "$simple_name" >"$source_path"
+	source_directory="${source_path%/*}"
+	if ! mkdir -p "$source_directory"; then
+		printf 'Unable to create test source directory: %s\n' "$source_path" >&2
+		return 1
+	fi
+	if ! printf 'package %s;\n\nclass %s {\n}\n' \
+		"$package_name" "$simple_name" >"$source_path"; then
+		printf 'Unable to write test source: %s\n' "$source_path" >&2
+		return 1
+	fi
 }
 
 create_fixture() {
 	local fixture_root
 	local class_name
 
-	fixture_root="$(mktemp -d "$FIXTURE_PARENT/fixture.XXXXXX")"
-	mkdir -p \
+	CREATED_FIXTURE=""
+	if ! fixture_root="$(mktemp -d "$FIXTURE_PARENT/fixture.XXXXXX")"; then
+		printf 'Unable to create verifier fixture.\n' >&2
+		return 1
+	fi
+	if ! fixture_root="$(cd "$fixture_root" && pwd -P)" \
+		|| ! assert_fixture_path "$fixture_root"; then
+		printf 'Verifier fixture path is unsafe.\n' >&2
+		return 1
+	fi
+	if ! mkdir -p \
 		"$fixture_root/.github/workflows" \
 		"$fixture_root/.mvn" \
 		"$fixture_root/bin" \
+		"$fixture_root/.git-hooks-empty" \
 		"$fixture_root/rewrite/golden/java-migration" \
-		"$fixture_root/rewrite/tools"
+		"$fixture_root/rewrite/tools"; then
+		printf 'Unable to create verifier fixture directories.\n' >&2
+		return 1
+	fi
 
-	cp .github/workflows/build.yml "$fixture_root/.github/workflows/build.yml"
-	cp .mvn/settings.xml "$fixture_root/.mvn/settings.xml"
-	cp mise.toml pom.xml "$fixture_root/"
-	cp rewrite/tools/SurefireReportVerifier.java "$fixture_root/rewrite/tools/"
-	cp rewrite/tools/verify_java_migration_goldens.sh "$fixture_root/rewrite/tools/"
-	cp rewrite/tools/verify_vos_godot_initial.sh "$fixture_root/rewrite/tools/"
-	write_contract_stub "$fixture_root/rewrite/tools/test_verify_java_migration_goldens.sh"
-	write_contract_stub "$fixture_root/rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
-	write_contract_stub "$fixture_root/rewrite/tools/test_verify_vos_godot_manifest.sh"
-	write_mise_stub "$fixture_root/bin/mise"
-	ln -s "$REAL_RG_PATH" "$fixture_root/bin/rg"
+	if ! cp .github/workflows/build.yml "$fixture_root/.github/workflows/build.yml" \
+		|| ! cp .mvn/settings.xml "$fixture_root/.mvn/settings.xml" \
+		|| ! cp mise.toml pom.xml "$fixture_root/" \
+		|| ! cp rewrite/tools/SurefireReportVerifier.java \
+			"$fixture_root/rewrite/tools/" \
+		|| ! cp rewrite/tools/verify_build_workflow.sh \
+			"$fixture_root/rewrite/tools/" \
+		|| ! cp rewrite/tools/verify_java_migration_goldens.sh \
+			"$fixture_root/rewrite/tools/" \
+		|| ! cp rewrite/tools/verify_vos_godot_initial.sh \
+			"$fixture_root/rewrite/tools/"; then
+		printf 'Unable to copy verifier fixture inputs.\n' >&2
+		return 1
+	fi
+	if ! write_contract_stub \
+		"$fixture_root/rewrite/tools/test_verify_java_migration_goldens.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_verify_java_migration_goldens_behavior.sh" \
+		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_verify_vos_godot_manifest.sh" \
+		|| ! write_mise_stub "$fixture_root/bin/mise" \
+		|| ! ln -s "$REAL_RG_PATH" "$fixture_root/bin/rg"; then
+		printf 'Unable to install verifier fixture stubs.\n' >&2
+		return 1
+	fi
 
 	for class_name in "${TEST_CLASSES[@]}"; do
-		write_test_source "$fixture_root" "$class_name"
+		if ! write_test_source "$fixture_root" "$class_name"; then
+			return 1
+		fi
 	done
 
-	printf 'baseline\n' >"$fixture_root/rewrite/golden/java-migration/data.txt"
-	(
+	if ! printf 'baseline\n' \
+		>"$fixture_root/rewrite/golden/java-migration/data.txt"; then
+		printf 'Unable to write fixture corpus.\n' >&2
+		return 1
+	fi
+	if ! (
 		cd "$fixture_root/rewrite/golden/java-migration"
 		shasum -a 256 data.txt >manifest.sha256
-	)
+	); then
+		printf 'Unable to hash fixture corpus.\n' >&2
+		return 1
+	fi
 
-	git -C "$fixture_root" init -q
-	git -C "$fixture_root" config user.email verifier@example.invalid
-	git -C "$fixture_root" config user.name "Golden Verifier Test"
-	git -C "$fixture_root" add .
-	git -C "$fixture_root" commit -qm "test fixture"
-	printf '%s\n' "$fixture_root"
+	if ! fixture_git "$fixture_root" init -q \
+		|| ! fixture_git "$fixture_root" add . \
+		|| ! fixture_git "$fixture_root" commit --no-gpg-sign --no-verify \
+			-qm "test fixture"; then
+		printf 'Unable to initialize fixture repository.\n' >&2
+		return 1
+	fi
+	CREATED_FIXTURE="$fixture_root"
 }
 
 run_verifier() {
 	local fixture_root="$1"
 	local mode="${2:-valid}"
+	assert_fixture_path "$fixture_root" || return 1
 	(
 		cd "$fixture_root"
 		PATH="$fixture_root/bin:/usr/bin:/bin" \
@@ -211,24 +400,36 @@ rewrite_first_test_source() {
 	local fixture_root="$1"
 	local body="$2"
 	local source_path="$fixture_root/src/test/java/org/open2jam/export/MigrationGoldenCorpusGeneratorTest.java"
-	printf '%s\n' "$body" >"$source_path"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! printf '%s\n' "$body" >"$source_path"; then
+		printf 'Unable to rewrite fixture source: %s\n' "$source_path" >&2
+		return 1
+	fi
 }
 
 seed_stale_reports() {
 	local fixture_root="$1"
 	local class_name
 	local report_directory="$fixture_root/target/surefire-reports"
-	mkdir -p "$report_directory"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! mkdir -p "$report_directory"; then
+		printf 'Unable to create stale report directory.\n' >&2
+		return 1
+	fi
 	for class_name in "${TEST_CLASSES[@]}"; do
-		printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+		if ! printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
 			"<testsuite name=\"$class_name\" tests=\"1\" failures=\"0\" errors=\"0\" skipped=\"0\"></testsuite>" \
-			>"$report_directory/TEST-$class_name.xml"
+			>"$report_directory/TEST-$class_name.xml"; then
+			printf 'Unable to seed stale report for %s.\n' "$class_name" >&2
+			return 1
+		fi
 	done
 }
 
 expect_contract_pass() {
 	local fixture_root="$1"
 	local output
+	assert_fixture_path "$fixture_root" || return 1
 	if ! output="$(cd "$fixture_root" && bash rewrite/tools/test_verify_java_migration_goldens.sh 2>&1)"; then
 		printf 'Contract fixture unexpectedly failed:\n%s\n' "$output" >&2
 		exit 1
@@ -240,6 +441,7 @@ expect_contract_failure() {
 	local fixture_root="$2"
 	local expected_text="$3"
 	local output
+	assert_fixture_path "$fixture_root" || return 1
 	if output="$(cd "$fixture_root" && bash rewrite/tools/test_verify_java_migration_goldens.sh 2>&1)"; then
 		printf '%s unexpectedly passed.\n' "$description" >&2
 		exit 1
@@ -252,15 +454,31 @@ expect_contract_failure() {
 
 create_manifest_fixture() {
 	local fixture_root
-	fixture_root="$(mktemp -d "$FIXTURE_PARENT/manifest.XXXXXX")"
-	mkdir -p "$fixture_root/rewrite/tools"
-	cp rewrite/tools/test_verify_vos_godot_manifest.sh "$fixture_root/rewrite/tools/"
-	printf '%s\n' \
+	CREATED_FIXTURE=""
+	if ! fixture_root="$(mktemp -d "$FIXTURE_PARENT/manifest.XXXXXX")"; then
+		printf 'Unable to create manifest fixture.\n' >&2
+		return 1
+	fi
+	if ! fixture_root="$(cd "$fixture_root" && pwd -P)" \
+		|| ! assert_fixture_path "$fixture_root"; then
+		printf 'Manifest fixture path is unsafe.\n' >&2
+		return 1
+	fi
+	if ! mkdir -p "$fixture_root/rewrite/tools" \
+		|| ! cp rewrite/tools/test_verify_vos_godot_manifest.sh \
+			"$fixture_root/rewrite/tools/"; then
+		printf 'Unable to set up manifest fixture.\n' >&2
+		return 1
+	fi
+	if ! printf '%s\n' \
 		OsuManiaParserTest ChartModelLoaderTest MusicSelectionSelectionTest \
 		ChartDisplayTest ConfigTest JudgmentStrategyOracleFixtureTest \
-		>"$fixture_root/rewrite/tools/verify_vos_godot_initial.sh"
-	: >"$fixture_root/rewrite/tools/verify_vos_godot_java_parity.sh"
-	printf '%s\n' "$fixture_root"
+		>"$fixture_root/rewrite/tools/verify_vos_godot_initial.sh" \
+		|| ! : >"$fixture_root/rewrite/tools/verify_vos_godot_java_parity.sh"; then
+		printf 'Unable to write manifest fixture.\n' >&2
+		return 1
+	fi
+	CREATED_FIXTURE="$fixture_root"
 }
 
 expect_manifest_failure() {
@@ -268,6 +486,7 @@ expect_manifest_failure() {
 	local fixture_root="$2"
 	local expected_text="$3"
 	local output
+	assert_fixture_path "$fixture_root" || return 1
 	if output="$(cd "$fixture_root" && \
 		bash rewrite/tools/test_verify_vos_godot_manifest.sh 2>&1)"; then
 		printf '%s unexpectedly passed.\n' "$description" >&2
@@ -279,33 +498,238 @@ expect_manifest_failure() {
 	fi
 }
 
-fixture="$(create_fixture)"
+assert_no_root_fixture_artifacts() {
+	local root_path
+	for root_path in \
+		/.github/workflows/build.yml \
+		/rewrite/tools/verify_java_migration_goldens.sh \
+		/pom.xml /mise.toml; do
+		if [[ -e "$root_path" ]]; then
+			printf 'Unexpected root-level fixture artifact: %s\n' "$root_path" >&2
+			exit 1
+		fi
+	done
+}
+
+install_hostile_git_environment() {
+	local hostile_root="$1"
+	local hook_path="$hostile_root/hooks/pre-commit"
+	local config_path="$hostile_root/global.gitconfig"
+	assert_fixture_path "$hostile_root" || return 1
+	if ! mkdir -p "$hostile_root/hooks"; then
+		printf 'Unable to create hostile Git hook directory.\n' >&2
+		return 1
+	fi
+	if ! printf '%s\n' '#!/usr/bin/env bash' 'exit 91' >"$hook_path" \
+		|| ! chmod +x "$hook_path"; then
+		printf 'Unable to create hostile Git hook.\n' >&2
+		return 1
+	fi
+	if ! printf '%s\n' \
+		'[commit]' '    gpgSign = true' \
+		'[core]' "    hooksPath = $hostile_root/hooks" \
+		>"$config_path"; then
+		printf 'Unable to create hostile Git configuration.\n' >&2
+		return 1
+	fi
+}
+
+comment_golden_run() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! sed 's/^        run: mise run verify-goldens$/        # run: mise run verify-goldens/' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to comment fixture golden step.\n' >&2
+		return 1
+	fi
+}
+
+disable_golden_step() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk '{ print; if ($0 == "        run: mise run verify-goldens") print "        if: false" }' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to disable fixture golden step.\n' >&2
+		return 1
+	fi
+}
+
+continue_on_error_golden_step() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk '{ print; if ($0 == "        run: mise run verify-goldens") print "        continue-on-error: true" }' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to weaken fixture golden step.\n' >&2
+		return 1
+	fi
+}
+
+write_reordered_workflow() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! cat >"$workflow" <<'EOF'
+name: Build
+
+jobs:
+  maven:
+    steps:
+      - name: Install project runtime
+        uses: jdx/mise-action@v4
+      - name: Build and test
+        run: mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'
+      - name: Verify migration goldens
+        run: mise run verify-goldens
+EOF
+	then
+		printf 'Unable to write reordered fixture workflow.\n' >&2
+		return 1
+	fi
+}
+
+remove_fixture_entry() {
+	local fixture_root="$1"
+	local relative_path="$2"
+	assert_fixture_path "$fixture_root" || return 1
+	case "$relative_path" in
+		""|/*|*"../"*|*"/.."*)
+			printf 'Unsafe fixture-relative path: %s\n' "$relative_path" >&2
+			return 1
+			;;
+	esac
+	if ! rm "$fixture_root/$relative_path"; then
+		printf 'Unable to remove fixture entry: %s\n' "$relative_path" >&2
+		return 1
+	fi
+}
+
+install_real_contract() {
+	local fixture_root="$1"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! cp rewrite/tools/test_verify_java_migration_goldens.sh \
+		"$fixture_root/rewrite/tools/test_verify_java_migration_goldens.sh"; then
+		printf 'Unable to install real contract in fixture.\n' >&2
+		return 1
+	fi
+}
+
+write_rg_error_stub() {
+	local fixture_root="$1"
+	local output_path="$fixture_root/bin/rg"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! printf '%s\n' '#!/usr/bin/env bash' 'exit 2' >"$output_path" \
+		|| ! chmod +x "$output_path"; then
+		printf 'Unable to install failing rg stub.\n' >&2
+		return 1
+	fi
+}
+
+append_partytime_declaration() {
+	local fixture_root="$1"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! printf 'LegacyPartytimeDeclaration\n' \
+		>>"$fixture_root/rewrite/tools/verify_vos_godot_java_parity.sh"; then
+		printf 'Unable to append Partytime fixture declaration.\n' >&2
+		return 1
+	fi
+}
+
+assert_no_root_fixture_artifacts
+for unsafe_path in \
+	"" / "$FIXTURE_TEMP_ROOT" "$FIXTURE_PARENT" \
+	"$FIXTURE_PARENT/../escape" /private/tmp/outside-fixture; do
+	if assert_fixture_path "$unsafe_path" >/dev/null 2>&1; then
+		printf 'Unsafe fixture path was accepted: %s\n' "${unsafe_path:-<empty>}" >&2
+		exit 1
+	fi
+done
+
+probe_status=0
+if probe_output="$(bash "$ROOT_DIR/rewrite/tools/test_verify_java_migration_goldens_behavior.sh" \
+	--interrupt-cleanup-probe 2>&1)"; then
+	printf 'Interrupted cleanup probe unexpectedly passed.\n' >&2
+	exit 1
+else
+	probe_status=$?
+fi
+probe_root="${probe_output##*$'\n'}"
+if [[ "$probe_status" -ne 143 || -z "$probe_root" || "$probe_root" == "/" \
+	|| "$probe_root" != "$FIXTURE_TEMP_ROOT"/* || -e "$probe_root" ]]; then
+	printf 'Interrupted cleanup probe did not safely remove its fixture root.\n' >&2
+	exit 1
+fi
+
+mktemp() {
+	return 73
+}
+if create_fixture 2>/dev/null; then
+	printf 'Forced fixture setup failure unexpectedly passed.\n' >&2
+	exit 1
+fi
+unset -f mktemp
+if [[ -n "$CREATED_FIXTURE" ]]; then
+	printf 'Failed fixture setup returned a usable path.\n' >&2
+	exit 1
+fi
+assert_no_root_fixture_artifacts
+
+if ! hostile_root="$(mktemp -d "$FIXTURE_PARENT/hostile-git.XXXXXX")" \
+	|| ! hostile_root="$(cd "$hostile_root" && pwd -P)" \
+	|| ! assert_fixture_path "$hostile_root" \
+	|| ! install_hostile_git_environment "$hostile_root"; then
+	printf 'Unable to prepare hostile Git environment.\n' >&2
+	exit 1
+fi
+if ! hostile_signing="$(GIT_CONFIG_GLOBAL="$hostile_root/global.gitconfig" \
+	GIT_CONFIG_NOSYSTEM=1 git config --global --bool commit.gpgSign)" \
+	|| [[ "$hostile_signing" != "true" ]]; then
+	printf 'Hostile Git signing control was not active.\n' >&2
+	exit 1
+fi
+GIT_CONFIG_GLOBAL="$hostile_root/global.gitconfig" create_fixture
+fixture="$CREATED_FIXTURE"
+expect_verifier_pass "globally hostile Git configuration" "$fixture"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_pass "baseline copied verifier" "$fixture"
 
-fixture="$(create_fixture)"
-rm "$fixture/pom.xml"
+create_fixture
+fixture="$CREATED_FIXTURE"
+remove_fixture_entry "$fixture" pom.xml
 expect_verifier_failure "missing verifier input" "$fixture" valid "Missing required file: pom.xml"
 
-fixture="$(create_fixture)"
-rm "$fixture/src/test/java/org/open2jam/export/MigrationGoldenCorpusGeneratorTest.java"
+create_fixture
+fixture="$CREATED_FIXTURE"
+remove_fixture_entry "$fixture" \
+	src/test/java/org/open2jam/export/MigrationGoldenCorpusGeneratorTest.java
 expect_verifier_failure "missing declared source" "$fixture" valid "Missing required file:"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 rewrite_first_test_source "$fixture" $'package org.open2jam.export;\n\nclass WrongTest {\n}'
 expect_verifier_failure "missing declared class" "$fixture" valid "Declared test class"
 
-fixture="$(create_fixture)"
-rm "$fixture/bin/rg"
+create_fixture
+fixture="$CREATED_FIXTURE"
+remove_fixture_entry "$fixture" bin/rg
 expect_verifier_failure "missing rg" "$fixture" valid "Missing required command: rg"
 
-fixture="$(create_fixture)"
-rm "$fixture/bin/rg"
-printf '%s\n' '#!/usr/bin/env bash' 'exit 2' >"$fixture/bin/rg"
-chmod +x "$fixture/bin/rg"
+create_fixture
+fixture="$CREATED_FIXTURE"
+remove_fixture_entry "$fixture" bin/rg
+write_rg_error_stub "$fixture"
 expect_verifier_failure "rg status greater than one" "$fixture" valid \
 	"Unable to inspect selected migration tests"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 rewrite_first_test_source "$fixture" \
 	$'package org.open2jam.export;\n\n@org.junit.jupiter.api.condition.EnabledOnOs\nclass MigrationGoldenCorpusGeneratorTest {\n}'
 expect_verifier_failure "fully qualified JUnit condition" "$fixture" valid \
@@ -313,7 +737,8 @@ expect_verifier_failure "fully qualified JUnit condition" "$fixture" valid \
 
 for assumption in \
 	assumeTrue assumeFalse assumingThat assumeNotNull assumeNoException assumeThat; do
-	fixture="$(create_fixture)"
+	create_fixture
+	fixture="$CREATED_FIXTURE"
 	rewrite_first_test_source "$fixture" \
 		"package org.open2jam.export;
 
@@ -326,75 +751,104 @@ class MigrationGoldenCorpusGeneratorTest {
 		"conditional execution"
 done
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "missing Surefire report" "$fixture" missing_report \
 	"Missing Surefire report"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "malformed Surefire report" "$fixture" malformed_report \
 	"SurefireReportVerifier.java"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "wrong Surefire suite" "$fixture" wrong_suite \
 	"Surefire suite name mismatch"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "zero-test Surefire report" "$fixture" zero_tests \
 	"No tests executed"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "non-numeric Surefire report" "$fixture" non_numeric_tests \
 	"Invalid tests count"
 
 for mode in failure_report error_report skipped_report; do
-	fixture="$(create_fixture)"
+	create_fixture
+	fixture="$CREATED_FIXTURE"
 	expect_verifier_failure "$mode Surefire report" "$fixture" "$mode" \
 		"Surefire report is not clean"
 done
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 seed_stale_reports "$fixture"
 expect_verifier_failure "stale Surefire reports" "$fixture" no_reports \
 	"Missing Surefire report"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "post-test corpus mutation" "$fixture" mutate_corpus "FAILED"
 
-fixture="$(create_fixture)"
+create_fixture
+fixture="$CREATED_FIXTURE"
 expect_verifier_failure "post-test corpus and manifest mutation" "$fixture" \
 	mutate_corpus_and_manifest "Golden verification modified tracked corpus files"
 
-fixture="$(create_fixture)"
-cp rewrite/tools/test_verify_java_migration_goldens.sh \
-	"$fixture/rewrite/tools/test_verify_java_migration_goldens.sh"
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
 expect_contract_pass "$fixture"
 
-fixture="$(create_fixture)"
-cp rewrite/tools/test_verify_java_migration_goldens.sh \
-	"$fixture/rewrite/tools/test_verify_java_migration_goldens.sh"
-sed 's/run: mise run verify-goldens/run: mise run build/' \
-	"$fixture/.github/workflows/build.yml" \
-	>"$fixture/.github/workflows/build.yml.tmp"
-mv "$fixture/.github/workflows/build.yml.tmp" "$fixture/.github/workflows/build.yml"
-expect_contract_failure "disabled workflow golden gate" "$fixture" \
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+comment_golden_run "$fixture"
+expect_contract_failure "commented workflow golden gate" "$fixture" \
 	"Build workflow does not run the golden verifier"
 
-fixture="$(create_fixture)"
-cp rewrite/tools/test_verify_java_migration_goldens.sh \
-	"$fixture/rewrite/tools/test_verify_java_migration_goldens.sh"
-rm "$fixture/.github/workflows/build.yml"
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+disable_golden_step "$fixture"
+expect_contract_failure "disabled workflow golden gate" "$fixture" \
+	"Required workflow step must be unconditional"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+continue_on_error_golden_step "$fixture"
+expect_contract_failure "continue-on-error workflow golden gate" "$fixture" \
+	"Required workflow step cannot set continue-on-error"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+write_reordered_workflow "$fixture"
+expect_contract_failure "reordered workflow gates" "$fixture" \
+	"Build workflow steps must run runtime, goldens, then clean build in order"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+remove_fixture_entry "$fixture" .github/workflows/build.yml
 expect_contract_failure "missing build workflow" "$fixture" "Missing build workflow"
 
-fixture="$(create_manifest_fixture)"
-printf 'LegacyPartytimeDeclaration\n' \
-	>>"$fixture/rewrite/tools/verify_vos_godot_java_parity.sh"
+create_manifest_fixture
+fixture="$CREATED_FIXTURE"
+append_partytime_declaration "$fixture"
 expect_manifest_failure "arbitrary Partytime declaration" "$fixture" \
 	"Aggregate verification still contains a retired contract"
 
-fixture="$(create_manifest_fixture)"
-rm "$fixture/rewrite/tools/verify_vos_godot_java_parity.sh"
+create_manifest_fixture
+fixture="$CREATED_FIXTURE"
+remove_fixture_entry "$fixture" rewrite/tools/verify_vos_godot_java_parity.sh
 expect_manifest_failure "missing parity verifier" "$fixture" \
 	"Missing aggregate verifier"
 
-rm -rf "$FIXTURE_PARENT"
+cleanup_fixtures
+cleanup_fixtures
 printf 'Java migration golden verifier behavioral contract passed.\n'

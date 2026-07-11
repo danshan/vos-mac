@@ -10,6 +10,7 @@ INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 MISE_CONFIG="mise.toml"
 BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_goldens_behavior.sh"
 REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
+WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
 [[ -f "$WORKFLOW" ]] || { printf 'Missing build workflow.\n' >&2; exit 1; }
@@ -17,6 +18,7 @@ REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
 [[ -f "$MISE_CONFIG" ]] || { printf 'Missing mise configuration.\n' >&2; exit 1; }
 [[ -f "$BEHAVIOR_TEST" ]] || { printf 'Missing golden verifier behavioral contract.\n' >&2; exit 1; }
 [[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
+[[ -x "$WORKFLOW_VERIFIER" ]] || { printf 'Missing build workflow verifier.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
@@ -145,17 +147,7 @@ require_literal 'run = "mvn -s $MAVEN_SETTINGS clean verify"' \
 require_literal 'bash rewrite/tools/verify_java_migration_goldens.sh' \
 	"$INITIAL" 'Aggregate initial gate does not invoke the golden verifier'
 
-require_literal 'uses: jdx/mise-action@v4' "$WORKFLOW" \
-	'Build workflow does not install the project mise runtime'
-
-require_literal 'run: mise run verify-goldens' "$WORKFLOW" \
-	'Build workflow does not run the golden verifier'
-
-require_literal 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify' \
-	"$WORKFLOW" 'Build workflow does not run a clean Maven verification'
-
-reject_pattern 'actions/setup-java|^[[:space:]]*run:[[:space:]]+mvn[[:space:]]' \
-	"$WORKFLOW" 'Build workflow bypasses the project mise runtime'
+bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
 
 bash "$BEHAVIOR_TEST"
 

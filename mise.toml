@@ -11,6 +11,10 @@ MAVEN_SETTINGS = ".mvn/settings.xml"
 description = "Build and test the project"
 run = "mvn -s $MAVEN_SETTINGS verify"
 
+[tasks.verify-goldens]
+description = "Verify hermetic Java migration goldens"
+run = "bash rewrite/tools/verify_java_migration_goldens.sh"
+
 [tasks.package]
 description = "Build the shaded jar"
 run = "mvn -s $MAVEN_SETTINGS clean package"

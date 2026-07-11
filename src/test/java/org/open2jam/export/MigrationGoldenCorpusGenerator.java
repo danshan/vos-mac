@@ -18,6 +18,7 @@ public final class MigrationGoldenCorpusGenerator {
     public static final String JAVA_SOURCE_COMMIT = "05257da";
     public static final String JAVA_TOOL = "zulu-17.66.19.0";
 
+    private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
     private static final String MANIFEST = """
             {
               "schemaVersion": 1,
@@ -54,6 +55,7 @@ public final class MigrationGoldenCorpusGenerator {
         generateVos(stagedCorpus, workRoot);
         generateOjn(stagedCorpus, workRoot);
         generateOsu(stagedCorpus, workRoot);
+        normalizeExpectedPaths(stagedCorpus, workRoot);
         copyTree(workRoot.resolve("sources"), stagedCorpus.resolve("sources"));
         generateMalformedCases(stagedCorpus);
         writeReadme(stagedCorpus);
@@ -141,6 +143,50 @@ public final class MigrationGoldenCorpusGenerator {
 
     private static void writeHashes(Path stagedCorpus) throws Exception {
         writeUtf8(stagedCorpus.resolve("manifest.sha256"), hashManifest(stagedCorpus));
+    }
+
+    private static void normalizeExpectedPaths(Path stagedCorpus, Path workRoot) throws Exception {
+        String actualWorkRoot = workRoot.toFile().getCanonicalPath().replace(File.separatorChar, '/');
+        try (Stream<Path> paths = Files.walk(stagedCorpus.resolve("expected"))) {
+            for (Path path : paths.filter(Files::isRegularFile)
+                    .filter(file -> file.getFileName().toString().endsWith(".json"))
+                    .toList()) {
+                String content = Files.readString(path, StandardCharsets.UTF_8);
+                String normalized = normalizeCatalogIds(content, actualWorkRoot)
+                        .replace(actualWorkRoot, CANONICAL_WORK_ROOT);
+                writeUtf8(path, normalized);
+            }
+        }
+    }
+
+    private static String normalizeCatalogIds(String content, String actualWorkRoot) throws Exception {
+        String normalized = replaceCatalogId(
+                content, "vos", actualWorkRoot + "/sources/vos/canon.vos",
+                CANONICAL_WORK_ROOT + "/sources/vos/canon.vos", -1);
+        for (int chartIndex = 0; chartIndex < 3; chartIndex++) {
+            normalized = replaceCatalogId(
+                    normalized, "ojn", actualWorkRoot + "/sources/ojn/o2jam.ojn",
+                    CANONICAL_WORK_ROOT + "/sources/ojn/o2jam.ojn", chartIndex);
+        }
+        normalized = replaceCatalogId(
+                normalized, "osu", actualWorkRoot + "/sources/osu/seven-key.osu",
+                CANONICAL_WORK_ROOT + "/sources/osu/seven-key.osu", -1);
+        return replaceCatalogId(
+                normalized, "osu", actualWorkRoot + "/sources/osu/seven-key.osz",
+                CANONICAL_WORK_ROOT + "/sources/osu/seven-key.osz", -1);
+    }
+
+    private static String replaceCatalogId(
+            String content, String prefix, String actualSource, String canonicalSource, int chartIndex)
+            throws Exception {
+        String actualIdentity = chartIndex < 0 ? actualSource : actualSource + "#chart=" + chartIndex;
+        String canonicalIdentity = chartIndex < 0 ? canonicalSource : canonicalSource + "#chart=" + chartIndex;
+        return content.replace(catalogId(prefix, actualIdentity), catalogId(prefix, canonicalIdentity));
+    }
+
+    private static String catalogId(String prefix, String identity) throws Exception {
+        byte[] hash = MessageDigest.getInstance("SHA-256").digest(identity.getBytes(StandardCharsets.UTF_8));
+        return prefix + ":sha256:" + HexFormat.of().formatHex(hash, 0, 8);
     }
 
     public static String hashManifest(Path root) throws Exception {

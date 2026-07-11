@@ -1,10 +1,36 @@
 package org.open2jam.export;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 
 class VosRenderMetadataExporterTest {
+    private static final String STATUS_FONT_RESOURCE = "/resources/fonts/LiberationSans-Bold.ttf";
+    private static final String STATUS_FONT_SHA256 =
+            "361c61b82d575c5c35fd9157fda8b0194bcfcd0d88ea8521a4fb5dd53d33dddc";
+
+    @Test
+    void usesBundledPinnedStatusFont() throws Exception {
+        String json = VosRenderMetadataExporter.statusFontJson();
+
+        assertTrue(json.contains("\"fontFamily\":\"Liberation Sans\""));
+        assertTrue(json.contains("\"fontVersion\":\"1.07.4\""));
+        assertTrue(json.contains("\"fontResource\":\"" + STATUS_FONT_RESOURCE + "\""));
+        assertTrue(json.contains("\"fontSha256\":\"" + STATUS_FONT_SHA256 + "\""));
+        assertTrue(json.contains("\"fontLicense\":\"SIL Open Font License 1.1\""));
+        assertTrue(json.contains("\"fontSource\":\"pdfjs-dist 5.4.624 standard_fonts\""));
+        try (InputStream input = VosRenderMetadataExporter.class.getResourceAsStream(STATUS_FONT_RESOURCE)) {
+            assertNotNull(input);
+            assertEquals(STATUS_FONT_SHA256,
+                    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes())));
+        }
+    }
+
     @Test
     void exportsDefaultO2JamRenderMetadata() throws Exception {
         String json = new VosRenderMetadataExporter().exportDefaultMetadata();
@@ -22,7 +48,7 @@ class VosRenderMetadataExporterTest {
         assertTrue(json.contains("\"Dark\":[{\"at\":0.0,\"alpha\":1.0},{\"at\":1.3,\"alpha\":1.0},{\"at\":1.5,\"alpha\":0.0},{\"at\":2.5,\"alpha\":0.0},{\"at\":2.7,\"alpha\":1.0},{\"at\":4.0,\"alpha\":1.0}]"));
         assertTrue(json.contains("\"statusTextLayout\":{\"rightX\":780.0,\"startY\":300.0,\"lineHeight\":30.0"));
         assertTrue(json.contains("\"labelWidth\":260.0"));
-        assertTrue(json.contains("\"fontFamily\":\"Tahoma\""));
+        assertTrue(json.contains("\"fontFamily\":\"Liberation Sans\""));
         assertTrue(json.contains("\"fontSize\":14"));
         assertTrue(json.contains("\"glyphHeight\":20.0"));
         assertTrue(json.contains("\"bold\":true"));

@@ -5,13 +5,16 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import javax.imageio.ImageIO;
@@ -45,6 +48,13 @@ public final class VosRenderMetadataExporter {
     private static final int STATUS_FONT_TEXTURE_HEIGHT = 512;
     private static final int STATUS_FONT_CORRECT_LEFT = 9;
     private static final int STATUS_FONT_CORRECT_RIGHT = 8;
+    private static final String STATUS_FONT_FAMILY = "Liberation Sans";
+    private static final String STATUS_FONT_VERSION = "1.07.4";
+    private static final String STATUS_FONT_RESOURCE = "/resources/fonts/LiberationSans-Bold.ttf";
+    private static final String STATUS_FONT_SHA256 =
+            "361c61b82d575c5c35fd9157fda8b0194bcfcd0d88ea8521a4fb5dd53d33dddc";
+    private static final String STATUS_FONT_LICENSE = "SIL Open Font License 1.1";
+    private static final String STATUS_FONT_SOURCE = "pdfjs-dist 5.4.624 standard_fonts";
 
     public String exportDefaultMetadata() throws Exception {
         Document document = readResourcesDocument();
@@ -331,7 +341,7 @@ public final class VosRenderMetadataExporter {
                 JsonWriter.field("startY", STATUS_TEXT_START_Y),
                 JsonWriter.field("lineHeight", STATUS_TEXT_LINE_HEIGHT),
                 JsonWriter.field("labelWidth", STATUS_TEXT_LABEL_WIDTH),
-                JsonWriter.field("fontFamily", "Tahoma"),
+                JsonWriter.field("fontFamily", STATUS_FONT_FAMILY),
                 JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
                 JsonWriter.field("glyphHeight", STATUS_TEXT_GLYPH_HEIGHT),
                 JsonWriter.field("bold", true),
@@ -367,7 +377,12 @@ public final class VosRenderMetadataExporter {
         }
         return JsonWriter.object(
                 JsonWriter.field("source", "TrueTypeFont"),
-                JsonWriter.field("fontFamily", "Tahoma"),
+                JsonWriter.field("fontFamily", STATUS_FONT_FAMILY),
+                JsonWriter.field("fontVersion", STATUS_FONT_VERSION),
+                JsonWriter.field("fontResource", STATUS_FONT_RESOURCE),
+                JsonWriter.field("fontSha256", STATUS_FONT_SHA256),
+                JsonWriter.field("fontLicense", STATUS_FONT_LICENSE),
+                JsonWriter.field("fontSource", STATUS_FONT_SOURCE),
                 JsonWriter.field("fontSize", STATUS_TEXT_FONT_SIZE),
                 JsonWriter.field("bold", true),
                 JsonWriter.field("antiAlias", false),
@@ -382,7 +397,7 @@ public final class VosRenderMetadataExporter {
 
     private static FontAtlasMetadata createStatusFontAtlas() throws Exception {
         ensureHeadlessAwtForFontAtlas();
-        Font font = new Font("Tahoma", Font.BOLD, STATUS_TEXT_FONT_SIZE);
+        Font font = loadStatusFont();
         BufferedImage atlas = new BufferedImage(
                 STATUS_FONT_TEXTURE_WIDTH,
                 STATUS_FONT_TEXTURE_HEIGHT,
@@ -425,6 +440,33 @@ public final class VosRenderMetadataExporter {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         ImageIO.write(atlas, "png", out);
         return new FontAtlasMetadata(Base64.getEncoder().encodeToString(out.toByteArray()), fontHeight, glyphs);
+    }
+
+    private static Font loadStatusFont() throws Exception {
+        byte[] bytes;
+        try (InputStream input = VosRenderMetadataExporter.class.getResourceAsStream(STATUS_FONT_RESOURCE)) {
+            if (input == null) {
+                throw new IllegalStateException("Missing pinned status font: " + STATUS_FONT_RESOURCE);
+            }
+            bytes = input.readAllBytes();
+        }
+
+        String actualSha256 = HexFormat.of()
+                .formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
+        if (!STATUS_FONT_SHA256.equals(actualSha256)) {
+            throw new IllegalStateException(
+                    "Pinned status font hash mismatch: expected " + STATUS_FONT_SHA256 + ", got " + actualSha256);
+        }
+
+        Font font;
+        try (ByteArrayInputStream input = new ByteArrayInputStream(bytes)) {
+            font = Font.createFont(Font.TRUETYPE_FONT, input);
+        }
+        if (!STATUS_FONT_FAMILY.equals(font.getFamily()) || !"LiberationSans-Bold".equals(font.getPSName())) {
+            throw new IllegalStateException(
+                    "Pinned status font identity mismatch: " + font.getFamily() + " / " + font.getPSName());
+        }
+        return font.deriveFont(Font.BOLD, (float) STATUS_TEXT_FONT_SIZE);
     }
 
     private static void ensureHeadlessAwtForFontAtlas() {

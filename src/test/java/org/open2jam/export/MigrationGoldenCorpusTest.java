@@ -12,7 +12,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 class MigrationGoldenCorpusTest {
     private static final Path COMMITTED = Path.of("rewrite/golden/java-migration");
-    private static final Path WORK = Path.of("/tmp/open2jam-java-golden-v1");
 
     @TempDir
     Path tempDir;
@@ -30,7 +29,7 @@ class MigrationGoldenCorpusTest {
     @Test
     void pinnedJavaReproducesCommittedCorpus() throws Exception {
         Path regenerated = tempDir.resolve("regenerated");
-        MigrationGoldenCorpusGenerator.generate(regenerated, WORK);
+        MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("work"));
         assertEquals(MigrationGoldenCorpusGenerator.hashManifest(COMMITTED),
                 MigrationGoldenCorpusGenerator.hashManifest(regenerated));
     }

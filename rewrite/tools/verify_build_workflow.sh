@@ -2,11 +2,25 @@
 set -euo pipefail
 
 WORKFLOW_PATH="${1:-.github/workflows/build.yml}"
+PINNED_WORKFLOW_SHA256="550c3f00260d028f60bfed8dcb200845f4e6fcf387157c126bc6fa0c807e1408"
 
 if [[ ! -f "$WORKFLOW_PATH" ]]; then
 	printf 'Missing build workflow: %s\n' "$WORKFLOW_PATH" >&2
 	exit 1
 fi
+if [[ -L "$WORKFLOW_PATH" ]]; then
+	printf 'Build workflow must be a regular non-symlink file: %s\n' \
+		"$WORKFLOW_PATH" >&2
+	exit 1
+fi
+
+for required_command in awk grep shasum; do
+	if ! command -v "$required_command" >/dev/null 2>&1; then
+		printf 'Missing build workflow verifier command: %s\n' \
+			"$required_command" >&2
+		exit 1
+	fi
+done
 
 step_name=""
 step_uses=""
@@ -307,6 +321,23 @@ else
 		printf 'Unable to inspect build workflow:\n%s\n' "$forbidden" >&2
 		exit 1
 	fi
+fi
+
+if ! workflow_digest_output="$(shasum -a 256 <"$WORKFLOW_PATH" 2>&1)"; then
+	printf 'Unable to hash build workflow:\n%s\n' "$workflow_digest_output" >&2
+	exit 1
+fi
+workflow_digest="${workflow_digest_output%%[[:space:]]*}"
+if [[ ! "$workflow_digest" =~ ^[0-9a-f]{64}$ ]]; then
+	printf 'Invalid build workflow SHA-256 output: %s\n' \
+		"$workflow_digest_output" >&2
+	exit 1
+fi
+if [[ "$workflow_digest" != "$PINNED_WORKFLOW_SHA256" ]]; then
+	printf 'Build workflow does not match the pinned canonical contract.\n' >&2
+	printf 'Expected SHA-256: %s\n' "$PINNED_WORKFLOW_SHA256" >&2
+	printf 'Actual SHA-256:   %s\n' "$workflow_digest" >&2
+	exit 1
 fi
 
 printf 'Build workflow contract passed.\n'

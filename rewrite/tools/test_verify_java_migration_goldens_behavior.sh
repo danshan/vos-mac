@@ -780,6 +780,84 @@ duplicate_required_run_as_multiline_block() {
 	fi
 }
 
+duplicate_required_step_as_flow_mapping() {
+	local fixture_root="$1"
+	local target_line="$2"
+	local flow_mapping="$3"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="$target_line" -v flow_mapping="$flow_mapping" '{
+		print
+		if ($0 == target) {
+			print ""
+			print "      - " flow_mapping
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate required workflow step as a flow mapping.\n' >&2
+		return 1
+	fi
+}
+
+duplicate_required_step_with_anchor() {
+	local fixture_root="$1"
+	local target_line="$2"
+	local identity_line="$3"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="$target_line" -v identity_line="$identity_line" '{
+		print
+		if ($0 == target) {
+			print ""
+			print "      - &required-identity"
+			print "        name: Anchored required identity"
+			print identity_line
+			print "      - *required-identity"
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate required workflow identity with an anchor.\n' >&2
+		return 1
+	fi
+}
+
+duplicate_required_uses_as_block_scalar() {
+	local fixture_root="$1"
+	local target_line="$2"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="$target_line" '{
+		print
+		if ($0 == target) {
+			print ""
+			print "      - name: Folded runtime identity"
+			print "        uses: >-"
+			print "          jdx/mise-action@v4"
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate runtime action as a block scalar.\n' >&2
+		return 1
+	fi
+}
+
+append_second_job_with_required_identity() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! printf '%s\n' \
+		'' \
+		'  duplicate-gate:' \
+		'    runs-on: macos-latest' \
+		'    steps:' \
+		'      - name: Duplicate golden gate in another job' \
+		'        run: mise run verify-goldens' \
+		>>"$workflow"; then
+		printf 'Unable to append a second workflow job.\n' >&2
+		return 1
+	fi
+}
+
 write_reordered_workflow() {
 	local fixture_root="$1"
 	local workflow="$fixture_root/.github/workflows/build.yml"
@@ -1151,6 +1229,69 @@ mise run verify-goldens|Run block golden gate
 mise exec -- bash -lc 'mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'|Run block clean build
 bash rewrite/tools/verify_java_migration_package.sh|Run block package gate
 EOF
+
+while IFS='|' read -r required_line duplicate_name duplicate_line; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	duplicate_required_step_with_different_name \
+		"$fixture" "$required_line" "$duplicate_name" "$duplicate_line"
+	expect_contract_failure "comment-suffixed duplicate required workflow identity" \
+		"$fixture" "Build workflow does not match the pinned canonical contract"
+done <<'EOF'
+        uses: jdx/mise-action@v4|Install commented runtime|        uses: jdx/mise-action@v4 # duplicate runtime
+        run: mise run verify-goldens|Run commented golden gate|        run: mise run verify-goldens # duplicate golden gate
+EOF
+
+while IFS='|' read -r required_line flow_mapping; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	duplicate_required_step_as_flow_mapping \
+		"$fixture" "$required_line" "$flow_mapping"
+	expect_contract_failure "flow-mapping duplicate required workflow identity" \
+		"$fixture" "Build workflow does not match the pinned canonical contract"
+done <<'EOF'
+        uses: jdx/mise-action@v4|{ name: Install flow runtime, uses: jdx/mise-action@v4 }
+        run: mise run verify-goldens|{ name: Run flow golden gate, run: mise run verify-goldens }
+EOF
+
+while IFS='|' read -r required_line duplicate_name duplicate_line; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	duplicate_required_step_with_different_name \
+		"$fixture" "$required_line" "$duplicate_name" "$duplicate_line"
+	expect_contract_failure "quoted or whitespace-key duplicate workflow identity" \
+		"$fixture" "Build workflow does not match the pinned canonical contract"
+done <<'EOF'
+        uses: jdx/mise-action@v4|Install quoted runtime key|        "uses": jdx/mise-action@v4
+        run: mise run verify-goldens|Run whitespace-key golden gate|        run : mise run verify-goldens
+EOF
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+duplicate_required_uses_as_block_scalar \
+	"$fixture" '        uses: jdx/mise-action@v4'
+expect_contract_failure "folded duplicate runtime action" \
+	"$fixture" "Build workflow does not match the pinned canonical contract"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+duplicate_required_step_with_anchor \
+	"$fixture" '        uses: jdx/mise-action@v4' \
+	'        uses: jdx/mise-action@v4'
+expect_contract_failure "anchored duplicate required workflow identity" \
+	"$fixture" "Build workflow does not match the pinned canonical contract"
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+append_second_job_with_required_identity "$fixture"
+expect_contract_failure "required workflow identity in a second job" \
+	"$fixture" "Build workflow does not match the pinned canonical contract"
 
 create_fixture
 fixture="$CREATED_FIXTURE"

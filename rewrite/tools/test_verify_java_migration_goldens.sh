@@ -177,6 +177,13 @@ require_literal 'run: bash rewrite/tools/verify_java_migration_package.sh' \
 	"$WORKFLOW" 'Build workflow does not verify the final packaged JAR'
 require_literal '"Verify packaged migration resources"' \
 	"$WORKFLOW_VERIFIER" 'Build workflow verifier omits the package gate'
+require_literal \
+	'PINNED_WORKFLOW_SHA256="550c3f00260d028f60bfed8dcb200845f4e6fcf387157c126bc6fa0c807e1408"' \
+	"$WORKFLOW_VERIFIER" 'Build workflow verifier omits the canonical digest'
+require_literal 'shasum -a 256 <"$WORKFLOW_PATH"' \
+	"$WORKFLOW_VERIFIER" 'Build workflow verifier does not hash exact input bytes'
+require_literal 'Build workflow does not match the pinned canonical contract.' \
+	"$WORKFLOW_VERIFIER" 'Build workflow verifier is not fail-closed on drift'
 
 bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
 

@@ -2,6 +2,7 @@ package org.open2jam.export;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -546,6 +547,7 @@ public final class MigrationGoldenCorpusGenerator {
         StableTreeSnapshot previous = null;
         boolean outputBackedUp = false;
         boolean stagingInstalled = false;
+        boolean publicationCommitted = false;
         Exception failure = null;
         try {
             copyTree(source, staging, observer, "publication-copy");
@@ -562,10 +564,7 @@ public final class MigrationGoldenCorpusGenerator {
             Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
             stagingInstalled = true;
             validateCopiedCorpus(source, destination);
-            if (outputBackedUp) {
-                deleteOwnedTree(backup);
-                outputBackedUp = false;
-            }
+            publicationCommitted = true;
         } catch (Exception thrown) {
             failure = thrown;
             try {
@@ -594,9 +593,19 @@ public final class MigrationGoldenCorpusGenerator {
             }
             throw thrown;
         } finally {
-            cleanupOwnedTree(staging, failure);
-            if (!outputBackedUp) {
-                cleanupOwnedTree(backup, failure);
+            if (!publicationCommitted) {
+                cleanupOwnedTree(staging, failure);
+                if (!outputBackedUp) {
+                    cleanupOwnedTree(backup, failure);
+                }
+            }
+        }
+
+        if (outputBackedUp) {
+            try {
+                deleteOwnedTree(backup);
+            } catch (Exception cleanupFailure) {
+                throw new PublicationCleanupException(destination, backup, cleanupFailure);
             }
         }
     }
@@ -1208,6 +1217,20 @@ public final class MigrationGoldenCorpusGenerator {
         };
 
         default void afterOutputBackedUp(Path backup, Path destination) throws Exception {
+        }
+    }
+
+    static final class PublicationCleanupException extends IOException {
+        private final Path backupPath;
+
+        PublicationCleanupException(Path destination, Path backupPath, Exception cause) {
+            super("Published corpus remains installed at " + destination
+                    + "; old backup cleanup failed at " + backupPath, cause);
+            this.backupPath = backupPath;
+        }
+
+        Path backupPath() {
+            return backupPath;
         }
     }
 

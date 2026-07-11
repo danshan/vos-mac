@@ -14,8 +14,11 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.Comparator;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -59,6 +62,7 @@ class MigrationGoldenCorpusGeneratorTest {
         MigrationGoldenCorpusGenerator.generate(output, work);
         assertEquals(firstHashes, Files.readString(output.resolve("manifest.sha256")));
         assertEquals(firstTypes, Files.readString(output.resolve("manifest.files")));
+        assertNoPublicationDebris(output);
     }
 
     @Test
@@ -337,6 +341,71 @@ class MigrationGoldenCorpusGeneratorTest {
 
         assertCorpusUnchanged(output, expectedHashes, expectedTypes);
         assertNoPublicationDebris(output);
+    }
+
+    @Test
+    void generationBackupCleanupFailurePreservesCommittedCorpusAndRetainsDebris()
+            throws Exception {
+        Path base = tempDir.toRealPath();
+        Path output = base.resolve("transaction-cleanup-output");
+        Path work = base.resolve("transaction-cleanup-work");
+        Path lockedRelative = Path.of("y-locked");
+        Files.createDirectories(output.resolve(lockedRelative));
+        Files.writeString(output.resolve("z-old-only.txt"), "old removable file\n");
+        Files.writeString(
+                output.resolve(lockedRelative).resolve("z-old-locked.txt"),
+                "old locked file\n");
+        String expectedHashes = Files.readString(
+                Path.of("rewrite/golden/java-migration/manifest.sha256"));
+        String expectedTypes = Files.readString(
+                Path.of("rewrite/golden/java-migration/manifest.files"));
+        AtomicReference<Path> backupRef = new AtomicReference<>();
+
+        try {
+            MigrationGoldenCorpusGenerator.PublicationCleanupException failure = assertThrows(
+                    MigrationGoldenCorpusGenerator.PublicationCleanupException.class,
+                    () -> MigrationGoldenCorpusGenerator.generate(
+                            output,
+                            work,
+                            new MigrationGoldenCorpusGenerator.GenerationObserver() {
+                                @Override
+                                public void afterOutputBackedUp(Path backup, Path destination)
+                                        throws Exception {
+                                    backupRef.set(backup);
+                                    Files.setPosixFilePermissions(
+                                            backup.resolve(lockedRelative),
+                                            Set.of(
+                                                    PosixFilePermission.OWNER_READ,
+                                                    PosixFilePermission.OWNER_EXECUTE));
+                                }
+                            }));
+
+            Path backup = backupRef.get();
+            assertTrue(
+                    Files.isRegularFile(
+                            output.resolve("manifest.sha256"),
+                            LinkOption.NOFOLLOW_LINKS),
+                    "the validated new corpus must remain installed after backup cleanup starts");
+            assertCorpusUnchanged(output, expectedHashes, expectedTypes);
+            assertTrue(failure.getMessage().contains(backup.toString()));
+            assertEquals(backup, failure.backupPath());
+            assertTrue(failure.getCause() != null);
+            assertFalse(Files.exists(output.resolve("z-old-only.txt")));
+            assertTrue(Files.exists(backup, LinkOption.NOFOLLOW_LINKS));
+            assertFalse(Files.exists(backup.resolve("z-old-only.txt")));
+            assertTrue(Files.exists(
+                    backup.resolve(lockedRelative).resolve("z-old-locked.txt")));
+        } finally {
+            Path backup = backupRef.get();
+            if (backup != null && Files.exists(backup, LinkOption.NOFOLLOW_LINKS)) {
+                unlockTestDirectory(backup.resolve(lockedRelative));
+                deleteTestTree(backup);
+            }
+            if (Files.exists(output, LinkOption.NOFOLLOW_LINKS)) {
+                unlockTestDirectory(output.resolve(lockedRelative));
+                deleteTestTree(output);
+            }
+        }
     }
 
     @Test
@@ -817,6 +886,17 @@ class MigrationGoldenCorpusGeneratorTest {
             for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
                 Files.delete(path);
             }
+        }
+    }
+
+    private static void unlockTestDirectory(Path directory) throws Exception {
+        if (Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+            Files.setPosixFilePermissions(
+                    directory,
+                    Set.of(
+                            PosixFilePermission.OWNER_READ,
+                            PosixFilePermission.OWNER_WRITE,
+                            PosixFilePermission.OWNER_EXECUTE));
         }
     }
 }

@@ -9,7 +9,7 @@ MAVEN_SETTINGS = ".mvn/settings.xml"
 
 [tasks.build]
 description = "Build and test the project"
-run = "mvn -s $MAVEN_SETTINGS verify"
+run = "mvn -s $MAVEN_SETTINGS clean verify"
 
 [tasks.verify-goldens]
 description = "Verify hermetic Java migration goldens"

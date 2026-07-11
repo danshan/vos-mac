@@ -7,6 +7,13 @@ cd "$ROOT_DIR"
 INITIAL="rewrite/tools/verify_vos_godot_initial.sh"
 PARITY="rewrite/tools/verify_vos_godot_java_parity.sh"
 
+for required_file in "$INITIAL" "$PARITY"; do
+	if [[ ! -f "$required_file" ]]; then
+		printf 'Missing aggregate verifier: %s\n' "$required_file" >&2
+		exit 1
+	fi
+done
+
 while IFS= read -r resource_path; do
 	local_path="rewrite/godot/${resource_path#res://}"
 	if [[ ! -f "$local_path" ]]; then
@@ -24,9 +31,19 @@ for class_name in \
 	fi
 done
 
-if grep -Eq 'partytime_(client|server)_test|networkStatusTextLayout' "$INITIAL" "$PARITY"; then
-	printf 'Aggregate verification still contains a retired contract.\n' >&2
+if retired_matches="$(grep -En \
+	'partytime_(client|server)_test|networkStatusTextLayout|"startY":64\.0|serverLineHeight|connectionLineHeight' \
+	"$INITIAL" "$PARITY" 2>&1)"; then
+	printf 'Aggregate verification still contains a retired contract:\n%s\n' \
+		"$retired_matches" >&2
 	exit 1
+else
+	grep_status=$?
+	if [[ "$grep_status" -ne 1 ]]; then
+		printf 'Unable to inspect aggregate verifier contracts:\n%s\n' \
+			"$retired_matches" >&2
+		exit 1
+	fi
 fi
 
 printf 'Aggregate verification manifest contract passed.\n'

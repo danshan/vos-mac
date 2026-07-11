@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -13,6 +15,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -258,6 +261,82 @@ class MigrationGoldenCorpusGeneratorTest {
         assertThrows(IllegalArgumentException.class,
                 () -> MigrationGoldenCorpusGenerator.copyTree(source, target));
         assertFalse(Files.exists(target));
+    }
+
+    @Test
+    void copyTreeNeverTruncatesExistingHardLinkedDestination() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path source = base.resolve("copy-hard-link-source");
+        Path target = base.resolve("copy-hard-link-target");
+        Path externalSentinel = base.resolve("copy-hard-link-sentinel.txt");
+        Files.createDirectories(source);
+        Files.createDirectories(target);
+        Files.writeString(source.resolve("data.txt"), "replacement\n");
+        Files.writeString(externalSentinel, "keep outside\n");
+        Files.createLink(target.resolve("data.txt"), externalSentinel);
+
+        assertThrows(FileAlreadyExistsException.class,
+                () -> MigrationGoldenCorpusGenerator.copyTree(source, target));
+        assertEquals("keep outside\n", Files.readString(externalSentinel));
+        assertEquals("keep outside\n", Files.readString(target.resolve("data.txt")));
+    }
+
+    @Test
+    void generationCopyFailurePreservesExistingCorpusAndCleansPublicationDebris()
+            throws Exception {
+        Path base = tempDir.toRealPath();
+        Path output = base.resolve("transaction-copy-output");
+        Path work = base.resolve("transaction-copy-work");
+        MigrationGoldenCorpusGenerator.copyTree(
+                Path.of("rewrite/golden/java-migration"), output);
+        String expectedHashes = Files.readString(output.resolve("manifest.sha256"));
+        String expectedTypes = Files.readString(output.resolve("manifest.files"));
+        AtomicInteger copiedFiles = new AtomicInteger();
+
+        assertThrows(IOException.class,
+                () -> MigrationGoldenCorpusGenerator.generate(
+                        output,
+                        work,
+                        new MigrationGoldenCorpusGenerator.GenerationObserver() {
+                            @Override
+                            public void beforeFileRead(String operation, Path relativePath)
+                                    throws Exception {
+                                if ("publication-copy".equals(operation)
+                                        && copiedFiles.incrementAndGet() == 2) {
+                                    throw new IOException("deterministic publication copy failure");
+                                }
+                            }
+                        }));
+
+        assertCorpusUnchanged(output, expectedHashes, expectedTypes);
+        assertNoPublicationDebris(output);
+    }
+
+    @Test
+    void generationPublishFailureRestoresExistingCorpusAndCleansPublicationDebris()
+            throws Exception {
+        Path base = tempDir.toRealPath();
+        Path output = base.resolve("transaction-publish-output");
+        Path work = base.resolve("transaction-publish-work");
+        MigrationGoldenCorpusGenerator.copyTree(
+                Path.of("rewrite/golden/java-migration"), output);
+        String expectedHashes = Files.readString(output.resolve("manifest.sha256"));
+        String expectedTypes = Files.readString(output.resolve("manifest.files"));
+
+        assertThrows(IOException.class,
+                () -> MigrationGoldenCorpusGenerator.generate(
+                        output,
+                        work,
+                        new MigrationGoldenCorpusGenerator.GenerationObserver() {
+                            @Override
+                            public void afterOutputBackedUp(Path backup, Path destination)
+                                    throws Exception {
+                                throw new IOException("deterministic publication failure");
+                            }
+                        }));
+
+        assertCorpusUnchanged(output, expectedHashes, expectedTypes);
+        assertNoPublicationDebris(output);
     }
 
     @Test
@@ -709,6 +788,25 @@ class MigrationGoldenCorpusGeneratorTest {
         Files.writeString(root.resolve("manifest.files"), "");
         Files.writeString(root.resolve("manifest.files"),
                 MigrationGoldenCorpusGenerator.fileTypeManifest(root));
+    }
+
+    private static void assertNoPublicationDebris(Path output) throws Exception {
+        String stagingPrefix = "." + output.getFileName() + ".staging-";
+        String backupPrefix = "." + output.getFileName() + ".backup-";
+        try (var siblings = Files.list(output.getParent())) {
+            assertFalse(siblings.anyMatch(path -> {
+                String name = path.getFileName().toString();
+                return name.startsWith(stagingPrefix) || name.startsWith(backupPrefix);
+            }));
+        }
+    }
+
+    private static void assertCorpusUnchanged(
+            Path output, String expectedHashes, String expectedTypes) throws Exception {
+        assertEquals(expectedHashes, Files.readString(output.resolve("manifest.sha256")));
+        assertEquals(expectedTypes, Files.readString(output.resolve("manifest.files")));
+        assertEquals(expectedHashes, MigrationGoldenCorpusGenerator.hashManifest(output));
+        assertEquals(expectedTypes, MigrationGoldenCorpusGenerator.fileTypeManifest(output));
     }
 
     private static void deleteTestTree(Path root) throws Exception {

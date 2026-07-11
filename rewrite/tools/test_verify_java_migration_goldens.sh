@@ -159,12 +159,28 @@ reject_pattern \
 for required_text in \
 	'git cat-file blob "$object_id" | shasum -a 256' \
 	'mise exec -- java "$FILESYSTEM_VERIFIER" "$FILES_MANIFEST" "${ORACLE_PATHS[@]}"' \
-	'PINNED_FILES_SHA256="b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca"'; do
+	'PINNED_FILES_SHA256="b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca"' \
+	'PINNED_MANIFEST_SHA256="04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b"' \
+	'shasum -a 256 "$PROVENANCE_MANIFEST"' \
+	'Canonical Java oracle provenance manifest digest mismatch'; do
 	require_literal "$required_text" "$ORACLE_PROVENANCE_VERIFIER" \
 		'Oracle provenance verifier omits raw filesystem contract'
 done
 reject_pattern 'git (diff|ls-files)' "$ORACLE_PROVENANCE_VERIFIER" \
 	'Oracle provenance verifier depends on Git working-tree normalization'
+
+for required_text in \
+	'137052L' \
+	'4407L' \
+	'long declaredSize = entry.getSize();' \
+	'try (InputStream input = jar.getInputStream(entry))' \
+	'bytesRead > expected.size() - read' \
+	'bytesRead != expected.size()'; do
+	require_literal "$required_text" "$JAR_VERIFIER" \
+		'JAR verifier omits bounded exact-size resource validation'
+done
+reject_pattern 'readAllBytes[[:space:]]*\(' "$JAR_VERIFIER" \
+	'JAR verifier contains an unbounded resource read'
 
 require_literal 'run = "bash rewrite/tools/verify_java_migration_goldens.sh"' \
 	"$MISE_CONFIG" 'mise verify-goldens task is missing'

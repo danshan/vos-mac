@@ -72,6 +72,17 @@ create_fixture() {
 	)
 }
 
+rebuild_fixture_jar() {
+	local fixture="$1"
+	rm "$fixture/target/open2jam-fixture.jar"
+	(
+		cd "$fixture"
+		"$REAL_JAR_PATH" --create --file target/open2jam-fixture.jar \
+			-C src resources/fonts/LiberationSans-Bold.ttf \
+			-C src resources/fonts/LICENSE_LIBERATION
+	)
+}
+
 run_verifier() {
 	local fixture="$1"
 	(
@@ -109,6 +120,38 @@ expect_failure() {
 fixture="$TEST_ROOT/baseline"
 create_fixture "$fixture"
 expect_pass "$fixture"
+
+fixture="$TEST_ROOT/package-font-oversized"
+create_fixture "$fixture"
+printf 'x' >>"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
+rebuild_fixture_jar "$fixture"
+git show HEAD:src/resources/fonts/LiberationSans-Bold.ttf \
+	>"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
+expect_failure "oversized packaged font" "$fixture" \
+	"JAR resource size mismatch"
+
+fixture="$TEST_ROOT/package-font-undersized"
+create_fixture "$fixture"
+dd if="$fixture/src/resources/fonts/LiberationSans-Bold.ttf" \
+	of="$fixture/src/resources/fonts/LiberationSans-Bold.ttf.next" \
+	bs=137051 count=1 2>/dev/null
+mv "$fixture/src/resources/fonts/LiberationSans-Bold.ttf.next" \
+	"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
+rebuild_fixture_jar "$fixture"
+git show HEAD:src/resources/fonts/LiberationSans-Bold.ttf \
+	>"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
+expect_failure "undersized packaged font" "$fixture" \
+	"JAR resource size mismatch"
+
+fixture="$TEST_ROOT/package-font-corrupt-same-size"
+create_fixture "$fixture"
+printf 'X' | dd of="$fixture/src/resources/fonts/LiberationSans-Bold.ttf" \
+	bs=1 seek=0 conv=notrunc 2>/dev/null
+rebuild_fixture_jar "$fixture"
+git show HEAD:src/resources/fonts/LiberationSans-Bold.ttf \
+	>"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
+expect_failure "same-size corrupt packaged font" "$fixture" \
+	"JAR resource digest mismatch"
 
 fixture="$TEST_ROOT/source-license-missing"
 create_fixture "$fixture"
@@ -153,7 +196,7 @@ rm "$fixture/target/open2jam-fixture.jar"
 )
 git show HEAD:src/resources/fonts/LICENSE_LIBERATION \
 	>"$fixture/src/resources/fonts/LICENSE_LIBERATION"
-expect_failure "changed packaged license" "$fixture" "JAR resource digest mismatch"
+expect_failure "changed packaged license" "$fixture" "JAR resource size mismatch"
 
 fixture="$TEST_ROOT/package-font-changed"
 create_fixture "$fixture"
@@ -167,7 +210,7 @@ rm "$fixture/target/open2jam-fixture.jar"
 )
 git show HEAD:src/resources/fonts/LiberationSans-Bold.ttf \
 	>"$fixture/src/resources/fonts/LiberationSans-Bold.ttf"
-expect_failure "changed packaged font" "$fixture" "JAR resource digest mismatch"
+expect_failure "changed packaged font" "$fixture" "JAR resource size mismatch"
 
 fixture="$TEST_ROOT/ambiguous-jars"
 create_fixture "$fixture"

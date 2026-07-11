@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 PINNED_OVERLAY_COMMIT="62ece7083ea473f02ecc9a83ee7d3e151905bf0e"
 PINNED_TREE_SHA256="206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e"
 PINNED_FILES_SHA256="b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca"
+PINNED_MANIFEST_SHA256="04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b"
 CORPUS_DIR="rewrite/golden/java-migration"
 TREE_MANIFEST="$CORPUS_DIR/oracle-tree.txt"
 FILES_MANIFEST="$CORPUS_DIR/oracle-files.sha256"
@@ -18,7 +19,7 @@ ORACLE_PATHS=(
 	src/resources
 )
 
-for required_command in cat git grep mise sed shasum; do
+for required_command in cat git mise sed shasum; do
 	if ! command -v "$required_command" >/dev/null 2>&1; then
 		printf 'Missing Java oracle verifier command: %s\n' "$required_command" >&2
 		exit 1
@@ -51,19 +52,13 @@ for oracle_path in "${ORACLE_PATHS[@]}"; do
 	fi
 done
 
-required_paths='"javaOraclePaths": ["src/org/open2jam", "parsers/src", "src/resources"]'
-required_tree_file='"javaOracleTreeFile": "oracle-tree.txt"'
-required_tree_sha="\"javaOracleTreeSha256\": \"$PINNED_TREE_SHA256\""
-required_files_file='"javaOracleFilesystemManifestFile": "oracle-files.sha256"'
-required_files_sha="\"javaOracleFilesystemManifestSha256\": \"$PINNED_FILES_SHA256\""
-for required_text in \
-	"$required_paths" "$required_tree_file" "$required_tree_sha" \
-	"$required_files_file" "$required_files_sha"; do
-	if ! grep -Fq "$required_text" "$PROVENANCE_MANIFEST"; then
-		printf 'Java oracle provenance manifest omits: %s\n' "$required_text" >&2
-		exit 1
-	fi
-done
+manifest_hash_line="$(shasum -a 256 "$PROVENANCE_MANIFEST")"
+manifest_hash="${manifest_hash_line%% *}"
+if [[ "$manifest_hash" != "$PINNED_MANIFEST_SHA256" ]]; then
+	printf 'Canonical Java oracle provenance manifest digest mismatch: expected %s, got %s\n' \
+		"$PINNED_MANIFEST_SHA256" "$manifest_hash" >&2
+	exit 1
+fi
 
 if ! pinned_tree="$(LC_ALL=C git ls-tree -r --full-tree \
 	"$PINNED_OVERLAY_COMMIT" -- "${ORACLE_PATHS[@]}")"; then

@@ -1,7 +1,7 @@
 package org.open2jam.export;
 
-import java.io.File;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
@@ -39,6 +40,8 @@ public final class MigrationGoldenCorpusGenerator {
             "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e";
     public static final String JAVA_ORACLE_FILES_SHA256 =
             "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca";
+    public static final String CANONICAL_MANIFEST_SHA256 =
+            "04ee985563f06fe990dd8b4d825d021c50fca70a88ab678cfbc086a42b4d368b";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
     private static final Path CORPUS_RELATIVE_PATH = Path.of("rewrite/golden/java-migration");
@@ -80,11 +83,19 @@ public final class MigrationGoldenCorpusGenerator {
                     "Usage: MigrationGoldenCorpusGenerator --output <path> --work-root <path>");
         }
         GenerationPaths paths = validateCliPaths(Path.of("").toRealPath(), args[1], args[3]);
-        generateValidated(paths);
+        generateValidated(paths, GenerationObserver.NONE);
     }
 
     public static void generate(Path outputRoot, Path workRoot) throws Exception {
-        generateValidated(validateProgrammaticPaths(outputRoot, workRoot));
+        generateValidated(
+                validateProgrammaticPaths(outputRoot, workRoot), GenerationObserver.NONE);
+    }
+
+    static void generate(Path outputRoot, Path workRoot, GenerationObserver observer)
+            throws Exception {
+        generateValidated(
+                validateProgrammaticPaths(outputRoot, workRoot),
+                Objects.requireNonNull(observer, "observer"));
     }
 
     static GenerationPaths validateProgrammaticPaths(Path outputRoot, Path workRoot) throws Exception {
@@ -128,7 +139,8 @@ public final class MigrationGoldenCorpusGenerator {
         return new GenerationPaths(output, work, project, true);
     }
 
-    private static void generateValidated(GenerationPaths paths) throws Exception {
+    private static void generateValidated(GenerationPaths paths, GenerationObserver observer)
+            throws Exception {
         revalidateGenerationPaths(paths);
         resetDirectory(paths.workRoot());
         Path stagedCorpus = paths.workRoot().resolve("corpus");
@@ -145,8 +157,7 @@ public final class MigrationGoldenCorpusGenerator {
         writeFileTypes(stagedCorpus);
         writeHashes(stagedCorpus);
         revalidateGenerationPaths(paths);
-        resetDirectory(paths.outputRoot());
-        copyTree(stagedCorpus, paths.outputRoot());
+        publishCorpus(stagedCorpus, paths.outputRoot(), observer);
     }
 
     private static void generateVos(Path stagedCorpus, Path workRoot) throws Exception {
@@ -357,6 +368,22 @@ public final class MigrationGoldenCorpusGenerator {
         return hashManifest(root, TreeOperationObserver.NONE);
     }
 
+    static void verifyCanonicalManifest(Path manifest) throws Exception {
+        Path absolute = manifest.toAbsolutePath().normalize();
+        validateNoSymlinkAncestry(absolute, "canonical provenance manifest");
+        EntryState state = captureEntry(absolute, "canonical provenance manifest");
+        if (state.kind() != EntryKind.REGULAR) {
+            throw new IllegalArgumentException(
+                    "Canonical provenance manifest is not a regular file: " + absolute);
+        }
+        String actual = hashStableFile(absolute, state, "canonical provenance manifest");
+        if (!CANONICAL_MANIFEST_SHA256.equals(actual)) {
+            throw new IllegalArgumentException(
+                    "Canonical provenance manifest digest mismatch: expected "
+                            + CANONICAL_MANIFEST_SHA256 + ", got " + actual);
+        }
+    }
+
     static String hashManifest(Path root, TreeOperationObserver observer) throws Exception {
         StableTreeSnapshot snapshot = captureStableTree(root, "golden corpus");
         observer.afterInitialSnapshot("hash", snapshot.tree().root());
@@ -443,20 +470,47 @@ public final class MigrationGoldenCorpusGenerator {
     private static void writeUtf8(Path path, String content) throws Exception {
         ensureDirectoryNoFollow(path.getParent(), "write target parent");
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
-        EntryState identity;
-        try (FileChannel channel = openDestinationNoFollow(path)) {
-            identity = captureEntry(path, path.toString());
-            ByteBuffer buffer = ByteBuffer.wrap(bytes);
-            while (buffer.hasRemaining()) {
-                channel.write(buffer);
+        Path temporary = Files.createTempFile(
+                path.getParent(), "." + path.getFileName() + ".", ".tmp");
+        boolean installed = false;
+        try {
+            EntryState identity = captureEntry(temporary, temporary.toString());
+            try (FileChannel channel = FileChannel.open(
+                    temporary, StandardOpenOption.WRITE, LinkOption.NOFOLLOW_LINKS)) {
+                EntryState opened = captureEntry(temporary, temporary.toString());
+                if (!identity.equals(opened) || opened.kind() != EntryKind.REGULAR) {
+                    throw new IllegalArgumentException(
+                            "Write target changed while opening: " + temporary);
+                }
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) {
+                    channel.write(buffer);
+                }
+                channel.force(true);
             }
-            channel.force(true);
-        }
-        EntryState after = captureEntry(path, path.toString());
-        if (!Objects.equals(identity.fileKey(), after.fileKey())
-                || after.kind() != EntryKind.REGULAR
-                || after.size() != bytes.length) {
-            throw new IllegalArgumentException("Write target changed while writing: " + path);
+            EntryState afterWrite = captureEntry(temporary, temporary.toString());
+            if (!Objects.equals(identity.fileKey(), afterWrite.fileKey())
+                    || afterWrite.kind() != EntryKind.REGULAR
+                    || afterWrite.size() != bytes.length) {
+                throw new IllegalArgumentException(
+                        "Write target changed while writing: " + temporary);
+            }
+            Files.move(
+                    temporary,
+                    path,
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING);
+            installed = true;
+            EntryState installedState = captureEntry(path, path.toString());
+            if (!Objects.equals(identity.fileKey(), installedState.fileKey())
+                    || installedState.kind() != EntryKind.REGULAR
+                    || installedState.size() != bytes.length) {
+                throw new IllegalArgumentException("Write target changed while installing: " + path);
+            }
+        } finally {
+            if (!installed && Files.exists(temporary, LinkOption.NOFOLLOW_LINKS)) {
+                Files.delete(temporary);
+            }
         }
     }
 
@@ -471,15 +525,150 @@ public final class MigrationGoldenCorpusGenerator {
         Files.createDirectories(root);
     }
 
+    private static void publishCorpus(
+            Path source, Path output, GenerationObserver observer) throws Exception {
+        Path destination = output.toAbsolutePath().normalize();
+        Path parent = destination.getParent();
+        if (parent == null) {
+            throw new IllegalArgumentException("Publication output has no parent: " + destination);
+        }
+        ensureDirectoryNoFollow(parent, "publication parent");
+        String stagingPrefix = "." + destination.getFileName() + ".staging-";
+        String backupPrefix = "." + destination.getFileName() + ".backup-";
+        Path staging = Files.createTempDirectory(parent, stagingPrefix);
+        String token = staging.getFileName().toString().substring(stagingPrefix.length());
+        Path backup = parent.resolve(backupPrefix + token);
+        if (Files.exists(backup, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(backup)) {
+            deleteOwnedTree(staging);
+            throw new FileAlreadyExistsException(backup.toString());
+        }
+
+        StableTreeSnapshot previous = null;
+        boolean outputBackedUp = false;
+        boolean stagingInstalled = false;
+        Exception failure = null;
+        try {
+            copyTree(source, staging, observer, "publication-copy");
+            validateCopiedCorpus(source, staging);
+
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)
+                    || Files.isSymbolicLink(destination)) {
+                previous = captureStableTree(destination, "existing publication output");
+                Files.move(destination, backup, StandardCopyOption.ATOMIC_MOVE);
+                outputBackedUp = true;
+                observer.afterOutputBackedUp(backup, destination);
+            }
+
+            Files.move(staging, destination, StandardCopyOption.ATOMIC_MOVE);
+            stagingInstalled = true;
+            validateCopiedCorpus(source, destination);
+            if (outputBackedUp) {
+                deleteOwnedTree(backup);
+                outputBackedUp = false;
+            }
+        } catch (Exception thrown) {
+            failure = thrown;
+            try {
+                if (stagingInstalled
+                        && Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
+                    Files.move(destination, staging, StandardCopyOption.ATOMIC_MOVE);
+                    stagingInstalled = false;
+                }
+                if (outputBackedUp) {
+                    if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)
+                            || Files.isSymbolicLink(destination)) {
+                        throw new IllegalStateException(
+                                "Cannot restore publication backup over an unexpected output");
+                    }
+                    Files.move(backup, destination, StandardCopyOption.ATOMIC_MOVE);
+                    outputBackedUp = false;
+                    if (previous != null
+                            && !previous.equals(captureStableTree(
+                                    destination, "restored publication output"))) {
+                        throw new IllegalStateException(
+                                "Restored publication output does not match its stable snapshot");
+                    }
+                }
+            } catch (Exception rollbackFailure) {
+                failure.addSuppressed(rollbackFailure);
+            }
+            throw thrown;
+        } finally {
+            cleanupOwnedTree(staging, failure);
+            if (!outputBackedUp) {
+                cleanupOwnedTree(backup, failure);
+            }
+        }
+    }
+
+    private static void validateCopiedCorpus(Path source, Path target) throws Exception {
+        verifyCanonicalManifest(source.resolve("manifest.json"));
+        verifyCanonicalManifest(target.resolve("manifest.json"));
+        StableTreeSnapshot sourceSnapshot = captureStableTree(source, "publication source");
+        StableTreeSnapshot targetSnapshot = captureStableTree(target, "publication target");
+        if (!entryKinds(sourceSnapshot.tree()).equals(entryKinds(targetSnapshot.tree()))
+                || !sourceSnapshot.regularFileSha256()
+                        .equals(targetSnapshot.regularFileSha256())) {
+            throw new IllegalArgumentException(
+                    "Publication target types or hashes do not match the source corpus");
+        }
+        String sourceTypes = fileTypeManifest(source);
+        String targetTypes = fileTypeManifest(target);
+        String sourceHashes = hashManifest(source);
+        String targetHashes = hashManifest(target);
+        if (!sourceTypes.equals(targetTypes)
+                || !sourceHashes.equals(targetHashes)
+                || !sourceTypes.equals(Files.readString(
+                        source.resolve(FILE_TYPE_MANIFEST), StandardCharsets.UTF_8))
+                || !targetTypes.equals(Files.readString(
+                        target.resolve(FILE_TYPE_MANIFEST), StandardCharsets.UTF_8))
+                || !sourceHashes.equals(Files.readString(
+                        source.resolve(HASH_MANIFEST), StandardCharsets.UTF_8))
+                || !targetHashes.equals(Files.readString(
+                        target.resolve(HASH_MANIFEST), StandardCharsets.UTF_8))) {
+            throw new IllegalArgumentException(
+                    "Publication corpus manifests do not authenticate exact target bytes");
+        }
+    }
+
+    private static void cleanupOwnedTree(Path root, Exception failure) throws Exception {
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS) && !Files.isSymbolicLink(root)) {
+            return;
+        }
+        try {
+            deleteOwnedTree(root);
+        } catch (Exception cleanupFailure) {
+            if (failure != null) {
+                failure.addSuppressed(cleanupFailure);
+            } else {
+                throw cleanupFailure;
+            }
+        }
+    }
+
+    private static void deleteOwnedTree(Path root) throws Exception {
+        validateNoSymlinkAncestry(root.toAbsolutePath().normalize(), "owned cleanup tree");
+        List<Path> entries = validateTree(root, "owned cleanup tree");
+        for (Path path : entries.stream().sorted(Comparator.reverseOrder()).toList()) {
+            Files.delete(path);
+        }
+    }
+
     static void copyTree(Path source, Path target) throws Exception {
         copyTree(source, target, TreeOperationObserver.NONE);
     }
 
     static void copyTree(Path source, Path target, TreeOperationObserver observer) throws Exception {
+        copyTree(source, target, observer, "copy");
+    }
+
+    private static void copyTree(
+            Path source, Path target, TreeOperationObserver observer, String operation)
+            throws Exception {
         validateNoSymlinkAncestry(source.toAbsolutePath().normalize(), "copy source tree");
         StableTreeSnapshot sourceSnapshot = captureStableTree(source, "copy source tree");
         TreeSnapshot targetSnapshot = captureOptionalTree(target, "copy target tree");
-        observer.afterInitialSnapshot("copy", sourceSnapshot.tree().root());
+        observer.afterInitialSnapshot(operation, sourceSnapshot.tree().root());
 
         Map<String, EntryKind> expectedTargetTypes = targetSnapshot == null
                 ? new LinkedHashMap<>()
@@ -501,7 +690,7 @@ public final class MigrationGoldenCorpusGenerator {
                 assertEntryUnchanged(sourcePath, entry.getValue(), entry.getKey());
                 ensureDirectoryNoFollow(destination, "copy target directory");
             } else if (entry.getValue().kind() == EntryKind.REGULAR) {
-                observer.beforeFileRead("copy", Path.of(entry.getKey()));
+                observer.beforeFileRead(operation, Path.of(entry.getKey()));
                 copiedTargetFiles.put(
                         entry.getKey(),
                         copyStableRegularFile(
@@ -520,7 +709,7 @@ public final class MigrationGoldenCorpusGenerator {
             throw new IllegalArgumentException("Copy target tree entry set or types changed");
         }
         assertCopiedTargetFilesMatch(copiedTargetFiles, postCopyTarget);
-        observer.beforeFinalSnapshot("copy", sourceSnapshot.tree().root());
+        observer.beforeFinalSnapshot(operation, sourceSnapshot.tree().root());
         StableTreeSnapshot finalSource = captureStableTree(source, "copy source tree");
         if (!sourceSnapshot.equals(finalSource)) {
             throw new IllegalArgumentException("Copy source tree changed after snapshotting");
@@ -795,25 +984,6 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static FileChannel openDestinationNoFollow(Path destination) throws Exception {
-        if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
-            EntryState existing = captureEntry(destination, destination.toString());
-            if (existing.kind() != EntryKind.REGULAR) {
-                throw unsafeTreeEntry(destination);
-            }
-            FileChannel channel = FileChannel.open(
-                    destination,
-                    StandardOpenOption.WRITE,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    LinkOption.NOFOLLOW_LINKS);
-            EntryState opened = captureEntry(destination, destination.toString());
-            if (!Objects.equals(existing.fileKey(), opened.fileKey())
-                    || opened.kind() != EntryKind.REGULAR) {
-                channel.close();
-                throw new IllegalArgumentException(
-                        "Copy target changed while opening: " + destination);
-            }
-            return channel;
-        }
         FileChannel channel = FileChannel.open(
                 destination,
                 StandardOpenOption.WRITE,
@@ -1030,6 +1200,14 @@ public final class MigrationGoldenCorpusGenerator {
         }
 
         default void beforeFinalSnapshot(String operation, Path root) throws Exception {
+        }
+    }
+
+    interface GenerationObserver extends TreeOperationObserver {
+        GenerationObserver NONE = new GenerationObserver() {
+        };
+
+        default void afterOutputBackedUp(Path backup, Path destination) throws Exception {
         }
     }
 

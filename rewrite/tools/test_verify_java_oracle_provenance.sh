@@ -94,6 +94,48 @@ run_worktree_verifier() {
 	)
 }
 
+CANONICAL_MANIFEST="$TEST_ROOT/canonical-manifest.json"
+WORKTREE_MANIFEST="$WORKTREE/rewrite/golden/java-migration/manifest.json"
+cp "$WORKTREE_MANIFEST" "$CANONICAL_MANIFEST"
+
+expect_manifest_failure() {
+	local description="$1"
+	local expected_text="$2"
+	local output
+	if output="$(run_worktree_verifier 2>&1)"; then
+		printf '%s unexpectedly passed the canonical manifest gate.\n' \
+			"$description" >&2
+		exit 1
+	fi
+	if [[ "$output" != *"$expected_text"* ]]; then
+		printf '%s failed for the wrong reason:\n%s\n' \
+			"$description" "$output" >&2
+		exit 1
+	fi
+	cp "$CANONICAL_MANIFEST" "$WORKTREE_MANIFEST"
+}
+
+printf '\n' >>"$WORKTREE_MANIFEST"
+expect_manifest_failure "fragment-preserving manifest whitespace mutation" \
+	"Canonical Java oracle provenance manifest digest mismatch"
+
+sed 's/"schemaVersion": 3/"schemaVersion": 2/' \
+	"$CANONICAL_MANIFEST" >"$WORKTREE_MANIFEST"
+expect_manifest_failure "changed manifest field" \
+	"Canonical Java oracle provenance manifest digest mismatch"
+
+{
+	head -n 1 "$CANONICAL_MANIFEST"
+	printf '  "schemaVersion": 3,\n'
+	tail -n +2 "$CANONICAL_MANIFEST"
+} >"$WORKTREE_MANIFEST"
+expect_manifest_failure "duplicate manifest key" \
+	"Canonical Java oracle provenance manifest digest mismatch"
+
+rm "$WORKTREE_MANIFEST"
+expect_manifest_failure "missing canonical manifest" \
+	"Missing regular Java oracle provenance file"
+
 refresh_corpus_hashes() {
 	local corpus="$WORKTREE/rewrite/golden/java-migration"
 	local current_manifest="$corpus/manifest.sha256"

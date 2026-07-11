@@ -19,7 +19,7 @@ class OsuManiaParserTest {
 
     @Test
     void parsesSevenKeyManiaTapAndHoldNotes() throws Exception {
-        File chartFile = writeSevenKeyFixture();
+        File chartFile = OsuFixtureFactory.writeSevenKeyOsu(tempDir, "seven-key.osu");
 
         ChartList charts = ChartParser.parseFile(chartFile);
 
@@ -65,8 +65,12 @@ class OsuManiaParserTest {
         ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive.toPath()));
         try {
             writeZipEntry(zip, "audio.ogg", new byte[] {'O', 'g', 'g', 'S'});
-            writeZipEntry(zip, "four-key.osu", buildFixtureContent(4).getBytes(StandardCharsets.UTF_8));
-            writeZipEntry(zip, "seven-key.osu", buildFixtureContent(7).getBytes(StandardCharsets.UTF_8));
+            String sevenKeyContent = OsuFixtureFactory.sevenKeyContent("audio.ogg");
+            writeZipEntry(
+                    zip,
+                    "four-key.osu",
+                    sevenKeyContent.replace("CircleSize:7", "CircleSize:4").getBytes(StandardCharsets.UTF_8));
+            writeZipEntry(zip, "seven-key.osu", sevenKeyContent.getBytes(StandardCharsets.UTF_8));
         } finally {
             zip.close();
         }
@@ -87,7 +91,8 @@ class OsuManiaParserTest {
     @Test
     void acceptsNumericCircleSizeForSevenKeyManiaCharts() throws Exception {
         File chartFile = new File(tempDir, "numeric-circle-size.osu");
-        String content = buildFixtureContent(7).replace("CircleSize:7", "CircleSize:7.0");
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav")
+                .replace("CircleSize:7", "CircleSize:7.0");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
 
         ChartList charts = ChartParser.parseFile(chartFile);
@@ -102,7 +107,7 @@ class OsuManiaParserTest {
         File archive = new File(tempDir, "keysounded.osz");
         ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(archive.toPath()));
         try {
-            String content = buildFixtureContent(7).replace(
+            String content = OsuFixtureFactory.sevenKeyContent("audio.ogg").replace(
                     "36,192,0,1,0,0:0:0:0:",
                     "36,192,0,1,0,0:0:0:75:kick.wav");
             writeZipEntry(zip, "audio.ogg", new byte[] {'O', 'g', 'g', 'S'});
@@ -124,7 +129,7 @@ class OsuManiaParserTest {
     @Test
     void mapsCustomHitSampleFilenamesToHoldNotes() throws Exception {
         File chartFile = new File(tempDir, "hold-keysound.osu");
-        String content = buildFixtureContent(7).replace(
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav").replace(
                 "256,192,2000,128,0,3000:0:0:0:0:",
                 "256,192,2000,128,0,3000:0:0:0:65:hold.wav");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
@@ -144,7 +149,8 @@ class OsuManiaParserTest {
     @Test
     void normalizesNegativeTimingPointsToAudioStart() throws Exception {
         File chartFile = new File(tempDir, "negative-timing.osu");
-        String content = buildFixtureContent(7).replace("0,500,4,2,1,60,1,0", "-1000,500,4,2,1,60,1,0");
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav")
+                .replace("0,500,4,2,1,60,1,0", "-1000,500,4,2,1,60,1,0");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
 
         Chart chart = ChartParser.parseFile(chartFile).get(0);
@@ -157,7 +163,7 @@ class OsuManiaParserTest {
     @Test
     void prefersUnicodeMetadataWhenPresent() throws Exception {
         File chartFile = new File(tempDir, "unicode.osu");
-        String content = buildFixtureContent(7)
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav")
                 .replace("Title:Seven Key Fixture", "Title:Seven Key Fixture\nTitleUnicode:\u4e03\u952e\u6d4b\u8bd5")
                 .replace("Artist:Fixture Artist", "Artist:Fixture Artist\nArtistUnicode:\u4f5c\u8005");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
@@ -171,7 +177,7 @@ class OsuManiaParserTest {
     @Test
     void mapsInheritedTimingPointsToScrollSpeedEvents() throws Exception {
         File chartFile = new File(tempDir, "scroll-speed.osu");
-        String content = buildFixtureContent(7).replace(
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav").replace(
                 "0,500,4,2,1,60,1,0",
                 "0,500,4,2,1,60,1,0\n1000,-50,4,2,1,60,0,0");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
@@ -188,7 +194,7 @@ class OsuManiaParserTest {
     @Test
     void mapsTimingPointMeterToTimeSignatureEvents() throws Exception {
         File chartFile = new File(tempDir, "meter.osu");
-        String content = buildFixtureContent(7).replace(
+        String content = OsuFixtureFactory.sevenKeyContent("audio.wav").replace(
                 "0,500,4,2,1,60,1,0",
                 "0,500,3,2,1,60,1,0");
         Files.write(chartFile.toPath(), content.getBytes(StandardCharsets.UTF_8));
@@ -201,45 +207,6 @@ class OsuManiaParserTest {
         assertEquals(0.75, signatures.get(0).getValue(), 0.0001);
         assertEquals(0, secondLane.getMeasure());
         assertEquals(1.0 / 6.0, secondLane.getPosition(), 0.0001);
-    }
-
-    private File writeSevenKeyFixture() throws Exception {
-        File chartFile = new File(tempDir, "seven-key.osu");
-        Files.write(chartFile.toPath(), buildFixtureContent(7).getBytes(StandardCharsets.UTF_8));
-        return chartFile;
-    }
-
-    private String buildFixtureContent(int keys) {
-        return ""
-                + "osu file format v14\n"
-                + "\n"
-                + "[General]\n"
-                + "AudioFilename: audio.ogg\n"
-                + "Mode: 3\n"
-                + "\n"
-                + "[Metadata]\n"
-                + "Title:Seven Key Fixture\n"
-                + "Artist:Fixture Artist\n"
-                + "Creator:Fixture Creator\n"
-                + "Version:Test 7K\n"
-                + "\n"
-                + "[Difficulty]\n"
-                + "HPDrainRate:5\n"
-                + "CircleSize:" + keys + "\n"
-                + "OverallDifficulty:8\n"
-                + "\n"
-                + "[TimingPoints]\n"
-                + "0,500,4,2,1,60,1,0\n"
-                + "\n"
-                + "[HitObjects]\n"
-                + "36,192,0,1,0,0:0:0:0:\n"
-                + "109,192,250,1,0,0:0:0:0:\n"
-                + "182,192,500,1,0,0:0:0:0:\n"
-                + "256,192,750,1,0,0:0:0:0:\n"
-                + "329,192,1000,1,0,0:0:0:0:\n"
-                + "402,192,1250,1,0,0:0:0:0:\n"
-                + "475,192,1500,1,0,0:0:0:0:\n"
-                + "256,192,2000,128,0,3000:0:0:0:0:\n";
     }
 
     private void writeZipEntry(ZipOutputStream zip, String name, byte[] bytes) throws Exception {

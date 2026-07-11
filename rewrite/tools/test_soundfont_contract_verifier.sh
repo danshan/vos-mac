@@ -17,6 +17,13 @@ if [[ ! -f "$VERIFIER_SOURCE" || -L "$VERIFIER_SOURCE" ]]; then
 		"$VERIFIER_SOURCE" >&2
 	exit 1
 fi
+if rg -n 'Files\.walk\(' "$VERIFIER_SOURCE" >/dev/null \
+	|| ! rg -n 'Files\.walkFileTree\(' "$VERIFIER_SOURCE" >/dev/null \
+	|| ! rg -n 'EnumSet\.noneOf\(FileVisitOption\.class\)' \
+		"$VERIFIER_SOURCE" >/dev/null; then
+	printf 'SoundFont verifier must use a bounded NOFOLLOW FileVisitor.\n' >&2
+	exit 1
+fi
 if [[ -z "$TEMP_BASE_INPUT" || "$TEMP_BASE_INPUT" == "/" \
 	|| ! -d "$TEMP_BASE_INPUT" ]] \
 	|| ! TEMP_BASE="$(cd "$TEMP_BASE_INPUT" && pwd -P)" \
@@ -73,7 +80,7 @@ write_manifest() {
 		'approval.path=approvals/redistribution.txt' \
 		"approval.size=$(file_size "$approval")" \
 		"approval.sha256=$(sha256 "$approval")" \
-		'approval.id=LEGAL-2026-0001' \
+		"approval.id=owner-risk-acceptance:sha256:$(sha256 "$approval")" \
 		| sed '12s#^#license.url=#' >"$fixture/contract.manifest"
 }
 
@@ -81,7 +88,7 @@ create_fixture() {
 	local name="$1"
 	local fixture="$TEST_ROOT/$name"
 	mkdir -p "$fixture/payload/assets" "$fixture/payload/licenses" \
-		"$fixture/payload/approvals"
+		"$fixture/payload/approvals" "$fixture/snapshot-parent"
 	printf 'fixture-soundfont-bytes\n' >"$fixture/payload/assets/fixture.sf2"
 	printf 'Fixture license terms.\n' >"$fixture/payload/licenses/LICENSE.txt"
 	printf 'Approved for redistribution in verifier tests.\n' \
@@ -93,21 +100,56 @@ create_fixture() {
 run_verifier() {
 	local fixture="$1"
 	mise exec -- java -cp "$CLASSES" SoundFontContractVerifier \
-		"$fixture/contract.manifest" "$fixture/payload"
+		"$fixture/contract.manifest" "$fixture/payload" \
+		"$fixture/snapshot-parent/verified"
+}
+
+assert_no_staging() {
+	local description="$1"
+	local fixture="$2"
+	local residue
+	residue="$(find "$fixture/snapshot-parent" -mindepth 1 -maxdepth 1 \
+		-name '.verified.staging-*' -print -quit)"
+	if [[ -n "$residue" ]]; then
+		printf '%s left staging residue: %s\n' "$description" "$residue" >&2
+		exit 1
+	fi
 }
 
 expect_pass() {
 	local description="$1"
 	local fixture="$2"
+	local manifest_sha
 	local output
 	if ! output="$(run_verifier "$fixture" 2>&1)"; then
 		printf '%s failed:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
-	if [[ "$output" != *"SoundFont contract verified:"* ]]; then
+	if [[ "$output" != *"SoundFont snapshot verified:"* ]]; then
 		printf '%s produced unexpected output:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
+	if [[ ! -f "$fixture/snapshot-parent/verified/snapshot.marker" \
+		|| -L "$fixture/snapshot-parent/verified/snapshot.marker" ]]; then
+		printf '%s did not publish a regular snapshot marker.\n' "$description" >&2
+		exit 1
+	fi
+	manifest_sha="$(sha256 "$fixture/contract.manifest")"
+	if ! printf 'soundfont-snapshot-v1\nmanifest.sha256=%s\n' "$manifest_sha" \
+		| cmp -s - "$fixture/snapshot-parent/verified/snapshot.marker"; then
+		printf '%s snapshot marker does not bind the manifest SHA-256.\n' \
+			"$description" >&2
+		exit 1
+	fi
+	if ! cmp -s "$fixture/contract.manifest" \
+		"$fixture/snapshot-parent/verified/contract.manifest" \
+		|| ! cmp -s "$fixture/payload/assets/fixture.sf2" \
+			"$fixture/snapshot-parent/verified/payload/assets/fixture.sf2"; then
+		printf '%s snapshot bytes do not match the verified source bytes.\n' \
+			"$description" >&2
+		exit 1
+	fi
+	assert_no_staging "$description" "$fixture"
 	POSITIVE_COUNT=$((POSITIVE_COUNT + 1))
 }
 
@@ -123,6 +165,12 @@ expect_failure() {
 		printf '%s failed for the wrong reason:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
+	if [[ -e "$fixture/snapshot-parent/verified" \
+		|| -L "$fixture/snapshot-parent/verified" ]]; then
+		printf '%s left a requested snapshot after failure.\n' "$description" >&2
+		exit 1
+	fi
+	assert_no_staging "$description" "$fixture"
 	NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
 }
 
@@ -140,6 +188,12 @@ expect_failure_with_text() {
 		printf '%s failed for the wrong reason:\n%s\n' "$description" "$output" >&2
 		exit 1
 	fi
+	if [[ -e "$fixture/snapshot-parent/verified" \
+		|| -L "$fixture/snapshot-parent/verified" ]]; then
+		printf '%s left a requested snapshot after failure.\n' "$description" >&2
+		exit 1
+	fi
+	assert_no_staging "$description" "$fixture"
 	NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
 }
 
@@ -155,6 +209,12 @@ replace_line() {
 
 fixture="$(create_fixture baseline)"
 expect_pass "canonical contract" "$fixture"
+
+fixture="$(create_fixture hash-bound-approval-id)"
+approval_sha="$(sha256 "$fixture/payload/approvals/redistribution.txt")"
+replace_line "$fixture" approval.id \
+	"approval.id=owner-risk-acceptance:sha256:$approval_sha"
+expect_pass "hash-bound approval id" "$fixture"
 
 fixture="$(create_fixture bad-header)"
 sed '1s/v1/v2/' "$fixture/contract.manifest" >"$fixture/next"
@@ -258,7 +318,14 @@ expect_failure "extra payload file" "$fixture"
 
 fixture="$(create_fixture extra-directory)"
 mkdir "$fixture/payload/unused"
-expect_failure "extra payload directory" "$fixture"
+expect_failure_with_text "extra payload directory" "$fixture" \
+	"unexpected payload directory"
+
+fixture="$(create_fixture bounded-attack-tree)"
+for index in $(seq 1 128); do
+	printf 'attack\n' >"$fixture/payload/unexpected-$index"
+done
+expect_failure "bounded max-entry attack tree" "$fixture"
 
 fixture="$(create_fixture missing-file)"
 rm "$fixture/payload/licenses/LICENSE.txt"
@@ -316,6 +383,17 @@ fixture="$(create_fixture source-http)"
 replace_line "$fixture" source.url \
 	'source.url=http://example.invalid/releases/0123456789abcdef0123456789abcdef01234567/fixture.sf2'
 expect_failure "non-HTTPS source URL" "$fixture"
+
+for authority in \
+	'example.invalid:443' \
+	'example.invalid:8443' \
+	'example.invalid:'; do
+	fixture="$(create_fixture "source-port-${authority//:/empty}")"
+	replace_line "$fixture" source.url \
+		"source.url=https://$authority/releases/0123456789abcdef0123456789abcdef01234567/fixture.sf2"
+	expect_failure_with_text "source URL explicit or empty port $authority" \
+		"$fixture" "explicit or empty port"
+done
 
 fixture="$(create_fixture source-query)"
 replace_line "$fixture" source.url \
@@ -383,7 +461,7 @@ for placeholder_variant in \
 	fixture="$(create_fixture "approval-variant-$placeholder_variant")"
 	replace_line "$fixture" approval.id "approval.id=$placeholder_variant"
 	expect_failure_with_text "placeholder approval id variant $placeholder_variant" \
-		"$fixture" "approval.id contains a placeholder token"
+		"$fixture" "approval.id must bind exact approval SHA-256"
 done
 
 for placeholder in TBD TODO PENDING PLACEHOLDER UNKNOWN NONE UNAPPROVED TEST-ONLY; do
@@ -392,17 +470,22 @@ for placeholder in TBD TODO PENDING PLACEHOLDER UNKNOWN NONE UNAPPROVED TEST-ONL
 	expect_failure "placeholder approval id $placeholder" "$fixture"
 done
 
-for legitimate_id in \
-	LEGAL-CONTEST-2026 \
-	LEGAL-APPENDING-2026; do
-	fixture="$(create_fixture "approval-legitimate-$legitimate_id")"
-	replace_line "$fixture" approval.id "approval.id=$legitimate_id"
-	expect_pass "non-placeholder approval id $legitimate_id" "$fixture"
-done
-
 fixture="$(create_fixture duplicate-approval-token)"
 replace_line "$fixture" approval.id 'approval.id=LEGAL-LEGAL-0001'
 expect_failure "duplicate approval id token" "$fixture"
+
+fixture="$(create_fixture approval-hash-mismatch)"
+replace_line "$fixture" approval.id \
+	'approval.id=owner-risk-acceptance:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+expect_failure_with_text "approval id hash mismatch" "$fixture" \
+	"approval.id must bind exact approval SHA-256"
+
+fixture="$(create_fixture approval-prefix-mismatch)"
+approval_sha="$(sha256 "$fixture/payload/approvals/redistribution.txt")"
+replace_line "$fixture" approval.id \
+	"approval.id=legal-approval:sha256:$approval_sha"
+expect_failure_with_text "approval id schema prefix mismatch" "$fixture" \
+	"approval.id must bind exact approval SHA-256"
 
 fixture="$(create_fixture wrong-approval-hash)"
 replace_line "$fixture" approval.sha256 \
@@ -422,7 +505,8 @@ expect_failure "symlink payload root" "$fixture"
 fixture="$(create_fixture manifest-overlap)"
 mv "$fixture/contract.manifest" "$fixture/payload/contract.manifest"
 if overlap_output="$(mise exec -- java -cp "$CLASSES" SoundFontContractVerifier \
-	"$fixture/payload/contract.manifest" "$fixture/payload" 2>&1)"; then
+	"$fixture/payload/contract.manifest" "$fixture/payload" \
+	"$fixture/snapshot-parent/verified" 2>&1)"; then
 	printf 'manifest and payload overlap unexpectedly passed:\n%s\n' \
 		"$overlap_output" >&2
 	exit 1
@@ -432,22 +516,92 @@ if [[ "$overlap_output" != *"SoundFont contract verification failed:"* ]]; then
 		"$overlap_output" >&2
 	exit 1
 fi
+if [[ -e "$fixture/snapshot-parent/verified" \
+	|| -L "$fixture/snapshot-parent/verified" ]]; then
+	printf 'manifest and payload overlap published a snapshot.\n' >&2
+	exit 1
+fi
+assert_no_staging "manifest and payload overlap" "$fixture"
+NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
+
+fixture="$(create_fixture snapshot-inside-payload)"
+if overlap_output="$(mise exec -- java -cp "$CLASSES" SoundFontContractVerifier \
+	"$fixture/contract.manifest" "$fixture/payload" \
+	"$fixture/payload/snapshot" 2>&1)"; then
+	printf 'snapshot inside payload unexpectedly passed:\n%s\n' \
+		"$overlap_output" >&2
+	exit 1
+fi
+if [[ "$overlap_output" != *"[SNAPSHOT_PATH]"* \
+	|| -e "$fixture/payload/snapshot" || -L "$fixture/payload/snapshot" ]]; then
+	printf 'snapshot inside payload failed unsafely:\n%s\n' \
+		"$overlap_output" >&2
+	exit 1
+fi
+NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
+
+fixture="$(create_fixture snapshot-existing-output)"
+mkdir "$fixture/snapshot-parent/verified"
+printf 'preserve\n' >"$fixture/snapshot-parent/verified/sentinel"
+if existing_output="$(run_verifier "$fixture" 2>&1)"; then
+	printf 'existing requested snapshot unexpectedly passed:\n%s\n' \
+		"$existing_output" >&2
+	exit 1
+fi
+if [[ "$existing_output" != *"[SNAPSHOT_PATH]"* \
+	|| "$(<"$fixture/snapshot-parent/verified/sentinel")" != preserve ]]; then
+	printf 'existing requested snapshot was not preserved:\n%s\n' \
+		"$existing_output" >&2
+	exit 1
+fi
+assert_no_staging "existing requested snapshot" "$fixture"
+NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
+
+fixture="$(create_fixture snapshot-symlink-parent)"
+mv "$fixture/snapshot-parent" "$fixture/real-snapshot-parent"
+ln -s "$fixture/real-snapshot-parent" "$fixture/snapshot-parent"
+if symlink_parent_output="$(run_verifier "$fixture" 2>&1)"; then
+	printf 'symlink snapshot parent unexpectedly passed:\n%s\n' \
+		"$symlink_parent_output" >&2
+	exit 1
+fi
+if [[ "$symlink_parent_output" != *"[SNAPSHOT_PATH]"* ]]; then
+	printf 'symlink snapshot parent failed for wrong reason:\n%s\n' \
+		"$symlink_parent_output" >&2
+	exit 1
+fi
+NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
+
+fixture="$(create_fixture snapshot-missing-parent)"
+rmdir "$fixture/snapshot-parent"
+if missing_parent_output="$(run_verifier "$fixture" 2>&1)"; then
+	printf 'missing snapshot parent unexpectedly passed:\n%s\n' \
+		"$missing_parent_output" >&2
+	exit 1
+fi
+if [[ "$missing_parent_output" != *"[SNAPSHOT_PATH]"* \
+	|| -e "$fixture/snapshot-parent/verified" ]]; then
+	printf 'missing snapshot parent failed unsafely:\n%s\n' \
+		"$missing_parent_output" >&2
+	exit 1
+fi
 NEGATIVE_COUNT=$((NEGATIVE_COUNT + 1))
 
 RACE_SOURCE="$TEST_ROOT/SoundFontContractVerifierRaceTest.java"
 cat >"$RACE_SOURCE" <<'EOF'
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileTime;
 import java.security.MessageDigest;
 import java.util.HexFormat;
 
 public final class SoundFontContractVerifierRaceTest {
     private static final String COMMIT = "0123456789abcdef0123456789abcdef01234567";
-    private static int failuresVerified;
+    private static int positiveCount;
+    private static int negativeCount;
 
     private SoundFontContractVerifierRaceTest() {
     }
@@ -459,64 +613,210 @@ public final class SoundFontContractVerifierRaceTest {
         Path root = Path.of(args[0]);
         Files.createDirectories(root);
 
-        Fixture manifestRace = Fixture.create(root.resolve("manifest-race"));
-        expectFailure(manifestRace, new SoundFontContractVerifier.VerificationObserver() {
-            @Override
-            public void afterManifestRead() throws Exception {
-                Files.writeString(manifestRace.manifest(), "\n", StandardCharsets.UTF_8,
-                        java.nio.file.StandardOpenOption.APPEND);
-            }
-        });
+        Fixture baseline = Fixture.create(root.resolve("observer-none"));
+        Path result = SoundFontContractVerifier.verify(
+                baseline.manifest(),
+                baseline.payload(),
+                baseline.snapshot(),
+                SoundFontContractVerifier.VerificationObserver.NONE);
+        if (!result.equals(baseline.snapshot().toAbsolutePath().normalize())) {
+            throw new AssertionError("verifier returned the wrong snapshot path");
+        }
+        baseline.assertPublishedSnapshot();
+        positiveCount++;
 
-        Fixture assetRace = Fixture.create(root.resolve("asset-race"));
-        expectFailure(assetRace, new SoundFontContractVerifier.VerificationObserver() {
-            @Override
-            public void afterInitialSnapshot() throws Exception {
-                FileTime time = Files.getLastModifiedTime(assetRace.asset());
-                Files.writeString(assetRace.asset(), "Fixture-soundfont-bytes\n");
-                Files.setLastModifiedTime(assetRace.asset(), time);
-            }
-        });
+        Fixture sourceSwap = Fixture.create(root.resolve("source-swap"));
+        SoundFontContractVerifier.verify(
+                sourceSwap.manifest(),
+                sourceSwap.payload(),
+                sourceSwap.snapshot(),
+                new SoundFontContractVerifier.VerificationObserver() {
+                    @Override
+                    public void afterSourceOpen(String relativePath) throws Exception {
+                        if (relativePath.equals("assets/fixture.sf2")) {
+                            Files.move(
+                                    sourceSwap.asset(),
+                                    sourceSwap.base().resolve("opened-asset.sf2"));
+                            Files.writeString(sourceSwap.asset(), "final-source-A-bytes\n");
+                        }
+                    }
+                });
+        sourceSwap.assertPublishedSnapshot();
+        if (Files.readString(sourceSwap.asset()).equals(sourceSwap.expectedAsset())) {
+            throw new AssertionError("source-swap fixture did not replace the final source");
+        }
+        positiveCount++;
 
-        Fixture treeRace = Fixture.create(root.resolve("tree-race"));
-        expectFailure(treeRace, new SoundFontContractVerifier.VerificationObserver() {
-            @Override
-            public void beforeFinalSnapshot() throws Exception {
-                Files.writeString(treeRace.payload().resolve("late-file"), "late\n");
-            }
-        });
+        Fixture sourceMutation = Fixture.create(root.resolve("source-content-mutation"));
+        expectFailure(sourceMutation, "[SOURCE_CONTENT]", () ->
+                SoundFontContractVerifier.verify(
+                        sourceMutation.manifest(),
+                        sourceMutation.payload(),
+                        sourceMutation.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public void afterSourceOpen(String relativePath) throws Exception {
+                                if (relativePath.equals("assets/fixture.sf2")) {
+                                    Files.writeString(
+                                            sourceMutation.asset(),
+                                            "Fixture-soundfont-bytes\n");
+                                }
+                            }
+                        }));
 
-        System.out.printf("SoundFont race contract passed: %d negative.%n", failuresVerified);
+        Fixture partialBuild = Fixture.create(root.resolve("partial-build"));
+        expectFailure(partialBuild, "[SNAPSHOT_BUILD]", () ->
+                SoundFontContractVerifier.verify(
+                        partialBuild.manifest(),
+                        partialBuild.payload(),
+                        partialBuild.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public void beforeMarkerWrite() throws Exception {
+                                throw new IOException("injected partial build failure");
+                            }
+                        }));
+
+        Fixture snapshotMutation = Fixture.create(root.resolve("snapshot-mutation"));
+        expectFailure(snapshotMutation, "[SNAPSHOT_VERIFY]", () ->
+                SoundFontContractVerifier.verify(
+                        snapshotMutation.manifest(),
+                        snapshotMutation.payload(),
+                        snapshotMutation.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public void beforeSnapshotVerification(Path staging)
+                                    throws Exception {
+                                Files.writeString(staging.resolve("unexpected"), "attack\n");
+                            }
+                        }));
+
+        Fixture snapshotAttackTree = Fixture.create(root.resolve("snapshot-attack-tree"));
+        expectFailure(
+                snapshotAttackTree,
+                "[SNAPSHOT_VERIFY]",
+                "unexpected snapshot directory: attack",
+                () ->
+                SoundFontContractVerifier.verify(
+                        snapshotAttackTree.manifest(),
+                        snapshotAttackTree.payload(),
+                        snapshotAttackTree.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public void beforeSnapshotVerification(Path staging)
+                                    throws Exception {
+                                Path attack = Files.createDirectory(staging.resolve("attack"));
+                                for (int index = 0; index < 128; index++) {
+                                    Files.writeString(
+                                            attack.resolve("unexpected-" + index), "attack\n");
+                                }
+                            }
+                        }));
+
+        Fixture snapshotDepthCeiling = Fixture.create(root.resolve("snapshot-depth-ceiling"));
+        expectFailure(
+                snapshotDepthCeiling,
+                "[SNAPSHOT_VERIFY]",
+                "snapshot tree exceeds fixed depth ceiling",
+                () -> SoundFontContractVerifier.verify(
+                        snapshotDepthCeiling.manifest(),
+                        snapshotDepthCeiling.payload(),
+                        snapshotDepthCeiling.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public int snapshotMaxDepth(int fixedMaximum) {
+                                return fixedMaximum - 1;
+                            }
+                        }));
+
+        Fixture snapshotEntryCeiling = Fixture.create(root.resolve("snapshot-entry-ceiling"));
+        expectFailure(
+                snapshotEntryCeiling,
+                "[SNAPSHOT_VERIFY]",
+                "snapshot tree exceeds fixed entry ceiling",
+                () -> SoundFontContractVerifier.verify(
+                        snapshotEntryCeiling.manifest(),
+                        snapshotEntryCeiling.payload(),
+                        snapshotEntryCeiling.snapshot(),
+                        new SoundFontContractVerifier.VerificationObserver() {
+                            @Override
+                            public int snapshotMaxEntries(int fixedMaximum) {
+                                return 1;
+                            }
+                        }));
+
+        Fixture noAtomicMove = Fixture.create(root.resolve("no-atomic-move"));
+        expectFailure(noAtomicMove, "[SNAPSHOT_PUBLISH]", () ->
+                SoundFontContractVerifier.verify(
+                        noAtomicMove.manifest(),
+                        noAtomicMove.payload(),
+                        noAtomicMove.snapshot(),
+                        SoundFontContractVerifier.VerificationObserver.NONE,
+                        (staging, requested) -> {
+                            throw new AtomicMoveNotSupportedException(
+                                    staging.toString(), requested.toString(), "injected");
+                        }));
+
+        System.out.printf(
+                "SoundFont snapshot race contract passed: %d positive, %d negative.%n",
+                positiveCount,
+                negativeCount);
     }
 
     private static void expectFailure(
-            Fixture fixture, SoundFontContractVerifier.VerificationObserver observer)
-            throws Exception {
-        try {
-            SoundFontContractVerifier.verify(fixture.manifest(), fixture.payload(), observer);
-            throw new AssertionError("race unexpectedly passed");
-        } catch (IllegalStateException expected) {
-            if (!expected.getMessage().startsWith(
-                    "SoundFont contract verification failed:")) {
-                throw expected;
-            }
-            failuresVerified++;
-        }
+            Fixture fixture, String category, ThrowingAction action) throws Exception {
+        expectFailure(fixture, category, null, action);
     }
 
-    private record Fixture(Path manifest, Path payload, Path asset) {
+    private static void expectFailure(
+            Fixture fixture,
+            String category,
+            String requiredText,
+            ThrowingAction action) throws Exception {
+        try {
+            action.run();
+            throw new AssertionError(category + " race unexpectedly passed");
+        } catch (IllegalStateException expected) {
+            if (!expected.getMessage().startsWith(
+                            "SoundFont contract verification failed:")
+                    || !expected.getMessage().contains(category)) {
+                throw expected;
+            }
+            if (requiredText != null && !expected.getMessage().contains(requiredText)) {
+                throw expected;
+            }
+        }
+        fixture.assertNoPublicationResidue();
+        negativeCount++;
+    }
+
+    @FunctionalInterface
+    private interface ThrowingAction {
+        void run() throws Exception;
+    }
+
+    private record Fixture(
+            Path base,
+            Path manifest,
+            Path payload,
+            Path snapshot,
+            Path asset,
+            String expectedAsset) {
         static Fixture create(Path base) throws Exception {
             Path payload = base.resolve("payload");
             Path asset = payload.resolve("assets/fixture.sf2");
             Path license = payload.resolve("licenses/LICENSE.txt");
             Path approval = payload.resolve("approvals/redistribution.txt");
+            Path snapshotParent = base.resolve("snapshot-parent");
             Files.createDirectories(asset.getParent());
             Files.createDirectories(license.getParent());
             Files.createDirectories(approval.getParent());
-            Files.writeString(asset, "fixture-soundfont-bytes\n");
+            Files.createDirectory(snapshotParent);
+            String expectedAsset = "fixture-soundfont-bytes\n";
+            Files.writeString(asset, expectedAsset);
             Files.writeString(license, "Fixture license terms.\n");
-            Files.writeString(approval,
-                    "Approved for redistribution in verifier tests.\n");
+            Files.writeString(
+                    approval, "Approved for redistribution in verifier tests.\n");
             Path manifest = base.resolve("contract.manifest");
             Files.writeString(manifest, String.join("\n",
                     "soundfont-contract-v1",
@@ -535,8 +835,45 @@ public final class SoundFontContractVerifierRaceTest {
                     "approval.path=approvals/redistribution.txt",
                     "approval.size=" + Files.size(approval),
                     "approval.sha256=" + sha256(approval),
-                    "approval.id=LEGAL-2026-0001") + "\n");
-            return new Fixture(manifest, payload, asset);
+                    "approval.id=owner-risk-acceptance:sha256:" + sha256(approval))
+                    + "\n");
+            return new Fixture(
+                    base,
+                    manifest,
+                    payload,
+                    snapshotParent.resolve("verified"),
+                    asset,
+                    expectedAsset);
+        }
+
+        void assertPublishedSnapshot() throws Exception {
+            Path snapshotAsset = snapshot.resolve("payload/assets/fixture.sf2");
+            if (!Files.readString(snapshotAsset).equals(expectedAsset)) {
+                throw new AssertionError("snapshot did not preserve manifest-bound bytes");
+            }
+            String expectedMarker = "soundfont-snapshot-v1\nmanifest.sha256="
+                    + sha256(manifest) + "\n";
+            if (!Files.readString(snapshot.resolve("snapshot.marker"))
+                    .equals(expectedMarker)) {
+                throw new AssertionError("snapshot marker does not bind manifest SHA-256");
+            }
+            assertNoStaging();
+        }
+
+        void assertNoPublicationResidue() throws Exception {
+            if (Files.exists(snapshot) || Files.isSymbolicLink(snapshot)) {
+                throw new AssertionError("failed verification published requested snapshot");
+            }
+            assertNoStaging();
+        }
+
+        private void assertNoStaging() throws Exception {
+            try (DirectoryStream<Path> paths = Files.newDirectoryStream(
+                    snapshot.getParent(), ".verified.staging-*")) {
+                if (paths.iterator().hasNext()) {
+                    throw new AssertionError("failed verification left staging residue");
+                }
+            }
         }
 
         private static String sha256(Path path) throws Exception {
@@ -561,12 +898,14 @@ race_output="$(mise exec -- java -cp "$CLASSES" \
 	printf 'SoundFont race contract failed:\n%s\n' "$race_output" >&2
 	exit 1
 }
-if [[ "$race_output" != *"SoundFont race contract passed: 3 negative."* ]]; then
+if [[ "$race_output" \
+	!= *"SoundFont snapshot race contract passed: 2 positive, 7 negative."* ]]; then
 	printf 'SoundFont race contract produced unexpected output:\n%s\n' \
 		"$race_output" >&2
 	exit 1
 fi
-NEGATIVE_COUNT=$((NEGATIVE_COUNT + 3))
+POSITIVE_COUNT=$((POSITIVE_COUNT + 2))
+NEGATIVE_COUNT=$((NEGATIVE_COUNT + 7))
 
 printf 'SoundFont contract verifier behavioral contract passed: %d positive, %d negative.\n' \
 	"$POSITIVE_COUNT" "$NEGATIVE_COUNT"

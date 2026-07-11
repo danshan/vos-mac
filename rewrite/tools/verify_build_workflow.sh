@@ -13,6 +13,8 @@ step_uses=""
 step_run=""
 step_if=""
 step_continue=""
+step_body=""
+step_body_line_count=0
 step_index=0
 runtime_count=0
 runtime_index=0
@@ -26,6 +28,7 @@ inside_maven=false
 inside_steps=false
 maven_job_count=0
 job_if=""
+job_unexpected=""
 
 reject_conditionals() {
 	local name="$1"
@@ -41,6 +44,16 @@ reject_conditionals() {
 	fi
 }
 
+require_exact_step_body() {
+	local name="$1"
+	local expected_line="$2"
+	if [[ "$step_body_line_count" -ne 1 || "$step_body" != "$expected_line" ]]; then
+		printf 'Required workflow step contains unexpected configuration: %s\n' \
+			"$name" >&2
+		exit 1
+	fi
+}
+
 finish_step() {
 	if [[ -z "$step_name" ]]; then
 		return
@@ -51,6 +64,8 @@ finish_step() {
 			runtime_count=$((runtime_count + 1))
 			runtime_index="$step_index"
 			reject_conditionals "$step_name" "$step_if" "$step_continue"
+			require_exact_step_body "$step_name" \
+				'        uses: jdx/mise-action@v4'
 			if [[ "$step_uses" != "jdx/mise-action@v4" || -n "$step_run" ]]; then
 				printf 'Project runtime step is not wired to jdx/mise-action@v4.\n' >&2
 				exit 1
@@ -60,6 +75,8 @@ finish_step() {
 			golden_count=$((golden_count + 1))
 			golden_index="$step_index"
 			reject_conditionals "$step_name" "$step_if" "$step_continue"
+			require_exact_step_body "$step_name" \
+				'        run: mise run verify-goldens'
 			if [[ "$step_run" != "mise run verify-goldens" || -n "$step_uses" ]]; then
 				printf 'Build workflow does not run the golden verifier.\n' >&2
 				exit 1
@@ -69,6 +86,8 @@ finish_step() {
 			build_count=$((build_count + 1))
 			build_index="$step_index"
 			reject_conditionals "$step_name" "$step_if" "$step_continue"
+			require_exact_step_body "$step_name" \
+				'        run: mise exec -- bash -lc '\''mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'\'''
 			if [[ "$step_run" != "mise exec -- bash -lc 'mvn --batch-mode -s \"\$MAVEN_SETTINGS\" clean verify'" || -n "$step_uses" ]]; then
 				printf 'Build workflow does not run clean Maven verification through mise.\n' >&2
 				exit 1
@@ -78,6 +97,8 @@ finish_step() {
 			package_count=$((package_count + 1))
 			package_index="$step_index"
 			reject_conditionals "$step_name" "$step_if" "$step_continue"
+			require_exact_step_body "$step_name" \
+				'        run: bash rewrite/tools/verify_java_migration_package.sh'
 			if [[ "$step_run" != "bash rewrite/tools/verify_java_migration_package.sh" \
 				|| -n "$step_uses" ]]; then
 				printf 'Build workflow does not verify the final packaged JAR.\n' >&2
@@ -90,6 +111,8 @@ finish_step() {
 	step_run=""
 	step_if=""
 	step_continue=""
+	step_body=""
+	step_body_line_count=0
 }
 
 while IFS= read -r line || [[ -n "$line" ]]; do
@@ -114,6 +137,12 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 		job_if="${line#    if: }"
 		continue
 	fi
+	if [[ "$line" == "    "* && "$line" != "     "* \
+		&& "$line" != "    name: Maven build" \
+		&& "$line" != "    runs-on: macos-latest" \
+		&& "$line" != "    steps:" ]]; then
+		job_unexpected="$line"
+	fi
 	if [[ "$line" == "    steps:" ]]; then
 		inside_steps=true
 		continue
@@ -132,6 +161,14 @@ while IFS= read -r line || [[ -n "$line" ]]; do
 	fi
 	if [[ -z "$step_name" ]]; then
 		continue
+	fi
+	if [[ -n "$line" && "$line" == "        "* ]]; then
+		step_body_line_count=$((step_body_line_count + 1))
+		if [[ -z "$step_body" ]]; then
+			step_body="$line"
+		else
+			step_body="$step_body"$'\n'"$line"
+		fi
 	fi
 	case "$line" in
 		"        uses: "*) step_uses="${line#        uses: }" ;;
@@ -153,6 +190,25 @@ if [[ -n "$job_if" ]]; then
 	printf 'Maven build job must be unconditional.\n' >&2
 	exit 1
 fi
+if [[ -n "$job_unexpected" ]]; then
+	printf 'Maven build job contains unexpected configuration: %s\n' \
+		"$job_unexpected" >&2
+	exit 1
+fi
+
+for required_name in \
+	"Install project runtime" \
+	"Verify migration goldens" \
+	"Build and test" \
+	"Verify packaged migration resources"; do
+	name_occurrences="$(awk -v needle="$required_name" \
+		'index($0, needle) { count++ } END { print count + 0 }' "$WORKFLOW_PATH")"
+	if [[ "$name_occurrences" -ne 1 ]]; then
+		printf 'Build workflow required step name is missing or duplicated: %s\n' \
+			"$required_name" >&2
+		exit 1
+	fi
+done
 if [[ "$runtime_count" -ne 1 || "$golden_count" -ne 1 || "$build_count" -ne 1 \
 	|| "$package_count" -ne 1 ]]; then
 	printf 'Build workflow is missing or duplicates a required enabled step.\n' >&2

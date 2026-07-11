@@ -13,6 +13,8 @@ ORACLE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_oracle_provenance.sh"
 PACKAGE_BEHAVIOR_TEST="rewrite/tools/test_verify_java_migration_package.sh"
 REPORT_VERIFIER="rewrite/tools/SurefireReportVerifier.java"
 JAR_VERIFIER="rewrite/tools/JarResourceVerifier.java"
+ORACLE_FILESYSTEM_VERIFIER="rewrite/tools/JavaOracleFilesystemVerifier.java"
+ORACLE_PROVENANCE_VERIFIER="rewrite/tools/verify_java_oracle_provenance.sh"
 WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
@@ -24,6 +26,8 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 [[ -x "$PACKAGE_BEHAVIOR_TEST" ]] || { printf 'Missing package behavioral contract.\n' >&2; exit 1; }
 [[ -f "$REPORT_VERIFIER" ]] || { printf 'Missing Surefire report verifier.\n' >&2; exit 1; }
 [[ -f "$JAR_VERIFIER" ]] || { printf 'Missing JAR resource verifier.\n' >&2; exit 1; }
+[[ -f "$ORACLE_FILESYSTEM_VERIFIER" ]] || { printf 'Missing oracle filesystem verifier.\n' >&2; exit 1; }
+[[ -x "$ORACLE_PROVENANCE_VERIFIER" ]] || { printf 'Missing oracle provenance verifier.\n' >&2; exit 1; }
 [[ -x "$WORKFLOW_VERIFIER" ]] || { printf 'Missing build workflow verifier.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
@@ -124,6 +128,8 @@ for required_text in \
 	'bash rewrite/tools/test_verify_java_oracle_provenance.sh' \
 	'bash rewrite/tools/test_verify_java_migration_package.sh' \
 	'bash rewrite/tools/verify_java_oracle_provenance.sh' \
+	'rewrite/tools/JavaOracleFilesystemVerifier.java' \
+	'"$CORPUS_DIR/oracle-files.sha256"' \
 	'for required_command in bash git grep mise rg rm sed shasum tr' \
 	'for test_source in "${TEST_SOURCES[@]}"' \
 	'class_path="$(printf '\''%s'\'' "$fully_qualified_class" | tr '\''.'\'' '\''/'\'')"' \
@@ -149,6 +155,16 @@ done
 reject_pattern \
 	'assumeTrue[[:space:]]*\(|/Users/[[:alnum:]_.-]+|Skipping|\|\|[[:space:]]*true' \
 	"$VERIFIER" 'Golden verifier contains optional behavior'
+
+for required_text in \
+	'git cat-file blob "$object_id" | shasum -a 256' \
+	'mise exec -- java "$FILESYSTEM_VERIFIER" "$FILES_MANIFEST" "${ORACLE_PATHS[@]}"' \
+	'PINNED_FILES_SHA256="b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca"'; do
+	require_literal "$required_text" "$ORACLE_PROVENANCE_VERIFIER" \
+		'Oracle provenance verifier omits raw filesystem contract'
+done
+reject_pattern 'git (diff|ls-files)' "$ORACLE_PROVENANCE_VERIFIER" \
+	'Oracle provenance verifier depends on Git working-tree normalization'
 
 require_literal 'run = "bash rewrite/tools/verify_java_migration_goldens.sh"' \
 	"$MISE_CONFIG" 'mise verify-goldens task is missing'

@@ -23,6 +23,7 @@ regular  expected/vos/gameplay.json
 regular  expected/vos/render-metadata.json
 regular  manifest.files
 regular  manifest.json
+regular  oracle-files.sha256
 regular  oracle-tree.txt
 directory  sources/
 directory  sources/malformed/

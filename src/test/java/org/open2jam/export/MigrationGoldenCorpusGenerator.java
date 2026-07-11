@@ -28,6 +28,8 @@ public final class MigrationGoldenCorpusGenerator {
     public static final String JAVA_TOOL = "zulu-17.66.19.0";
     public static final String JAVA_ORACLE_TREE_SHA256 =
             "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e";
+    public static final String JAVA_ORACLE_FILES_SHA256 =
+            "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca";
 
     private static final String CANONICAL_WORK_ROOT = "/private/tmp/open2jam-java-golden-v1";
     private static final Path CORPUS_RELATIVE_PATH = Path.of("rewrite/golden/java-migration");
@@ -37,7 +39,7 @@ public final class MigrationGoldenCorpusGenerator {
             List.of("src/org/open2jam", "parsers/src", "src/resources");
     private static final String MANIFEST = """
             {
-              "schemaVersion": 2,
+              "schemaVersion": 3,
               "javaSourceCommit": "05257da",
               "javaDeterminismOverlayCommit": "62ece7083ea473f02ecc9a83ee7d3e151905bf0e",
               "javaDeterminismOverlayPurpose": "deterministic Liberation Sans font and provenance",
@@ -45,6 +47,8 @@ public final class MigrationGoldenCorpusGenerator {
               "javaOraclePaths": ["src/org/open2jam", "parsers/src", "src/resources"],
               "javaOracleTreeFile": "oracle-tree.txt",
               "javaOracleTreeSha256": "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e",
+              "javaOracleFilesystemManifestFile": "oracle-files.sha256",
+              "javaOracleFilesystemManifestSha256": "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca",
               "canonicalWorkRoot": "/private/tmp/open2jam-java-golden-v1",
               "cases": [
                 {"id": "vos-canon", "format": "VOS", "source": "sources/vos/canon.vos", "expected": "expected/vos"},
@@ -185,7 +189,7 @@ public final class MigrationGoldenCorpusGenerator {
         String readme = """
                 # Java Migration Golden Corpus
 
-                This corpus preserves Java behavior from source commit `05257da` plus determinism overlay `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, which pins Liberation Sans font bytes and provenance. `oracle-tree.txt` pins Git modes, blob identities, and paths for `src/org/open2jam`, `parsers/src`, and `src/resources`; its SHA-256 is `206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e`.
+                This corpus preserves Java behavior from source commit `05257da` plus determinism overlay `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, which pins Liberation Sans font bytes and provenance. `oracle-tree.txt` pins Git modes, blob identities, and paths for `src/org/open2jam`, `parsers/src`, and `src/resources`; its SHA-256 is `206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e`. `oracle-files.sha256` independently pins raw file bytes and filesystem-executable modes; its SHA-256 is `b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca`.
 
                 Normal tests treat this directory as read-only. Regenerate it only from the pinned Java source and toolchain with:
 
@@ -220,16 +224,9 @@ public final class MigrationGoldenCorpusGenerator {
         command.add(JAVA_DETERMINISM_OVERLAY_COMMIT);
         command.add("--");
         command.addAll(JAVA_ORACLE_PATHS);
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.environment().put("LC_ALL", "C");
-        builder.redirectErrorStream(true);
-        Process process = builder.start();
-        byte[] output = process.getInputStream().readAllBytes();
-        int exitCode = process.waitFor();
-        if (exitCode != 0 || output.length == 0) {
-            throw new IllegalStateException(
-                    "Unable to read pinned Java oracle tree: "
-                            + new String(output, StandardCharsets.UTF_8));
+        byte[] output = runCommand(command);
+        if (output.length == 0) {
+            throw new IllegalStateException("Pinned Java oracle tree is empty");
         }
         String tree = new String(output, StandardCharsets.UTF_8);
         String sha256 = HexFormat.of().formatHex(
@@ -239,6 +236,50 @@ public final class MigrationGoldenCorpusGenerator {
                     "Pinned Java oracle tree digest mismatch: " + sha256);
         }
         writeUtf8(stagedCorpus.resolve("oracle-tree.txt"), tree);
+
+        StringBuilder fileManifest = new StringBuilder();
+        for (String line : tree.split("\n")) {
+            int tab = line.indexOf('\t');
+            if (tab <= 0 || tab == line.length() - 1) {
+                throw new IllegalStateException("Invalid pinned Java oracle tree line: " + line);
+            }
+            String[] metadata = line.substring(0, tab).split(" ");
+            String relativePath = line.substring(tab + 1);
+            if (metadata.length != 3 || !"blob".equals(metadata[1])
+                    || (!("100644".equals(metadata[0])) && !("100755".equals(metadata[0])))) {
+                throw new IllegalStateException("Unsupported pinned Java oracle entry: " + line);
+            }
+            byte[] blob = runCommand(List.of("git", "cat-file", "blob", metadata[2]));
+            String blobSha256 = HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(blob));
+            fileManifest.append(metadata[0]).append(' ').append(blobSha256)
+                    .append("  ").append(relativePath).append('\n');
+        }
+        String rawManifest = fileManifest.toString();
+        String rawManifestSha256 = HexFormat.of().formatHex(
+                MessageDigest.getInstance("SHA-256")
+                        .digest(rawManifest.getBytes(StandardCharsets.UTF_8)));
+        if (!JAVA_ORACLE_FILES_SHA256.equals(rawManifestSha256)) {
+            throw new IllegalStateException(
+                    "Pinned Java oracle filesystem manifest digest mismatch: "
+                            + rawManifestSha256);
+        }
+        writeUtf8(stagedCorpus.resolve("oracle-files.sha256"), rawManifest);
+    }
+
+    private static byte[] runCommand(List<String> command) throws Exception {
+        ProcessBuilder builder = new ProcessBuilder(command);
+        builder.environment().put("LC_ALL", "C");
+        builder.redirectErrorStream(true);
+        Process process = builder.start();
+        byte[] output = process.getInputStream().readAllBytes();
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new IllegalStateException(
+                    "Command failed: " + command + ": "
+                            + new String(output, StandardCharsets.UTF_8));
+        }
+        return output;
     }
 
     private static void writeHashes(Path stagedCorpus) throws Exception {
@@ -351,7 +392,8 @@ public final class MigrationGoldenCorpusGenerator {
         Files.writeString(path, content, StandardCharsets.UTF_8);
     }
 
-    private static void resetDirectory(Path root) throws Exception {
+    static void resetDirectory(Path root) throws Exception {
+        validateNoSymlinkAncestry(root.toAbsolutePath().normalize(), "reset directory");
         if (Files.exists(root, LinkOption.NOFOLLOW_LINKS) || Files.isSymbolicLink(root)) {
             List<Path> entries = validateTree(root, "reset directory");
             for (Path path : entries.stream().sorted(Comparator.reverseOrder()).toList()) {
@@ -407,6 +449,7 @@ public final class MigrationGoldenCorpusGenerator {
     }
 
     private static List<Path> validateTree(Path root, String role) throws Exception {
+        validateNoSymlinkAncestry(root.toAbsolutePath().normalize(), role);
         if (Files.isSymbolicLink(root)) {
             throw new IllegalArgumentException(role + " contains a symbolic link: " + root);
         }
@@ -476,7 +519,7 @@ public final class MigrationGoldenCorpusGenerator {
 
     private static List<TempRoot> controlledTempRoots() throws Exception {
         Set<String> candidates = new LinkedHashSet<>();
-        candidates.add(System.getProperty("java.io.tmpdir"));
+        candidates.add(System.getenv("TMPDIR"));
         candidates.add("/private/tmp");
         candidates.add("/tmp");
         List<TempRoot> roots = new ArrayList<>();

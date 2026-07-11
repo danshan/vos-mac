@@ -325,6 +325,8 @@ create_fixture() {
 			"$fixture_root/rewrite/tools/" \
 		|| ! cp rewrite/tools/JarResourceVerifier.java \
 			"$fixture_root/rewrite/tools/" \
+		|| ! cp rewrite/tools/JavaOracleFilesystemVerifier.java \
+			"$fixture_root/rewrite/tools/" \
 		|| ! cp rewrite/tools/verify_build_workflow.sh \
 			"$fixture_root/rewrite/tools/" \
 		|| ! cp rewrite/tools/verify_java_migration_goldens.sh \
@@ -363,6 +365,11 @@ create_fixture() {
 	if ! printf 'baseline\n' \
 		>"$fixture_root/rewrite/golden/java-migration/data.txt"; then
 		printf 'Unable to write fixture corpus.\n' >&2
+		return 1
+	fi
+	if ! printf 'fixture oracle manifest\n' \
+		>"$fixture_root/rewrite/golden/java-migration/oracle-files.sha256"; then
+		printf 'Unable to write fixture oracle manifest.\n' >&2
 		return 1
 	fi
 	if ! (
@@ -696,6 +703,39 @@ continue_on_error_package_step() {
 	fi
 }
 
+inject_required_step_line() {
+	local fixture_root="$1"
+	local target_line="$2"
+	local injected_line="$3"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk -v target="$target_line" -v injected="$injected_line" \
+		'{ print; if ($0 == target) print injected }' \
+		"$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to inject required workflow step configuration.\n' >&2
+		return 1
+	fi
+}
+
+duplicate_package_step() {
+	local fixture_root="$1"
+	local workflow="$fixture_root/.github/workflows/build.yml"
+	assert_fixture_path "$fixture_root" || return 1
+	if ! awk '{
+		print
+		if ($0 == "        run: bash rewrite/tools/verify_java_migration_package.sh") {
+			print ""
+			print "      - name: Verify packaged migration resources"
+			print "        run: bash rewrite/tools/verify_java_migration_package.sh"
+		}
+	}' "$workflow" >"$workflow.tmp" \
+		|| ! mv "$workflow.tmp" "$workflow"; then
+		printf 'Unable to duplicate fixture package gate.\n' >&2
+		return 1
+	fi
+}
+
 write_reordered_workflow() {
 	local fixture_root="$1"
 	local workflow="$fixture_root/.github/workflows/build.yml"
@@ -741,7 +781,9 @@ install_real_contract() {
 	local fixture_root="$1"
 	assert_fixture_path "$fixture_root" || return 1
 	if ! cp rewrite/tools/test_verify_java_migration_goldens.sh \
-		"$fixture_root/rewrite/tools/test_verify_java_migration_goldens.sh"; then
+		"$fixture_root/rewrite/tools/test_verify_java_migration_goldens.sh" \
+		|| ! cp rewrite/tools/verify_java_oracle_provenance.sh \
+			"$fixture_root/rewrite/tools/verify_java_oracle_provenance.sh"; then
 		printf 'Unable to install real contract in fixture.\n' >&2
 		return 1
 	fi
@@ -949,7 +991,7 @@ fixture="$CREATED_FIXTURE"
 install_real_contract "$fixture"
 comment_golden_run "$fixture"
 expect_contract_failure "commented workflow golden gate" "$fixture" \
-	"Build workflow does not run the golden verifier"
+	"Required workflow step contains unexpected configuration"
 
 create_fixture
 fixture="$CREATED_FIXTURE"
@@ -977,7 +1019,7 @@ fixture="$CREATED_FIXTURE"
 install_real_contract "$fixture"
 comment_package_run "$fixture"
 expect_contract_failure "commented workflow package gate" "$fixture" \
-	"Build workflow does not verify the final packaged JAR"
+	"Required workflow step contains unexpected configuration"
 
 create_fixture
 fixture="$CREATED_FIXTURE"
@@ -992,6 +1034,41 @@ install_real_contract "$fixture"
 continue_on_error_package_step "$fixture"
 expect_contract_failure "continue-on-error workflow package gate" "$fixture" \
 	"Required workflow step cannot set continue-on-error"
+
+for required_line in \
+	'        uses: jdx/mise-action@v4' \
+	'        run: mise run verify-goldens' \
+	'        run: mise exec -- bash -lc '\''mvn --batch-mode -s "$MAVEN_SETTINGS" clean verify'\''' \
+	'        run: bash rewrite/tools/verify_java_migration_package.sh'; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	inject_required_step_line "$fixture" "$required_line" '        if : false'
+	expect_contract_failure "whitespace-equivalent disabled required workflow step" \
+		"$fixture" "Required workflow step contains unexpected configuration"
+done
+
+for injected_line in \
+	'        "if": false' \
+	"        'if' : false" \
+	'        continue-on-error : true' \
+	'        "continue-on-error": true'; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	inject_required_step_line "$fixture" \
+		'        run: bash rewrite/tools/verify_java_migration_package.sh' \
+		"$injected_line"
+	expect_contract_failure "quoted or whitespace package-step bypass" \
+		"$fixture" "Required workflow step contains unexpected configuration"
+done
+
+create_fixture
+fixture="$CREATED_FIXTURE"
+install_real_contract "$fixture"
+duplicate_package_step "$fixture"
+expect_contract_failure "duplicate workflow package gate" "$fixture" \
+	"Build workflow required step name is missing or duplicated"
 
 create_fixture
 fixture="$CREATED_FIXTURE"

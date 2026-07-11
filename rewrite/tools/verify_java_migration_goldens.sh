@@ -66,7 +66,9 @@ for required_file in \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \
 	pom.xml "$MAVEN_SETTINGS_FILE" "$REPORT_VERIFIER" \
 	rewrite/tools/JarResourceVerifier.java \
-	"$CORPUS_DIR/manifest.sha256"; do
+	rewrite/tools/JavaOracleFilesystemVerifier.java \
+	"$CORPUS_DIR/manifest.sha256" \
+	"$CORPUS_DIR/oracle-files.sha256"; do
 	require_file "$required_file"
 done
 

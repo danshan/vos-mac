@@ -15,6 +15,8 @@ class MigrationGoldenCorpusTest {
     private static final Path COMMITTED = Path.of("rewrite/golden/java-migration");
     private static final String ORACLE_TREE_SHA256 =
             "206614ef6d5df3ae2cd5f42ea0b1f0499cd7a3137cfbdf11c5a345fb8ff6978e";
+    private static final String ORACLE_FILES_SHA256 =
+            "b1e093eaf4dd2a28ae918d29afcccff8d40b7ad60410d1caee5219fcec74feca";
 
     @TempDir
     Path tempDir;
@@ -32,9 +34,15 @@ class MigrationGoldenCorpusTest {
                 "\"javaOraclePaths\": [\"src/org/open2jam\", \"parsers/src\", \"src/resources\"]"));
         assertTrue(manifest.contains("\"javaOracleTreeFile\": \"oracle-tree.txt\""));
         assertTrue(manifest.contains("\"javaOracleTreeSha256\": \"" + ORACLE_TREE_SHA256 + "\""));
+        assertTrue(manifest.contains(
+                "\"javaOracleFilesystemManifestFile\": \"oracle-files.sha256\""));
+        assertTrue(manifest.contains(
+                "\"javaOracleFilesystemManifestSha256\": \"" + ORACLE_FILES_SHA256 + "\""));
         assertTrue(manifest.contains("\"canonicalWorkRoot\": \"/private/tmp/open2jam-java-golden-v1\""));
         assertFalse(manifest.contains("generatedAt"));
         assertTrue(Files.readString(COMMITTED.resolve("oracle-tree.txt"), StandardCharsets.UTF_8)
+                .contains("src/org/open2jam/export/VosRenderMetadataExporter.java"));
+        assertTrue(Files.readString(COMMITTED.resolve("oracle-files.sha256"), StandardCharsets.UTF_8)
                 .contains("src/org/open2jam/export/VosRenderMetadataExporter.java"));
         assertEquals(Files.readString(COMMITTED.resolve("manifest.files"), StandardCharsets.UTF_8),
                 MigrationGoldenCorpusGenerator.fileTypeManifest(COMMITTED));
@@ -47,7 +55,7 @@ class MigrationGoldenCorpusTest {
         Path regenerated = tempDir.resolve("regenerated");
         MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("work"));
         assertEquals(MigrationGoldenCorpusGenerator.hashManifest(COMMITTED),
-                MigrationGoldenCorpusGenerator.hashManifest(regenerated));
+                MigrationGoldenCorpusGenerator.hashManifest(regenerated.toRealPath()));
     }
 
     @Test
@@ -74,7 +82,7 @@ class MigrationGoldenCorpusTest {
         Files.createSymbolicLink(regenerated.resolve("linked-directory"), external);
 
         assertThrows(IllegalArgumentException.class,
-                () -> MigrationGoldenCorpusGenerator.hashManifest(regenerated));
+                () -> MigrationGoldenCorpusGenerator.hashManifest(regenerated.toRealPath()));
     }
 
     @Test
@@ -86,6 +94,6 @@ class MigrationGoldenCorpusTest {
         assertEquals(0, process.waitFor());
 
         assertThrows(IllegalArgumentException.class,
-                () -> MigrationGoldenCorpusGenerator.hashManifest(regenerated));
+                () -> MigrationGoldenCorpusGenerator.hashManifest(regenerated.toRealPath()));
     }
 }

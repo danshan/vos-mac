@@ -42,7 +42,7 @@ class MigrationGoldenCorpusGeneratorTest {
         assertTrue(output.resolve("manifest.files").toFile().isFile());
         assertTrue(output.resolve("manifest.sha256").toFile().isFile());
         assertEquals(Files.readString(output.resolve("manifest.files")),
-                MigrationGoldenCorpusGenerator.fileTypeManifest(output));
+                MigrationGoldenCorpusGenerator.fileTypeManifest(output.toRealPath()));
 
         String firstHashes = Files.readString(output.resolve("manifest.sha256"));
         String firstTypes = Files.readString(output.resolve("manifest.files"));
@@ -53,8 +53,9 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void rejectsSameByteFileSymlinkFromHashManifest() throws Exception {
-        Path root = tempDir.resolve("symlink-corpus");
-        Path target = tempDir.resolve("target.json");
+        Path base = tempDir.toRealPath();
+        Path root = base.resolve("symlink-corpus");
+        Path target = base.resolve("target.json");
         Files.createDirectories(root);
         Files.writeString(target, "same bytes\n");
         Files.createSymbolicLink(root.resolve("data.json"), target);
@@ -65,8 +66,9 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void rejectsDirectorySymlinkFromFileTypeManifest() throws Exception {
-        Path root = tempDir.resolve("directory-symlink-corpus");
-        Path target = tempDir.resolve("linked-directory");
+        Path base = tempDir.toRealPath();
+        Path root = base.resolve("directory-symlink-corpus");
+        Path target = base.resolve("linked-directory");
         Files.createDirectories(root);
         Files.createDirectories(target);
         Files.writeString(target.resolve("data.json"), "same bytes\n");
@@ -77,8 +79,28 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void hashAndFileTypeRejectSymlinkedRootAncestor() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path realRoot = base.resolve("real-corpus-root");
+        Path corpus = realRoot.resolve("corpus");
+        Path alias = base.resolve("corpus-alias");
+        Files.createDirectories(corpus);
+        Files.writeString(corpus.resolve("data.txt"), "data\n");
+        Files.writeString(corpus.resolve("manifest.files"), "");
+        Files.writeString(corpus.resolve("manifest.files"),
+                MigrationGoldenCorpusGenerator.fileTypeManifest(corpus));
+        Files.createSymbolicLink(alias, realRoot);
+        Path aliasedCorpus = alias.resolve("corpus");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.fileTypeManifest(aliasedCorpus));
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.hashManifest(aliasedCorpus));
+    }
+
+    @Test
     void rejectsSpecialFileFromFileTypeManifest() throws Exception {
-        Path root = tempDir.resolve("special-file-corpus");
+        Path root = tempDir.toRealPath().resolve("special-file-corpus");
         Path fifo = root.resolve("fifo");
         Files.createDirectories(root);
 
@@ -167,6 +189,22 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void resetDirectoryRejectsSymlinkedAncestorBeforeDeletingSentinel() throws Exception {
+        Path base = tempDir.toRealPath();
+        Path realRoot = base.resolve("real-reset-root");
+        Path resetRoot = realRoot.resolve("reset");
+        Path alias = base.resolve("reset-alias");
+        Path sentinel = resetRoot.resolve("sentinel.txt");
+        Files.createDirectories(resetRoot);
+        Files.writeString(sentinel, "keep\n");
+        Files.createSymbolicLink(alias, realRoot);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> MigrationGoldenCorpusGenerator.resetDirectory(alias.resolve("reset")));
+        assertEquals("keep\n", Files.readString(sentinel));
+    }
+
+    @Test
     void rejectsExistingSymlinkComponentBeforeMutation() throws Exception {
         Path realOutput = tempDir.resolve("real-output");
         Path linkedOutput = tempDir.resolve("linked-output");
@@ -205,6 +243,29 @@ class MigrationGoldenCorpusGeneratorTest {
     }
 
     @Test
+    void ignoresForgedJavaIoTmpdirWhenItDivergesFromProcessEnvironment() throws Exception {
+        String originalTmpdir = System.getProperty("java.io.tmpdir");
+        Path forgedRoot = Path.of(System.getProperty("user.home")).toAbsolutePath().normalize();
+        Path safeWork = tempDir.resolve("forged-property-safe-work");
+        Path sentinel = tempDir.resolve("forged-property-sentinel.txt");
+        Files.writeString(sentinel, "keep\n");
+
+        try {
+            System.setProperty("java.io.tmpdir", forgedRoot.toString());
+            assertThrows(IllegalArgumentException.class,
+                    () -> MigrationGoldenCorpusGenerator.validateProgrammaticPaths(
+                            forgedRoot.resolve("open2jam-forged-output"), safeWork));
+            assertEquals("keep\n", Files.readString(sentinel));
+        } finally {
+            if (originalTmpdir == null) {
+                System.clearProperty("java.io.tmpdir");
+            } else {
+                System.setProperty("java.io.tmpdir", originalTmpdir);
+            }
+        }
+    }
+
+    @Test
     void cliValidationAcceptsOnlyExactCorpusOutputAndControlledTempWork() throws Exception {
         Path projectRoot = Path.of("").toRealPath();
         String corpusOutput = "rewrite/golden/java-migration";
@@ -234,7 +295,7 @@ class MigrationGoldenCorpusGeneratorTest {
 
     @Test
     void fileTypeManifestPinsOnlyRegularFilesAndDirectoriesInStableOrder() throws Exception {
-        Path root = tempDir.resolve("typed-corpus");
+        Path root = tempDir.toRealPath().resolve("typed-corpus");
         Files.createDirectories(root.resolve("b"));
         Files.createDirectories(root.resolve("a"));
         Files.writeString(root.resolve("b/two.txt"), "two\n");

@@ -1,8 +1,10 @@
 {
   "schemaVersion": 1,
   "javaSourceCommit": "05257da",
+  "javaDeterminismOverlayCommit": "62ece7083ea473f02ecc9a83ee7d3e151905bf0e",
+  "javaDeterminismOverlayPurpose": "deterministic Liberation Sans font and provenance",
   "javaTool": "zulu-17.66.19.0",
-  "canonicalWorkRoot": "/tmp/open2jam-java-golden-v1",
+  "canonicalWorkRoot": "/private/tmp/open2jam-java-golden-v1",
   "cases": [
     {"id": "vos-canon", "format": "VOS", "source": "sources/vos/canon.vos", "expected": "expected/vos"},
     {"id": "ojn-o2jam", "format": "OJN", "source": "sources/ojn/o2jam.ojn", "expected": "expected/ojn"},

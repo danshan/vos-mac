@@ -12,8 +12,8 @@
 
 - Run Java and Maven through mise and `.mvn/settings.xml`; never use host `java` or `mvn` as the project verdict.
 - Golden source files must be self-authored by fixture factories and safe to commit.
-- Golden generation uses the fixed canonical work root `/tmp/open2jam-java-golden-v1` so path-derived IDs remain deterministic.
-- Golden provenance records Java source commit `05257da` and mise Java tool `zulu-17.66.19.0`.
+- Golden reproduction uses unique work roots, then normalizes expected paths and path-derived IDs to the macOS canonical root `/private/tmp/open2jam-java-golden-v1`; the explicit CLI may use `/tmp/open2jam-java-golden-v1`, which resolves to that canonical path on macOS.
+- Golden provenance records base Java source commit `05257da`, determinism overlay commit `62ece7083ea473f02ecc9a83ee7d3e151905bf0e`, its fixed-font purpose, and mise Java tool `zulu-17.66.19.0`.
 - Selected migration tests must not use `assumeTrue`, `/Users/...`, downloads, or machine-local song directories.
 - Java goldens are generated only by the explicit generator command; normal tests are read-only.
 - VOS Java WAV bytes are frozen as historical evidence, but later Rust VOS parity follows ADR 0003 and does not require Java PCM byte equality.
@@ -654,8 +654,10 @@ Files.writeString(outputRoot.resolve("sources/malformed/non-mania.osu"),
 {
   "schemaVersion": 1,
   "javaSourceCommit": "05257da",
+  "javaDeterminismOverlayCommit": "62ece7083ea473f02ecc9a83ee7d3e151905bf0e",
+  "javaDeterminismOverlayPurpose": "deterministic Liberation Sans font and provenance",
   "javaTool": "zulu-17.66.19.0",
-  "canonicalWorkRoot": "/tmp/open2jam-java-golden-v1",
+  "canonicalWorkRoot": "/private/tmp/open2jam-java-golden-v1",
   "cases": [
     {"id": "vos-canon", "format": "VOS", "source": "sources/vos/canon.vos", "expected": "expected/vos"},
     {"id": "ojn-o2jam", "format": "OJN", "source": "sources/ojn/o2jam.ojn", "expected": "expected/ojn"},
@@ -768,7 +770,6 @@ import org.junit.jupiter.api.io.TempDir;
 
 class MigrationGoldenCorpusTest {
     private static final Path COMMITTED = Path.of("rewrite/golden/java-migration");
-    private static final Path WORK = Path.of("/tmp/open2jam-java-golden-v1");
 
     @TempDir
     Path tempDir;
@@ -776,8 +777,13 @@ class MigrationGoldenCorpusTest {
     @Test
     void committedHashesMatchManifest() throws Exception {
         String manifest = Files.readString(COMMITTED.resolve("manifest.json"), StandardCharsets.UTF_8);
-        assertTrue(manifest.contains("\"javaSourceCommit\":\"05257da\""));
-        assertTrue(manifest.contains("\"javaTool\":\"zulu-17.66.19.0\""));
+        assertTrue(manifest.contains("\"javaSourceCommit\": \"05257da\""));
+        assertTrue(manifest.contains(
+                "\"javaDeterminismOverlayCommit\": \"62ece7083ea473f02ecc9a83ee7d3e151905bf0e\""));
+        assertTrue(manifest.contains(
+                "\"javaDeterminismOverlayPurpose\": \"deterministic Liberation Sans font and provenance\""));
+        assertTrue(manifest.contains("\"javaTool\": \"zulu-17.66.19.0\""));
+        assertTrue(manifest.contains("\"canonicalWorkRoot\": \"/private/tmp/open2jam-java-golden-v1\""));
         assertFalse(manifest.contains("generatedAt"));
         assertEquals(Files.readString(COMMITTED.resolve("manifest.sha256"), StandardCharsets.UTF_8),
                 MigrationGoldenCorpusGenerator.hashManifest(COMMITTED));
@@ -786,7 +792,7 @@ class MigrationGoldenCorpusTest {
     @Test
     void pinnedJavaReproducesCommittedCorpus() throws Exception {
         Path regenerated = tempDir.resolve("regenerated");
-        MigrationGoldenCorpusGenerator.generate(regenerated, WORK);
+        MigrationGoldenCorpusGenerator.generate(regenerated, tempDir.resolve("work"));
         assertEquals(MigrationGoldenCorpusGenerator.hashManifest(COMMITTED),
                 MigrationGoldenCorpusGenerator.hashManifest(regenerated));
     }

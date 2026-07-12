@@ -36,10 +36,10 @@ done
 
 temp_base=${TMPDIR:-/tmp}
 temp_root=""
-[[ -n "$temp_base" && "$temp_base" != "/" && "$temp_base" != "//" ]] \
-  || fail "unsafe temporary base"
 temp_base=$(cd "$temp_base" && pwd -P) \
   || fail "temporary base is unavailable"
+[[ -n "$temp_base" && "$temp_base" != "/" && "$temp_base" != "//" ]] \
+  || fail "unsafe temporary base"
 temp_root=$(mktemp -d "$temp_base/open2jam-native-workspace.XXXXXX") \
   || fail "temporary root creation failed"
 
@@ -73,72 +73,332 @@ cmp -s "$expected_stdout" "$actual_stdout" \
 [[ ! -s "$actual_stderr" ]] \
   || fail "version stderr is not empty"
 
-if ! awk '
+if ! LC_ALL=C awk '
   BEGIN {
-    cargo_name = "car" "go"
-    rustc_name = "rust" "c"
-    current_file = ""
+    cargo_name = "cargo"
+    rustc_name = "rustc"
+    single_quote = sprintf("%c", 39)
+    quoted_mask = sprintf("%c", 28)
+    seen_file = 0
+    shell_source = 0
+    markdown_source = 0
+    markdown_shell_fence = 0
+    quote_state = ""
+    heredoc_delimiter = ""
+    heredoc_strip_tabs = 0
     logical_line = ""
     logical_line_number = 0
     invalid = 0
   }
 
-  function is_name_character(character) {
-    return character ~ /[[:alnum:]_.-]/
+  function trim(text) {
+    sub(/^[[:space:]]+/, "", text)
+    sub(/[[:space:]]+$/, "", text)
+    return text
   }
 
-  function inspect_tool(text, tool, file, line_number,
-      remaining, offset, position, before, after, absolute, prefix, advance) {
-    remaining = text
-    offset = 0
-    while ((position = index(remaining, tool)) > 0) {
-      before = position > 1 ? substr(remaining, position - 1, 1) : ""
-      after = substr(remaining, position + length(tool), 1)
-      if (!is_name_character(before) && !is_name_character(after)) {
-        absolute = offset + position
-        prefix = substr(text, 1, absolute - 1)
-        if (prefix !~ /(^|[[:space:];|&({!])mise[[:space:]]+exec[[:space:]]+--[[:space:]]*$/) {
-          printf "%s:%d: Rust tool command is not launched by mise exec --\n", \
-            file, line_number > "/dev/stderr"
-          invalid = 1
-        }
+  function command_basename(word) {
+    sub(/^.*\//, "", word)
+    return word
+  }
+
+  function is_tool_command(word) {
+    word = command_basename(word)
+    return word == cargo_name || word == rustc_name
+  }
+
+  function is_reserved_prefix(word) {
+    return word == "if" || word == "then" || word == "elif" \
+      || word == "while" || word == "until" || word == "do" \
+      || word == "else" || word == "!" || word == "{" || word == "}"
+  }
+
+  function is_assignment(word) {
+    return word ~ /^[[:alpha:]_][[:alnum:]_]*=/
+  }
+
+  function is_redirection(word) {
+    return word ~ /^([[:digit:]]+)?(<>|>>|>|<<|<)/
+  }
+
+  function report_bare_command(file, line_number) {
+    printf "%s:%d: Rust tool command is not launched by mise exec --\n", \
+      file, line_number > "/dev/stderr"
+    invalid = 1
+  }
+
+  function analyze_segment(segment, file, line_number,
+      words, count, word_index, command, option, tool_index) {
+    segment = trim(segment)
+    if (segment == "") {
+      return
+    }
+
+    count = split(segment, words, /[[:space:]]+/)
+    word_index = 1
+    while (word_index <= count) {
+      if (words[word_index] == "" || is_reserved_prefix(words[word_index]) \
+          || is_assignment(words[word_index])) {
+        word_index++
+        continue
       }
-      advance = position + length(tool) - 1
-      offset += advance
-      remaining = substr(remaining, advance + 1)
+      if (is_redirection(words[word_index])) {
+        if (words[word_index] ~ /^([[:digit:]]+)?(<>|>>|>|<<|<)$/) {
+          word_index += 2
+        } else {
+          word_index++
+        }
+        continue
+      }
+      break
+    }
+
+    while (word_index <= count) {
+      command = command_basename(words[word_index])
+      if (command == "env") {
+        word_index++
+        while (word_index <= count) {
+          option = words[word_index]
+          if (is_assignment(option)) {
+            word_index++
+          } else if (option == "-u" || option == "--unset" \
+              || option == "-C" || option == "--chdir") {
+            word_index += 2
+          } else if (option ~ /^-/) {
+            word_index++
+          } else {
+            break
+          }
+        }
+        continue
+      }
+      if (command == "command" || command == "exec" || command == "nohup") {
+        word_index++
+        while (word_index <= count && words[word_index] ~ /^-/) {
+          word_index++
+        }
+        continue
+      }
+      break
+    }
+
+    if (word_index > count) {
+      return
+    }
+    command = command_basename(words[word_index])
+    if (is_tool_command(command)) {
+      report_bare_command(file, line_number)
+      return
+    }
+    if (command != "mise") {
+      return
+    }
+
+    for (tool_index = word_index + 1; tool_index <= count; tool_index++) {
+      if (!is_tool_command(words[tool_index])) {
+        continue
+      }
+      if (tool_index != word_index + 3 \
+          || words[word_index + 1] != "exec" \
+          || words[word_index + 2] != "--" \
+          || (words[tool_index] != cargo_name \
+            && words[tool_index] != rustc_name)) {
+        report_bare_command(file, line_number)
+      }
     }
   }
 
-  function inspect(text, file, line_number) {
-    inspect_tool(text, cargo_name, file, line_number)
-    inspect_tool(text, rustc_name, file, line_number)
+  function analyze_line(text, file, line_number,
+      segment, character, position) {
+    segment = ""
+    for (position = 1; position <= length(text); position++) {
+      character = substr(text, position, 1)
+      if (character ~ /[;|&()]/) {
+        analyze_segment(segment, file, line_number)
+        segment = ""
+      } else {
+        segment = segment character
+      }
+    }
+    analyze_segment(segment, file, line_number)
   }
 
-  {
-    if (current_file != FILENAME) {
-      if (logical_line != "") {
-        inspect(logical_line, current_file, logical_line_number)
+  function mask_quoted_character(character) {
+    if (character ~ /[[:space:];|&()#]/) {
+      return quoted_mask
+    }
+    return character
+  }
+
+  function sanitize_shell_line(raw,
+      result, position, character, next_character, previous_character,
+      started_in_quote) {
+    result = ""
+    line_continues = 0
+    started_in_quote = quote_state != ""
+    if (started_in_quote) {
+      result = "__quoted_continuation__ "
+    }
+
+    for (position = 1; position <= length(raw); position++) {
+      character = substr(raw, position, 1)
+      if (quote_state == "single") {
+        if (character == single_quote) {
+          quote_state = ""
+        } else {
+          result = result mask_quoted_character(character)
+        }
+        continue
       }
-      current_file = FILENAME
+      if (quote_state == "double") {
+        if (character == "\\") {
+          if (position < length(raw)) {
+            position++
+            next_character = substr(raw, position, 1)
+            result = result mask_quoted_character(next_character)
+          }
+        } else if (character == "\"") {
+          quote_state = ""
+        } else {
+          result = result mask_quoted_character(character)
+        }
+        continue
+      }
+
+      if (character == single_quote) {
+        quote_state = "single"
+      } else if (character == "\"") {
+        quote_state = "double"
+      } else if (character == "#") {
+        previous_character = position > 1 ? substr(raw, position - 1, 1) : ""
+        if (position == 1 || previous_character ~ /[[:space:];|&()]/) {
+          break
+        }
+        result = result character
+      } else if (character == "\\") {
+        if (position == length(raw)) {
+          line_continues = 1
+          break
+        }
+        position++
+        next_character = substr(raw, position, 1)
+        result = result mask_quoted_character(next_character)
+      } else {
+        result = result character
+      }
+    }
+    return result
+  }
+
+  function detect_heredoc(text,
+      position, tail, candidate, parts, count) {
+    position = index(text, "<<")
+    if (position == 0 || substr(text, position + 2, 1) == "<") {
+      return
+    }
+    tail = substr(text, position + 2)
+    tail = trim(tail)
+    heredoc_strip_tabs = 0
+    if (substr(tail, 1, 1) == "-") {
+      heredoc_strip_tabs = 1
+      tail = trim(substr(tail, 2))
+    }
+    count = split(tail, parts, /[[:space:];|&()<>]+/)
+    candidate = count > 0 ? parts[1] : ""
+    if (candidate ~ /^[[:alpha:]_][[:alnum:]_]*$/) {
+      heredoc_delimiter = candidate
+    }
+  }
+
+  function finish_shell_content(file, line_number) {
+    if (logical_line != "") {
+      analyze_line(logical_line, file, logical_line_number)
       logical_line = ""
     }
+    if (quote_state != "" || heredoc_delimiter != "") {
+      printf "%s:%d: unterminated shell data while checking Rust commands\n", \
+        file, line_number > "/dev/stderr"
+      invalid = 1
+    }
+    quote_state = ""
+    heredoc_delimiter = ""
+    heredoc_strip_tabs = 0
+  }
+
+  function process_shell_line(raw, file, line_number,
+      comparable, clean) {
+    if (heredoc_delimiter != "") {
+      comparable = raw
+      if (heredoc_strip_tabs) {
+        sub(/^\t+/, "", comparable)
+      }
+      if (comparable == heredoc_delimiter) {
+        heredoc_delimiter = ""
+        heredoc_strip_tabs = 0
+      }
+      return
+    }
+
+    clean = sanitize_shell_line(raw)
     if (logical_line == "") {
-      logical_line = $0
-      logical_line_number = FNR
+      logical_line = clean
+      logical_line_number = line_number
     } else {
-      logical_line = logical_line "\n" $0
+      logical_line = logical_line " " clean
     }
-    if ($0 ~ /\\[[:space:]]*$/) {
-      sub(/\\[[:space:]]*$/, " ", logical_line)
-      next
+    if (line_continues) {
+      return
     }
-    inspect(logical_line, FILENAME, logical_line_number)
+    detect_heredoc(logical_line)
+    analyze_line(logical_line, file, logical_line_number)
     logical_line = ""
   }
 
+  {
+    if (FNR == 1) {
+      if (seen_file) {
+        finish_shell_content(previous_file, previous_line_number)
+      }
+      seen_file = 1
+      previous_file = FILENAME
+      previous_line_number = 1
+      shell_source = FILENAME ~ /\.sh$/ \
+        || $0 ~ /^#!.*([[:space:]\/])(ba|z|k)?sh([[:space:]]|$)/
+      markdown_source = FILENAME ~ /\.md$/
+      markdown_shell_fence = 0
+      quote_state = ""
+      heredoc_delimiter = ""
+      heredoc_strip_tabs = 0
+      logical_line = ""
+    }
+    previous_line_number = FNR
+
+    if (markdown_source) {
+      if (!markdown_shell_fence \
+          && $0 ~ /^```(bash|sh|shell)[[:space:]]*$/) {
+        markdown_shell_fence = 1
+        next
+      }
+      if (markdown_shell_fence && $0 ~ /^```[[:space:]]*$/) {
+        finish_shell_content(FILENAME, FNR)
+        markdown_shell_fence = 0
+        next
+      }
+      if (!markdown_shell_fence) {
+        next
+      }
+      process_shell_line($0, FILENAME, FNR)
+      next
+    }
+
+    if (shell_source) {
+      process_shell_line($0, FILENAME, FNR)
+    }
+  }
+
   END {
-    if (logical_line != "") {
-      inspect(logical_line, current_file, logical_line_number)
+    if (seen_file) {
+      finish_shell_content(previous_file, previous_line_number)
     }
     if (invalid) {
       exit 1

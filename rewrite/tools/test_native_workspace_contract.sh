@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)
 gate_source="$repo_root/rewrite/tools/test_native_workspace.sh"
+self_test_source="$repo_root/rewrite/tools/test_native_workspace_contract.sh"
 temp_base=${TMPDIR:-/tmp}
 fixture_root=""
 
@@ -11,9 +12,23 @@ fail() {
   exit 1
 }
 
-[[ -n "$temp_base" && "$temp_base" != "/" && "$temp_base" != "//" ]] \
-  || fail "unsafe temporary base"
-temp_base=$(cd "$temp_base" && pwd -P)
+canonicalize_temp_base() {
+  local candidate="$1"
+  local canonical
+
+  canonical=$(cd "$candidate" && pwd -P) \
+    || fail "temporary base is unavailable"
+  [[ -n "$canonical" && "$canonical" != "/" && "$canonical" != "//" ]] \
+    || fail "unsafe temporary base"
+  printf '%s\n' "$canonical"
+}
+
+if [[ "${1:-}" == "--temp-base-probe" ]]; then
+  temp_base=$(canonicalize_temp_base "$temp_base")
+  exit 0
+fi
+
+temp_base=$(canonicalize_temp_base "$temp_base")
 fixture_root=$(mktemp -d "$temp_base/open2jam-native-workspace-test.XXXXXX")
 
 cleanup() {
@@ -29,18 +44,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-cargo_tool='car''go'
-rustc_tool='rust''c'
+cargo_tool='cargo'
+rustc_tool='rustc'
 expected_json='{"schemaVersion":1,"converterVersion":"0.1.0","protocolSchemaVersion":1,"catalogSchemaVersion":2,"bundleSchemaVersion":2,"catalogFormats":[],"bundleFormats":[]}'
 gate_stdout="$fixture_root/gate.stdout"
 gate_stderr="$fixture_root/gate.stderr"
 probe="$fixture_root/rewrite/tools/probe.sh"
+non_shell_probe="$fixture_root/rewrite/tools/probe.java"
+root_link="$fixture_root/root-link"
+temp_create_marker="$fixture_root/temp-create.marker"
+cleanup_marker="$fixture_root/cleanup.marker"
+temp_probe_stdout="$fixture_root/temp-probe.stdout"
+temp_probe_stderr="$fixture_root/temp-probe.stderr"
 
 mkdir -p \
   "$fixture_root/bin" \
   "$fixture_root/native/crates/open2jam-core/src" \
   "$fixture_root/native/crates/open2jam-cli/src" \
   "$fixture_root/rewrite/tools" \
+  "$fixture_root/temp-probe-bin" \
   "$fixture_root/tmp"
 cp "$gate_source" "$fixture_root/rewrite/tools/test_native_workspace.sh"
 chmod +x "$fixture_root/rewrite/tools/test_native_workspace.sh"
@@ -75,6 +97,28 @@ exit "${NATIVE_TEST_EXIT_CODE:-0}"
 EOF
 chmod +x "$fixture_root/bin/mise"
 
+cat >"$fixture_root/temp-probe-bin/mktemp" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${NATIVE_TEMP_CREATE_MARKER:?}"
+printf 'called\n' >>"$NATIVE_TEMP_CREATE_MARKER"
+exit 1
+EOF
+chmod +x "$fixture_root/temp-probe-bin/mktemp"
+
+cat >"$fixture_root/temp-probe-bin/rm" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${NATIVE_CLEANUP_MARKER:?}"
+printf 'called\n' >>"$NATIVE_CLEANUP_MARKER"
+exit 1
+EOF
+chmod +x "$fixture_root/temp-probe-bin/rm"
+
+ln -s / "$root_link"
+
 write_probe() {
   printf '%s\n' "$1" >"$probe"
 }
@@ -87,6 +131,40 @@ write_allowed_probe() {
     printf 'MODE=test mise exec -- %s metadata\n' "$cargo_tool"
     printf 'env MODE=test mise exec -- %s --version\n' "$rustc_tool"
   } >"$probe"
+}
+
+write_comment_probe() {
+  printf '# %s test\n' "$cargo_tool" >"$probe"
+}
+
+write_non_utf8_comment_probe() {
+  printf '# \377\n' >"$probe"
+}
+
+write_non_utf8_quoted_probe() {
+  printf "message='" >"$probe"
+  printf '\377' >>"$probe"
+  printf "'\n" >>"$probe"
+}
+
+write_quoted_data_probe() {
+  printf 'message=' >"$probe"
+  printf "'%s test; %s --version'\n" "$cargo_tool" "$rustc_tool" \
+    >>"$probe"
+}
+
+write_heredoc_probe() {
+  {
+    printf "cat <<'NATIVE_DATA'\n"
+    printf '%s test\n' "$cargo_tool"
+    printf '%s --version\n' "$rustc_tool"
+    printf 'NATIVE_DATA\n'
+  } >"$probe"
+}
+
+write_non_shell_probe() {
+  printf 'String command = "%s test && %s --version";\n' \
+    "$cargo_tool" "$rustc_tool" >"$non_shell_probe"
 }
 
 run_gate() {
@@ -159,8 +237,71 @@ expect_source_rejected() {
     "native workspace contract failed: bare Rust tool command found"
 }
 
+expect_source_allowed() {
+  local description="$1"
+
+  expect_gate_success "$description" "$expected_json\\n"
+}
+
+expect_unsafe_temp_base_rejected() {
+  if PATH="$fixture_root/temp-probe-bin:$fixture_root/bin:$PATH" \
+    TMPDIR="$root_link" \
+    NATIVE_TEMP_CREATE_MARKER="$temp_create_marker" \
+    NATIVE_CLEANUP_MARKER="$cleanup_marker" \
+    NATIVE_TEST_STDOUT_ESCAPED="$expected_json\\n" \
+    NATIVE_TEST_STDERR="" \
+    NATIVE_TEST_EXIT_CODE=0 \
+    bash "$fixture_root/rewrite/tools/test_native_workspace.sh" \
+      >"$temp_probe_stdout" 2>"$temp_probe_stderr"; then
+    fail "production gate accepted a temporary base resolving to root"
+  fi
+  if ! cmp -s "$temp_probe_stderr" \
+    <(printf 'native workspace contract failed: unsafe temporary base\n'); then
+    sed -n '1,20p' "$temp_probe_stderr" >&2
+    fail "production gate did not report exact unsafe temporary base"
+  fi
+  [[ ! -e "$temp_create_marker" ]] \
+    || fail "production gate attempted root-level temporary creation"
+  [[ ! -e "$cleanup_marker" ]] \
+    || fail "production gate attempted cleanup for an unsafe base"
+
+  if PATH="$fixture_root/temp-probe-bin:$PATH" \
+    TMPDIR="$root_link" \
+    NATIVE_TEMP_CREATE_MARKER="$temp_create_marker" \
+    NATIVE_CLEANUP_MARKER="$cleanup_marker" \
+    bash "$self_test_source" --temp-base-probe \
+      >"$temp_probe_stdout" 2>"$temp_probe_stderr"; then
+    fail "self-test accepted a temporary base resolving to root"
+  fi
+  if ! cmp -s "$temp_probe_stderr" \
+    <(printf 'native workspace self-test failed: unsafe temporary base\n'); then
+    sed -n '1,20p' "$temp_probe_stderr" >&2
+    fail "self-test did not report exact unsafe temporary base"
+  fi
+  [[ ! -e "$temp_create_marker" ]] \
+    || fail "self-test attempted root-level temporary creation"
+  [[ ! -e "$cleanup_marker" ]] \
+    || fail "self-test attempted cleanup for an unsafe base"
+}
+
 write_allowed_probe
 expect_gate_success "mise-wrapped command forms" "$expected_json\\n"
+
+expect_unsafe_temp_base_rejected
+
+write_comment_probe
+expect_source_allowed "shell comment data"
+write_non_utf8_comment_probe
+expect_source_allowed "non-UTF8 shell comment data"
+write_non_utf8_quoted_probe
+expect_source_allowed "non-UTF8 quoted shell data"
+write_quoted_data_probe
+expect_source_allowed "quoted shell data"
+write_heredoc_probe
+expect_source_allowed "heredoc data"
+write_allowed_probe
+write_non_shell_probe
+expect_source_allowed "non-shell source data"
 
 expect_source_rejected \
   "conditional invocation" \

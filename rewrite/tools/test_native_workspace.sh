@@ -333,7 +333,7 @@ if ! LC_ALL=C awk '
   }
 
   function mask_quoted_character(character) {
-    if (character ~ /[[:space:];|&()#]/) {
+    if (character ~ /[[:space:];|&()#<]/) {
       return quoted_mask
     }
     return character

@@ -159,6 +159,10 @@ write_quoted_data_probe() {
     >>"$probe"
 }
 
+write_quoted_heredoc_operator_probe() {
+  printf 'message="<<NATIVE_DATA"\n' >"$probe"
+}
+
 write_heredoc_probe() {
   {
     printf "cat <<'NATIVE_DATA'\n"
@@ -346,6 +350,8 @@ write_non_utf8_quoted_probe
 expect_source_allowed "non-UTF8 quoted shell data"
 write_quoted_data_probe
 expect_source_allowed "quoted shell data"
+write_quoted_heredoc_operator_probe
+expect_source_allowed "quoted heredoc operator data"
 write_heredoc_probe
 expect_source_allowed "quoted heredoc data"
 write_double_mise_probe

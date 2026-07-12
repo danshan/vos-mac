@@ -28,6 +28,12 @@ if [[ "${1:-}" == "--temp-base-probe" ]]; then
   exit 0
 fi
 
+requested_case=${1:-all}
+case "$requested_case" in
+  all|double-dollar|double-backtick|unquoted-heredoc) ;;
+  *) fail "unknown self-test case: $requested_case" ;;
+esac
+
 temp_base=$(canonicalize_temp_base "$temp_base")
 fixture_root=$(mktemp -d "$temp_base/open2jam-native-workspace-test.XXXXXX")
 
@@ -156,10 +162,32 @@ write_quoted_data_probe() {
 write_heredoc_probe() {
   {
     printf "cat <<'NATIVE_DATA'\n"
-    printf '%s test\n' "$cargo_tool"
-    printf '%s --version\n' "$rustc_tool"
+    printf '$(%s test)\n' "$cargo_tool"
+    printf '`%s --version`\n' "$rustc_tool"
     printf 'NATIVE_DATA\n'
   } >"$probe"
+}
+
+write_double_dollar_probe() {
+  printf 'message="$(%s test)"\n' "$cargo_tool" >"$probe"
+}
+
+write_double_backtick_probe() {
+  printf 'message="`%s --version`"\n' "$rustc_tool" >"$probe"
+}
+
+write_unquoted_heredoc_probe() {
+  {
+    printf 'cat <<NATIVE_DATA\n'
+    printf '$(%s test)\n' "$cargo_tool"
+    printf '$(%s --version)\n' "$rustc_tool"
+    printf 'NATIVE_DATA\n'
+  } >"$probe"
+}
+
+write_double_mise_probe() {
+  printf 'message="$(mise exec -- %s --version)"\n' \
+    "$cargo_tool" >"$probe"
 }
 
 write_non_shell_probe() {
@@ -237,6 +265,12 @@ expect_source_rejected() {
     "native workspace contract failed: bare Rust tool command found"
 }
 
+expect_current_probe_rejected() {
+  expect_gate_failure \
+    "$1" "$expected_json\\n" "" \
+    "native workspace contract failed: bare Rust tool command found"
+}
+
 expect_source_allowed() {
   local description="$1"
 
@@ -284,6 +318,21 @@ expect_unsafe_temp_base_rejected() {
     || fail "self-test attempted cleanup for an unsafe base"
 }
 
+run_expansion_case() {
+  case "$1" in
+    double-dollar) write_double_dollar_probe ;;
+    double-backtick) write_double_backtick_probe ;;
+    unquoted-heredoc) write_unquoted_heredoc_probe ;;
+  esac
+  expect_current_probe_rejected "$1 executable expansion"
+}
+
+if [[ "$requested_case" != "all" ]]; then
+  run_expansion_case "$requested_case"
+  printf 'native workspace self-test passed\n'
+  exit 0
+fi
+
 write_allowed_probe
 expect_gate_success "mise-wrapped command forms" "$expected_json\\n"
 
@@ -298,10 +347,16 @@ expect_source_allowed "non-UTF8 quoted shell data"
 write_quoted_data_probe
 expect_source_allowed "quoted shell data"
 write_heredoc_probe
-expect_source_allowed "heredoc data"
+expect_source_allowed "quoted heredoc data"
+write_double_mise_probe
+expect_source_allowed "double-quoted mise expansion"
 write_allowed_probe
 write_non_shell_probe
 expect_source_allowed "non-shell source data"
+
+run_expansion_case double-dollar
+run_expansion_case double-backtick
+run_expansion_case unquoted-heredoc
 
 expect_source_rejected \
   "conditional invocation" \

@@ -85,6 +85,7 @@ if ! LC_ALL=C awk '
     markdown_shell_fence = 0
     quote_state = ""
     heredoc_delimiter = ""
+    heredoc_delimiter_quoted = 0
     heredoc_strip_tabs = 0
     logical_line = ""
     logical_line_number = 0
@@ -223,6 +224,114 @@ if ! LC_ALL=C awk '
     analyze_segment(segment, file, line_number)
   }
 
+  function contains_tool_token(text) {
+    return text ~ ("(^|[^[:alnum:]_.-])(" cargo_name "|" rustc_name \
+      ")([^[:alnum:]_.-]|$)")
+  }
+
+  function clear_candidate() {
+    candidate_kind = ""
+    candidate_text = ""
+  }
+
+  function validate_candidate(file, line_number, remaining, allowed_prefix) {
+    if (!contains_tool_token(candidate_text)) {
+      clear_candidate()
+      return
+    }
+    allowed_prefix = "^[[:space:]]*mise[[:space:]]+exec[[:space:]]+--" \
+      "[[:space:]]+(cargo|rustc)([^[:alnum:]_.-]|$)"
+    remaining = candidate_text
+    if (candidate_text ~ allowed_prefix) {
+      sub(allowed_prefix, "", remaining)
+    }
+    if (candidate_text ~ /[(`]/ || candidate_text !~ allowed_prefix \
+        || contains_tool_token(remaining)) {
+      report_bare_command(file, line_number)
+    } else {
+      analyze_line(candidate_text, file, line_number)
+    }
+    clear_candidate()
+  }
+
+  function start_candidate(kind) {
+    candidate_kind = kind
+    candidate_text = ""
+    candidate_depth = kind == "dollar" ? 1 : 0
+  }
+
+  function feed_candidate(raw, start, file, line_number,
+      position, character) {
+    for (position = start; position <= length(raw); position++) {
+      character = substr(raw, position, 1)
+      if (character == "\\") {
+        candidate_text = candidate_text character
+        if (position < length(raw)) {
+          position++
+          candidate_text = candidate_text substr(raw, position, 1)
+        }
+        continue
+      }
+      if (candidate_kind == "dollar") {
+        if (character == "(") {
+          candidate_depth++
+        } else if (character == ")") {
+          candidate_depth--
+          if (candidate_depth == 0) {
+            validate_candidate(file, line_number)
+            return position
+          }
+        }
+      } else if (character == "`") {
+        validate_candidate(file, line_number)
+        return position
+      }
+      candidate_text = candidate_text character
+    }
+    candidate_text = candidate_text "\n"
+    return 0
+  }
+
+  function consume_candidate(raw, position, file, line_number,
+      character, start) {
+    if (candidate_kind != "") {
+      return feed_candidate(raw, position, file, line_number)
+    }
+    character = substr(raw, position, 1)
+    if (character == "$" && substr(raw, position + 1, 1) == "(") {
+      start_candidate("dollar")
+      start = position + 2
+    } else if (character == "`") {
+      start_candidate("backtick")
+      start = position + 1
+    } else {
+      return -1
+    }
+    return feed_candidate(raw, start, file, line_number)
+  }
+
+  function collect_heredoc_expansions(raw, file, line_number,
+      position, character, closing) {
+    for (position = 1; position <= length(raw); position++) {
+      character = substr(raw, position, 1)
+      if (character == "\\") {
+        position++
+        continue
+      }
+      closing = consume_candidate(raw, position, file, line_number)
+      if (closing < 0) continue
+      if (!closing) return
+      position = closing
+    }
+  }
+
+  function finish_candidate(file, line_number) {
+    if (candidate_kind != "" && contains_tool_token(candidate_text)) {
+      report_bare_command(file, line_number)
+    }
+    clear_candidate()
+  }
+
   function mask_quoted_character(character) {
     if (character ~ /[[:space:];|&()#]/) {
       return quoted_mask
@@ -230,9 +339,9 @@ if ! LC_ALL=C awk '
     return character
   }
 
-  function sanitize_shell_line(raw,
+  function sanitize_shell_line(raw, file, line_number,
       result, position, character, next_character, previous_character,
-      started_in_quote) {
+      started_in_quote, closing) {
     result = ""
     line_continues = 0
     started_in_quote = quote_state != ""
@@ -251,7 +360,12 @@ if ! LC_ALL=C awk '
         continue
       }
       if (quote_state == "double") {
-        if (character == "\\") {
+        closing = consume_candidate(raw, position, file, line_number)
+        if (closing >= 0) {
+          result = result quoted_mask
+          if (!closing) return result
+          position = closing
+        } else if (character == "\\") {
           if (position < length(raw)) {
             position++
             next_character = substr(raw, position, 1)
@@ -290,8 +404,8 @@ if ! LC_ALL=C awk '
     return result
   }
 
-  function detect_heredoc(text,
-      position, tail, candidate, parts, count) {
+  function detect_heredoc(text, raw,
+      position, tail, candidate, parts, count, raw_tail, first) {
     position = index(text, "<<")
     if (position == 0 || substr(text, position + 2, 1) == "<") {
       return
@@ -307,10 +421,16 @@ if ! LC_ALL=C awk '
     candidate = count > 0 ? parts[1] : ""
     if (candidate ~ /^[[:alpha:]_][[:alnum:]_]*$/) {
       heredoc_delimiter = candidate
+      raw_tail = trim(substr(raw, index(raw, "<<") + 2))
+      sub(/^-[[:space:]]*/, "", raw_tail)
+      first = substr(raw_tail, 1, 1)
+      heredoc_delimiter_quoted = first == single_quote \
+        || first == "\"" || first == "\\"
     }
   }
 
   function finish_shell_content(file, line_number) {
+    finish_candidate(file, line_number)
     if (logical_line != "") {
       analyze_line(logical_line, file, logical_line_number)
       logical_line = ""
@@ -322,6 +442,7 @@ if ! LC_ALL=C awk '
     }
     quote_state = ""
     heredoc_delimiter = ""
+    heredoc_delimiter_quoted = 0
     heredoc_strip_tabs = 0
   }
 
@@ -333,13 +454,17 @@ if ! LC_ALL=C awk '
         sub(/^\t+/, "", comparable)
       }
       if (comparable == heredoc_delimiter) {
+        finish_candidate(file, line_number)
         heredoc_delimiter = ""
+        heredoc_delimiter_quoted = 0
         heredoc_strip_tabs = 0
+      } else if (!heredoc_delimiter_quoted) {
+        collect_heredoc_expansions(raw, file, line_number)
       }
       return
     }
 
-    clean = sanitize_shell_line(raw)
+    clean = sanitize_shell_line(raw, file, line_number)
     if (logical_line == "") {
       logical_line = clean
       logical_line_number = line_number
@@ -349,7 +474,7 @@ if ! LC_ALL=C awk '
     if (line_continues) {
       return
     }
-    detect_heredoc(logical_line)
+    detect_heredoc(logical_line, raw)
     analyze_line(logical_line, file, logical_line_number)
     logical_line = ""
   }
@@ -368,6 +493,7 @@ if ! LC_ALL=C awk '
       markdown_shell_fence = 0
       quote_state = ""
       heredoc_delimiter = ""
+      heredoc_delimiter_quoted = 0
       heredoc_strip_tabs = 0
       logical_line = ""
     }

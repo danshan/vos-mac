@@ -20,6 +20,7 @@ ORACLE_PROVENANCE_VERIFIER="rewrite/tools/verify_java_oracle_provenance.sh"
 WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 PRODUCTION_SOUNDFONT_VERIFIER="rewrite/tools/verify_production_soundfont.sh"
 PRODUCTION_SOUNDFONT_TEST="rewrite/tools/test_verify_production_soundfont.sh"
+GENERIC_SOUNDFONT_TEST="rewrite/tools/test_soundfont_contract_verifier.sh"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
 [[ -f "$WORKFLOW" ]] || { printf 'Missing build workflow.\n' >&2; exit 1; }
@@ -37,6 +38,7 @@ PRODUCTION_SOUNDFONT_TEST="rewrite/tools/test_verify_production_soundfont.sh"
 [[ -x "$WORKFLOW_VERIFIER" ]] || { printf 'Missing build workflow verifier.\n' >&2; exit 1; }
 [[ -x "$PRODUCTION_SOUNDFONT_VERIFIER" ]] || { printf 'Missing production SoundFont verifier.\n' >&2; exit 1; }
 [[ -x "$PRODUCTION_SOUNDFONT_TEST" ]] || { printf 'Missing production SoundFont verifier test.\n' >&2; exit 1; }
+[[ -x "$GENERIC_SOUNDFONT_TEST" ]] || { printf 'Missing generic SoundFont verifier test.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
@@ -216,6 +218,14 @@ require_active_top_level_invocation \
 	'bash rewrite/tools/verify_production_soundfont.sh' \
 	'Production SoundFont verifier'
 
+require_active_top_level_invocation \
+	'bash rewrite/tools/test_soundfont_contract_verifier.sh' \
+	'Generic SoundFont behavior suite'
+
+require_active_top_level_invocation \
+	'bash rewrite/tools/test_verify_production_soundfont.sh' \
+	'Production SoundFont behavior suite'
+
 reject_pattern \
 	'assumeTrue[[:space:]]*\(|/Users/[[:alnum:]_.-]+|Skipping|\|\|[[:space:]]*true' \
 	"$VERIFIER" 'Golden verifier contains optional behavior'
@@ -268,8 +278,6 @@ require_literal 'Build workflow does not match the pinned canonical contract.' \
 bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
 
 bash "$NESTED_TMPDIR_BEHAVIOR_TEST"
-
-bash "$PRODUCTION_SOUNDFONT_TEST"
 
 bash "$BEHAVIOR_TEST"
 

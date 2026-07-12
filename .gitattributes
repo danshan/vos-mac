@@ -1,2 +1,4 @@
+rewrite/assets/soundfont/contract.manifest text eol=lf
+rewrite/assets/soundfont/payload/approvals/GeneralUser-GS-2.0.3-owner-risk-acceptance.txt text eol=lf
 rewrite/assets/soundfont/payload/assets/GeneralUser-GS.sf2 binary
 rewrite/assets/soundfont/payload/licenses/GeneralUser-GS-LICENSE.txt -text -diff

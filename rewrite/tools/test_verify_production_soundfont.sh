@@ -35,13 +35,35 @@ else
 fi
 
 for required_command in \
-	awk bash chmod cp find grep mise mktemp mv rg rm shasum tr wc; do
+	awk bash chmod cp find git grep mise mktemp mv rg rm shasum tr wc; do
 	if ! command -v "$required_command" >/dev/null 2>&1; then
 		printf 'Missing production SoundFont test command: %s\n' \
 			"$required_command" >&2
 		exit 1
 	fi
 done
+
+assert_git_attribute() {
+	local path="$1"
+	local attribute="$2"
+	local expected_value="$3"
+	local actual
+	local expected="$path: $attribute: $expected_value"
+	actual="$(git -c core.autocrlf=true check-attr "$attribute" -- "$path")"
+	if [[ "$actual" != "$expected" ]]; then
+		printf 'Production SoundFont Git attribute mismatch.\n' >&2
+		printf 'Expected: %s\n' "$expected" >&2
+		printf 'Actual: %s\n' "$actual" >&2
+		exit 1
+	fi
+}
+
+assert_git_attribute "$MANIFEST" text set
+assert_git_attribute "$MANIFEST" eol lf
+assert_git_attribute "$APPROVAL" text set
+assert_git_attribute "$APPROVAL" eol lf
+assert_git_attribute "$LICENSE" text unset
+assert_git_attribute "$LICENSE" diff unset
 
 [[ -x "$VERIFIER" ]] || {
 	printf 'Missing executable production SoundFont verifier.\n' >&2

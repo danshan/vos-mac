@@ -67,6 +67,7 @@ for required_file in \
 	rewrite/tools/test_java_migration_nested_tmpdir_behavior.sh \
 	rewrite/tools/test_verify_java_oracle_provenance.sh \
 	rewrite/tools/test_verify_java_migration_package.sh \
+	rewrite/tools/test_soundfont_contract_verifier.sh \
 	rewrite/tools/test_verify_production_soundfont.sh \
 	rewrite/tools/verify_production_soundfont.sh \
 	rewrite/tools/test_verify_vos_godot_manifest.sh \
@@ -87,6 +88,8 @@ bash rewrite/tools/test_verify_vos_godot_manifest.sh
 bash rewrite/tools/test_java_migration_nested_tmpdir.sh
 bash rewrite/tools/test_verify_java_oracle_provenance.sh
 bash rewrite/tools/test_verify_java_migration_package.sh
+bash rewrite/tools/test_soundfont_contract_verifier.sh
+bash rewrite/tools/test_verify_production_soundfont.sh
 bash rewrite/tools/verify_production_soundfont.sh
 bash rewrite/tools/verify_java_oracle_provenance.sh
 

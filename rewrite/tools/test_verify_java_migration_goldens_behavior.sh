@@ -222,6 +222,48 @@ EOF
 	fi
 }
 
+write_generic_soundfont_test_stub() {
+	local output_path="$1"
+	if ! cat >"$output_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GOLDEN_GENERIC_SOUNDFONT_TEST_MARKER:?}"
+printf 'invoked\n' >>"$GOLDEN_GENERIC_SOUNDFONT_TEST_MARKER"
+EOF
+	then
+		printf 'Unable to write generic SoundFont behavior stub: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make generic SoundFont behavior stub executable: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+}
+
+write_production_soundfont_test_stub() {
+	local output_path="$1"
+	if ! cat >"$output_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GOLDEN_PRODUCTION_SOUNDFONT_TEST_MARKER:?}"
+printf 'invoked\n' >>"$GOLDEN_PRODUCTION_SOUNDFONT_TEST_MARKER"
+EOF
+	then
+		printf 'Unable to write production SoundFont behavior stub: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make production SoundFont behavior stub executable: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+}
+
 write_mise_stub() {
 	local output_path="$1"
 	if ! cat >"$output_path" <<'EOF'
@@ -392,7 +434,9 @@ create_fixture() {
 			"$fixture_root/rewrite/tools/test_verify_java_oracle_provenance.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_java_migration_package.sh" \
-		|| ! write_contract_stub \
+		|| ! write_generic_soundfont_test_stub \
+			"$fixture_root/rewrite/tools/test_soundfont_contract_verifier.sh" \
+		|| ! write_production_soundfont_test_stub \
 			"$fixture_root/rewrite/tools/test_verify_production_soundfont.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/verify_java_oracle_provenance.sh" \
@@ -445,9 +489,13 @@ run_verifier() {
 	local mode="${2:-valid}"
 	local nested_marker="$fixture_root/nested-tmpdir-invocations.log"
 	local production_soundfont_marker="$fixture_root/production-soundfont-invocations.log"
+	local generic_soundfont_test_marker="$fixture_root/generic-soundfont-test-invocations.log"
+	local production_soundfont_test_marker="$fixture_root/production-soundfont-test-invocations.log"
 	assert_fixture_path "$fixture_root" || return 1
 	rm -f "$nested_marker"
 	rm -f "$production_soundfont_marker"
+	rm -f "$generic_soundfont_test_marker"
+	rm -f "$production_soundfont_test_marker"
 	(
 		cd "$fixture_root"
 		PATH="$fixture_root/bin:/usr/bin:/bin" \
@@ -455,8 +503,42 @@ run_verifier() {
 			GOLDEN_FIXTURE_MAVEN_MODE="$mode" \
 			GOLDEN_NESTED_INVOCATION_MARKER="$nested_marker" \
 			GOLDEN_PRODUCTION_SOUNDFONT_INVOCATION_MARKER="$production_soundfont_marker" \
+			GOLDEN_GENERIC_SOUNDFONT_TEST_MARKER="$generic_soundfont_test_marker" \
+			GOLDEN_PRODUCTION_SOUNDFONT_TEST_MARKER="$production_soundfont_test_marker" \
 			bash rewrite/tools/verify_java_migration_goldens.sh
 	)
+}
+
+assert_generic_soundfont_test_invocation_count() {
+	local fixture_root="$1"
+	local expected_count="$2"
+	local marker="$fixture_root/generic-soundfont-test-invocations.log"
+	local actual_count=0
+	assert_fixture_path "$fixture_root" || return 1
+	if [[ -f "$marker" ]]; then
+		actual_count="$(wc -l <"$marker" | tr -d '[:space:]')"
+	fi
+	if [[ "$actual_count" != "$expected_count" ]]; then
+		printf 'Generic SoundFont behavior invocation count was %s, expected %s.\n' \
+			"$actual_count" "$expected_count" >&2
+		exit 1
+	fi
+}
+
+assert_production_soundfont_test_invocation_count() {
+	local fixture_root="$1"
+	local expected_count="$2"
+	local marker="$fixture_root/production-soundfont-test-invocations.log"
+	local actual_count=0
+	assert_fixture_path "$fixture_root" || return 1
+	if [[ -f "$marker" ]]; then
+		actual_count="$(wc -l <"$marker" | tr -d '[:space:]')"
+	fi
+	if [[ "$actual_count" != "$expected_count" ]]; then
+		printf 'Production SoundFont behavior invocation count was %s, expected %s.\n' \
+			"$actual_count" "$expected_count" >&2
+		exit 1
+	fi
 }
 
 assert_production_soundfont_invocation_count() {
@@ -502,6 +584,8 @@ expect_verifier_pass() {
 	fi
 	assert_nested_invocation_count "$fixture_root" 1
 	assert_production_soundfont_invocation_count "$fixture_root" 1
+	assert_generic_soundfont_test_invocation_count "$fixture_root" 1
+	assert_production_soundfont_test_invocation_count "$fixture_root" 1
 }
 
 expect_verifier_failure() {
@@ -1259,6 +1343,32 @@ for soundfont_mutation in comment remove duplicate dead; do
 		"$soundfont_mutation production SoundFont verifier invocation" \
 		"$fixture" \
 		"Production SoundFont verifier invocation is not one active top-level command"
+done
+
+for generic_soundfont_test_mutation in comment remove duplicate dead; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	mutate_required_invocation "$fixture" "$generic_soundfont_test_mutation" \
+		'bash rewrite/tools/test_soundfont_contract_verifier.sh' \
+		'generic SoundFont behavior suite'
+	expect_contract_failure \
+		"$generic_soundfont_test_mutation generic SoundFont behavior invocation" \
+		"$fixture" \
+		"Generic SoundFont behavior suite invocation is not one active top-level command"
+done
+
+for production_soundfont_test_mutation in comment remove duplicate dead; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	mutate_required_invocation "$fixture" "$production_soundfont_test_mutation" \
+		'bash rewrite/tools/test_verify_production_soundfont.sh' \
+		'production SoundFont behavior suite'
+	expect_contract_failure \
+		"$production_soundfont_test_mutation production SoundFont behavior invocation" \
+		"$fixture" \
+		"Production SoundFont behavior suite invocation is not one active top-level command"
 done
 
 create_fixture

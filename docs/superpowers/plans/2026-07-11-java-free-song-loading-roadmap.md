@@ -50,7 +50,11 @@ Exit gate:
 
 ### Phase 1: Rust Core, Contracts, CLI, And Bundle v2
 
-Created after Phase 0 passes.
+Executable plan: `docs/superpowers/plans/2026-07-12-java-free-phase1-rust-core.md`.
+
+Live task status: `docs/superpowers/plans/2026-07-12-java-free-phase1-progress.md`.
+
+Created after Phase 0 passed its final integrated audit at commit `547cba3636ea06b243eb3d13e7dde0fb25603056`.
 
 Produces:
 

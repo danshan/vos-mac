@@ -36,7 +36,7 @@ For implementation Task `N`, run the same script with `N` and `/private/tmp/open
 - Rust 不读取、不迁移、不删除 Java v1 cache. Phase 1 不修改 Java/Godot production runtime path, 不把 production SoundFont 打入当前 Java JAR.
 - 当前会话不修改 `.superpowers` 或 `.superpowers/sdd`. Task brief、report 和 diff package 使用 `/private/tmp/open2jam-java-free-sdd/` 的 task-scoped 文件, review 通过后立即清理; durable status 只写 Phase 1 progress 文档.
 - 每个 task 严格执行 RED -> GREEN -> focused regression -> fresh specification review -> fresh code-quality review -> focused commit.
-- 依赖波次固定为: Task 1 -> Task 2; Wave A 中 Task 3 与 Task 4 互不依赖; Wave B 中 Task 5 与 Task 6 在 Task 4 合入后互不依赖; Task 7 等待 Task 3 与 Task 5; Task 8 等待 Task 4-7; Task 9 最后串行. 当前会话使用 `superpowers:subagent-driven-development`, 因此一次只 dispatch 一个 implementation subagent; 波次仅用于缩短上下文依赖和允许 review/research 并行, 不并发写 implementation. 每个 task 完成后立即清理其 task-owned `/tmp` 目录.
+- 依赖波次固定为: Task 1 -> Task 2; Wave A 中 Task 3 与 Task 4 互不依赖; Wave B 中 Task 5 与 Task 6 在 Task 4 合入后互不依赖; Task 7 等待 Task 3 与 Task 5; Task 8 等待 Task 4-7; Task 9 最后串行. 最新用户执行决策将 implementation 并发上限调整为 `2`: Task 1 和 Task 2 继续串行; 之后仅在依赖满足时并发 Task 3/4、Task 5/6, 或 Task 7 与仍未完成的 Task 6. 每个 implementation lane 使用 `/private/tmp` 下 `git clone --no-hardlinks` 创建的完全独立 task clone, 不共享 `.git` 或 `native/target`; integration checkout 保持单写, 同一 Task 的 fresh specification review 与 fresh code-quality review 仍严格串行. 下游只能消费两个 review 均 `APPROVED` 且已通过 integration regression 的 commit. Task 9 与所有 Phase 1 exit gates 最后在 integration checkout 串行执行. 每个 task 完成并写入 durable ledger 后立即清理其 task-owned clone 与 `/tmp` artifact.
 
 ## File Map
 

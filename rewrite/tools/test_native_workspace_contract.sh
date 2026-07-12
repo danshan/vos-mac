@@ -30,7 +30,7 @@ fi
 
 requested_case=${1:-all}
 case "$requested_case" in
-  all|double-dollar|double-backtick|unquoted-heredoc|heredoc-offset) ;;
+  all|double-dollar|double-backtick|unquoted-backtick|unquoted-heredoc|heredoc-offset) ;;
   *) fail "unknown self-test case: $requested_case" ;;
 esac
 
@@ -178,6 +178,10 @@ write_double_dollar_probe() {
 
 write_double_backtick_probe() {
   printf 'message="`%s --version`"\n' "$rustc_tool" >"$probe"
+}
+
+write_unquoted_backtick_probe() {
+  printf 'result=`%s --version`\n' "$cargo_tool" >"$probe"
 }
 
 write_unquoted_heredoc_probe() {
@@ -334,6 +338,7 @@ run_expansion_case() {
   case "$1" in
     double-dollar) write_double_dollar_probe ;;
     double-backtick) write_double_backtick_probe ;;
+    unquoted-backtick) write_unquoted_backtick_probe ;;
     unquoted-heredoc) write_unquoted_heredoc_probe ;;
     heredoc-offset) write_heredoc_offset_probe ;;
   esac
@@ -371,6 +376,7 @@ expect_source_allowed "non-shell source data"
 
 run_expansion_case double-dollar
 run_expansion_case double-backtick
+run_expansion_case unquoted-backtick
 run_expansion_case unquoted-heredoc
 run_expansion_case heredoc-offset
 

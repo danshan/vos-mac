@@ -380,7 +380,12 @@ if ! LC_ALL=C awk '
         continue
       }
 
-      if (character == single_quote) {
+      closing = consume_candidate(raw, position, file, line_number)
+      if (closing >= 0) {
+        result = result quoted_mask
+        if (!closing) return result
+        position = closing
+      } else if (character == single_quote) {
         quote_state = "single"
       } else if (character == "\"") {
         quote_state = "double"

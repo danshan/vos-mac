@@ -30,7 +30,7 @@ fi
 
 requested_case=${1:-all}
 case "$requested_case" in
-  all|double-dollar|double-backtick|unquoted-heredoc) ;;
+  all|double-dollar|double-backtick|unquoted-heredoc|heredoc-offset) ;;
   *) fail "unknown self-test case: $requested_case" ;;
 esac
 
@@ -189,6 +189,14 @@ write_unquoted_heredoc_probe() {
   } >"$probe"
 }
 
+write_heredoc_offset_probe() {
+  {
+    printf '%s\n' "printf '%s' '<<' <<NATIVE_DATA"
+    printf '$(%s test)\n' "$cargo_tool"
+    printf 'NATIVE_DATA\n'
+  } >"$probe"
+}
+
 write_double_mise_probe() {
   printf 'message="$(mise exec -- %s --version)"\n' \
     "$cargo_tool" >"$probe"
@@ -327,6 +335,7 @@ run_expansion_case() {
     double-dollar) write_double_dollar_probe ;;
     double-backtick) write_double_backtick_probe ;;
     unquoted-heredoc) write_unquoted_heredoc_probe ;;
+    heredoc-offset) write_heredoc_offset_probe ;;
   esac
   expect_current_probe_rejected "$1 executable expansion"
 }
@@ -363,6 +372,7 @@ expect_source_allowed "non-shell source data"
 run_expansion_case double-dollar
 run_expansion_case double-backtick
 run_expansion_case unquoted-heredoc
+run_expansion_case heredoc-offset
 
 expect_source_rejected \
   "conditional invocation" \

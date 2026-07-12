@@ -344,6 +344,7 @@ if ! LC_ALL=C awk '
       started_in_quote, closing) {
     result = ""
     line_continues = 0
+    heredoc_raw_position = 0
     started_in_quote = quote_state != ""
     if (started_in_quote) {
       result = "__quoted_continuation__ "
@@ -398,6 +399,11 @@ if ! LC_ALL=C awk '
         next_character = substr(raw, position, 1)
         result = result mask_quoted_character(next_character)
       } else {
+        if (heredoc_raw_position == 0 && character == "<" \
+            && substr(raw, position + 1, 1) == "<" \
+            && substr(raw, position + 2, 1) != "<") {
+          heredoc_raw_position = position
+        }
         result = result character
       }
     }
@@ -421,7 +427,7 @@ if ! LC_ALL=C awk '
     candidate = count > 0 ? parts[1] : ""
     if (candidate ~ /^[[:alpha:]_][[:alnum:]_]*$/) {
       heredoc_delimiter = candidate
-      raw_tail = trim(substr(raw, index(raw, "<<") + 2))
+      raw_tail = trim(substr(raw, heredoc_raw_position + 2))
       sub(/^-[[:space:]]*/, "", raw_tail)
       first = substr(raw_tail, 1, 1)
       heredoc_delimiter_quoted = first == single_quote \

@@ -1,0 +1,16 @@
+soundfont-contract-v1
+asset.path=assets/GeneralUser-GS.sf2
+asset.name=GeneralUser GS
+asset.version=2.0.3
+asset.size=32319396
+asset.sha256=9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe
+source.url=https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/684543d5e5efaef08d02be50dcda8d552478fa60/GeneralUser-GS.sf2
+source.commit=684543d5e5efaef08d02be50dcda8d552478fa60
+license.path=licenses/GeneralUser-GS-LICENSE.txt
+license.size=2317
+license.sha256=7b32efefdf95ce38a043799f0659853ddc00fbaa14d8c50f0aca16b9b8b405be
+license.url=https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/684543d5e5efaef08d02be50dcda8d552478fa60/documentation/LICENSE.txt
+approval.path=approvals/GeneralUser-GS-2.0.3-owner-risk-acceptance.txt
+approval.size=1014
+approval.sha256=281e55e71f288e00bc9c85204890256cc4412d5656ef0e8033355106ed744559
+approval.id=owner-risk-acceptance:sha256:281e55e71f288e00bc9c85204890256cc4412d5656ef0e8033355106ed744559

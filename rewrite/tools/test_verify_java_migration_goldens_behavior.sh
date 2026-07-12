@@ -201,6 +201,27 @@ EOF
 	fi
 }
 
+write_production_soundfont_stub() {
+	local output_path="$1"
+	if ! cat >"$output_path" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${GOLDEN_PRODUCTION_SOUNDFONT_INVOCATION_MARKER:?}"
+printf 'invoked\n' >>"$GOLDEN_PRODUCTION_SOUNDFONT_INVOCATION_MARKER"
+EOF
+	then
+		printf 'Unable to write production SoundFont stub: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+	if ! chmod +x "$output_path"; then
+		printf 'Unable to make production SoundFont stub executable: %s\n' \
+			"$output_path" >&2
+		return 1
+	fi
+}
+
 write_mise_stub() {
 	local output_path="$1"
 	if ! cat >"$output_path" <<'EOF'
@@ -372,9 +393,13 @@ create_fixture() {
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/test_verify_java_migration_package.sh" \
 		|| ! write_contract_stub \
+			"$fixture_root/rewrite/tools/test_verify_production_soundfont.sh" \
+		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/verify_java_oracle_provenance.sh" \
 		|| ! write_contract_stub \
 			"$fixture_root/rewrite/tools/verify_java_migration_package.sh" \
+		|| ! write_production_soundfont_stub \
+			"$fixture_root/rewrite/tools/verify_production_soundfont.sh" \
 		|| ! write_mise_stub "$fixture_root/bin/mise" \
 		|| ! ln -s "$REAL_RG_PATH" "$fixture_root/bin/rg"; then
 		printf 'Unable to install verifier fixture stubs.\n' >&2
@@ -419,16 +444,35 @@ run_verifier() {
 	local fixture_root="$1"
 	local mode="${2:-valid}"
 	local nested_marker="$fixture_root/nested-tmpdir-invocations.log"
+	local production_soundfont_marker="$fixture_root/production-soundfont-invocations.log"
 	assert_fixture_path "$fixture_root" || return 1
 	rm -f "$nested_marker"
+	rm -f "$production_soundfont_marker"
 	(
 		cd "$fixture_root"
 		PATH="$fixture_root/bin:/usr/bin:/bin" \
 			REAL_JAVA_PATH="$REAL_JAVA_PATH" \
 			GOLDEN_FIXTURE_MAVEN_MODE="$mode" \
 			GOLDEN_NESTED_INVOCATION_MARKER="$nested_marker" \
+			GOLDEN_PRODUCTION_SOUNDFONT_INVOCATION_MARKER="$production_soundfont_marker" \
 			bash rewrite/tools/verify_java_migration_goldens.sh
 	)
+}
+
+assert_production_soundfont_invocation_count() {
+	local fixture_root="$1"
+	local expected_count="$2"
+	local marker="$fixture_root/production-soundfont-invocations.log"
+	local actual_count=0
+	assert_fixture_path "$fixture_root" || return 1
+	if [[ -f "$marker" ]]; then
+		actual_count="$(wc -l <"$marker" | tr -d '[:space:]')"
+	fi
+	if [[ "$actual_count" != "$expected_count" ]]; then
+		printf 'Production SoundFont verifier invocation count was %s, expected %s.\n' \
+			"$actual_count" "$expected_count" >&2
+		exit 1
+	fi
 }
 
 assert_nested_invocation_count() {
@@ -457,6 +501,7 @@ expect_verifier_pass() {
 		exit 1
 	fi
 	assert_nested_invocation_count "$fixture_root" 1
+	assert_production_soundfont_invocation_count "$fixture_root" 1
 }
 
 expect_verifier_failure() {
@@ -956,12 +1001,13 @@ install_real_contract() {
 	fi
 }
 
-mutate_nested_invocation() {
+mutate_required_invocation() {
 	local fixture_root="$1"
 	local mutation="$2"
+	local invocation="$3"
+	local description="$4"
 	local verifier="$fixture_root/rewrite/tools/verify_java_migration_goldens.sh"
 	local rewritten="$fixture_root/rewrite/tools/.verify-java-migration-goldens.rewritten"
-	local invocation='bash rewrite/tools/test_java_migration_nested_tmpdir.sh'
 	assert_fixture_path "$fixture_root" || return 1
 	if ! awk -v invocation="$invocation" -v mutation="$mutation" '
 		$0 == invocation && mutation == "comment" {
@@ -982,11 +1028,13 @@ mutate_nested_invocation() {
 		}
 		{ print }
 	' "$verifier" >"$rewritten"; then
-		printf 'Unable to mutate nested TMPDIR invocation: %s\n' "$mutation" >&2
+		printf 'Unable to mutate %s invocation: %s\n' \
+			"$description" "$mutation" >&2
 		return 1
 	fi
 	if ! mv "$rewritten" "$verifier" || ! chmod +x "$verifier"; then
-		printf 'Unable to install nested TMPDIR mutation: %s\n' "$mutation" >&2
+		printf 'Unable to install %s invocation mutation: %s\n' \
+			"$description" "$mutation" >&2
 		return 1
 	fi
 }
@@ -1192,11 +1240,25 @@ for nested_mutation in comment remove duplicate dead; do
 	create_fixture
 	fixture="$CREATED_FIXTURE"
 	install_real_contract "$fixture"
-	mutate_nested_invocation "$fixture" "$nested_mutation"
+	mutate_required_invocation "$fixture" "$nested_mutation" \
+		'bash rewrite/tools/test_java_migration_nested_tmpdir.sh' 'nested TMPDIR verifier'
 	expect_contract_failure \
 		"$nested_mutation nested TMPDIR verifier invocation" \
 		"$fixture" \
 		"Nested TMPDIR verifier invocation is not one active top-level command"
+done
+
+for soundfont_mutation in comment remove duplicate dead; do
+	create_fixture
+	fixture="$CREATED_FIXTURE"
+	install_real_contract "$fixture"
+	mutate_required_invocation "$fixture" "$soundfont_mutation" \
+		'bash rewrite/tools/verify_production_soundfont.sh' \
+		'production SoundFont verifier'
+	expect_contract_failure \
+		"$soundfont_mutation production SoundFont verifier invocation" \
+		"$fixture" \
+		"Production SoundFont verifier invocation is not one active top-level command"
 done
 
 create_fixture

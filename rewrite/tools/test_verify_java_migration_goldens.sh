@@ -18,6 +18,8 @@ JAR_VERIFIER="rewrite/tools/JarResourceVerifier.java"
 ORACLE_FILESYSTEM_VERIFIER="rewrite/tools/JavaOracleFilesystemVerifier.java"
 ORACLE_PROVENANCE_VERIFIER="rewrite/tools/verify_java_oracle_provenance.sh"
 WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
+PRODUCTION_SOUNDFONT_VERIFIER="rewrite/tools/verify_production_soundfont.sh"
+PRODUCTION_SOUNDFONT_TEST="rewrite/tools/test_verify_production_soundfont.sh"
 
 [[ -x "$VERIFIER" ]] || { printf 'Missing executable golden verifier.\n' >&2; exit 1; }
 [[ -f "$WORKFLOW" ]] || { printf 'Missing build workflow.\n' >&2; exit 1; }
@@ -33,6 +35,8 @@ WORKFLOW_VERIFIER="rewrite/tools/verify_build_workflow.sh"
 [[ -f "$ORACLE_FILESYSTEM_VERIFIER" ]] || { printf 'Missing oracle filesystem verifier.\n' >&2; exit 1; }
 [[ -x "$ORACLE_PROVENANCE_VERIFIER" ]] || { printf 'Missing oracle provenance verifier.\n' >&2; exit 1; }
 [[ -x "$WORKFLOW_VERIFIER" ]] || { printf 'Missing build workflow verifier.\n' >&2; exit 1; }
+[[ -x "$PRODUCTION_SOUNDFONT_VERIFIER" ]] || { printf 'Missing production SoundFont verifier.\n' >&2; exit 1; }
+[[ -x "$PRODUCTION_SOUNDFONT_TEST" ]] || { printf 'Missing production SoundFont verifier test.\n' >&2; exit 1; }
 
 EXPECTED_TEST_CLASSES=(
 	org.open2jam.export.MigrationGoldenCorpusGeneratorTest
@@ -109,6 +113,7 @@ reject_pattern() {
 
 require_active_top_level_invocation() {
 	local invocation="$1"
+	local description="$2"
 	local count
 	local scan_status
 	if count="$(awk -v invocation="$invocation" '
@@ -146,7 +151,8 @@ require_active_top_level_invocation() {
 		exit 1
 	fi
 	if [[ "$count" != "1" ]]; then
-		printf 'Nested TMPDIR verifier invocation is not one active top-level command.\n' >&2
+		printf '%s invocation is not one active top-level command.\n' \
+			"$description" >&2
 		exit 1
 	fi
 }
@@ -203,7 +209,12 @@ for required_text in \
 done
 
 require_active_top_level_invocation \
-	'bash rewrite/tools/test_java_migration_nested_tmpdir.sh'
+	'bash rewrite/tools/test_java_migration_nested_tmpdir.sh' \
+	'Nested TMPDIR verifier'
+
+require_active_top_level_invocation \
+	'bash rewrite/tools/verify_production_soundfont.sh' \
+	'Production SoundFont verifier'
 
 reject_pattern \
 	'assumeTrue[[:space:]]*\(|/Users/[[:alnum:]_.-]+|Skipping|\|\|[[:space:]]*true' \
@@ -257,6 +268,8 @@ require_literal 'Build workflow does not match the pinned canonical contract.' \
 bash "$WORKFLOW_VERIFIER" "$WORKFLOW"
 
 bash "$NESTED_TMPDIR_BEHAVIOR_TEST"
+
+bash "$PRODUCTION_SOUNDFONT_TEST"
 
 bash "$BEHAVIOR_TEST"
 

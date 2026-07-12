@@ -1,0 +1,16 @@
+open2jam-owner-risk-acceptance-v1
+owner: Honghao
+accepted-on: 2026-07-12
+product: open2jam
+decision: GeneralUser GS 2.0.3 is accepted as the production SoundFont.
+source-commit: 684543d5e5efaef08d02be50dcda8d552478fa60
+asset-size: 32319396
+asset-sha256: 9575028c7a1f589f5770fccc8cff2734566af40cd26ed836944e9a5152688cfe
+license-size: 2317
+license-sha256: 7b32efefdf95ce38a043799f0659853ddc00fbaa14d8c50f0aca16b9b8b405be
+acknowledged-risk: The upstream license discloses that some sample origins cannot be established with complete certainty.
+scope: This residual sample-provenance risk is accepted for production use in open2jam.
+legal-certainty: This record does not claim complete provenance or legal certainty.
+replacement-policy: Any candidate byte, version, source, or license change requires a new owner acceptance.
+cache-policy: Any accepted replacement requires full invalidation of SoundFont-dependent caches.
+evidence: Honghao explicitly accepted the disclosed residual risk in the Codex project session.

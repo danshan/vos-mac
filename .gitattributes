@@ -1,0 +1,2 @@
+rewrite/assets/soundfont/payload/assets/GeneralUser-GS.sf2 binary
+rewrite/assets/soundfont/payload/licenses/GeneralUser-GS-LICENSE.txt -text -diff

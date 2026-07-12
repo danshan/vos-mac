@@ -149,25 +149,26 @@ When you do add a dependency, say why. "I'm adding zod because this project need
 
 ## 9. Runtime Environment
 
-This project uses `mise.toml` as the source of truth for local runtime tools. Do not judge the Java or Maven environment from bare `java` or `mvn` commands in a random shell. On this machine, bare `java` may resolve to `/usr/bin/java` and fail even when the project runtime is correctly installed through mise.
+This project uses `mise.toml` as the source of truth for local runtime tools. Do not judge the Java, Maven, or Rust environment from bare `java`, `mvn`, `cargo`, or `rustc` commands in a random shell. On this machine, bare tools may resolve to host installations and fail even when the project runtime is correctly installed through mise.
 
 Declared mise configuration:
 
 - `min_version = "2024.9.5"`.
-- `[tools]`: `java = "zulu-17.66.19.0"` and `maven = "3.9.9"`.
+- `[tools]`: `java = "zulu-17.66.19.0"`, `maven = "3.9.9"`, and `rust = "1.96.1"`.
 - `[env]`: `MAVEN_SETTINGS = ".mvn/settings.xml"`.
 - Tasks: `build`, `package`, `godot`, `run`, and `app`.
 
 Rules:
 
-- Treat `mise.toml` as the only checked-in runtime configuration for Java and Maven.
+- Treat `mise.toml` as the only checked-in runtime configuration for Java, Maven, and Rust.
 - When a runtime version needs to change, update the `[tools]` section in `mise.toml`, run `mise install`, then verify with `mise current`.
 - Do not set `JAVA_HOME`, `MAVEN_HOME`, `M2_HOME`, or `PATH` by hand for project commands. Let `mise exec` or `mise run` provide the runtime environment.
-- If `mise current` reports missing tools, run `mise install` instead of falling back to host Java or host Maven.
+- If `mise current` reports missing tools, run `mise install` instead of falling back to host Java, Maven, or Rust.
 - Use `mise current` to inspect the active tool versions for this checkout.
-- Use `mise exec -- ...` when running Java, Maven, or project verification commands.
+- Use `mise exec -- ...` when running Java, Maven, Rust, or project verification commands.
 - If a command needs environment variables defined by `mise.toml`, run the shell inside mise, for example `mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" verify'`. Do not rely on the parent shell to expand mise-provided variables.
-- When diagnosing Java or Maven availability, report the mise-resolved environment first: `mise current`, `mise exec -- java -version`, and `mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" -version'`. Bare `java` or `mvn` output may be included only as host-shell context, not as the project runtime verdict.
+- When diagnosing runtime availability, report the mise-resolved environment first: `mise current`, `mise exec -- java -version`, `mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" -version'`, and `mise exec -- rustc --version`. Bare tool output may be included only as host-shell context, not as the project runtime verdict.
+- Rust commands must use `native/Cargo.toml`, the committed `native/Cargo.lock`, and `mise exec`; repository native gates must not invoke bare `cargo` or `rustc`.
 - Maven commands must use the project settings file: `.mvn/settings.xml`.
 - The Maven settings path is exported by `mise.toml` as `MAVEN_SETTINGS=.mvn/settings.xml`; project tasks should use that value instead of hard-coding another settings file.
 - Prefer the project tasks in `mise.toml` when they match the task.
@@ -183,6 +184,10 @@ mise exec -- java -version
 mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" -version'
 mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" validate'
 mise exec -- bash -lc 'mvn -s "$MAVEN_SETTINGS" verify'
+mise exec -- rustc --version
+mise exec -- cargo fmt --manifest-path native/Cargo.toml --all -- --check
+mise exec -- cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets --locked -- -D warnings
+mise exec -- cargo test --manifest-path native/Cargo.toml --workspace --all-targets --locked
 mise exec -- bash rewrite/tools/verify_vos_godot_initial.sh
 mise run build
 mise run package

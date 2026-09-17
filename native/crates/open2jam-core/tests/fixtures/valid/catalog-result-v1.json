@@ -1,0 +1,1 @@
+{"schemaVersion":1,"jobId":"job-001","command":"CATALOG","status":"SUCCEEDED","output":{"catalogPath":"/tmp/open2jam-staging/catalog-v2.json","sourceCount":1,"songCount":1,"chartCount":1,"rejectedSourceCount":0},"error":null}

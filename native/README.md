@@ -23,3 +23,17 @@ mise exec -- cargo clippy --manifest-path native/Cargo.toml -p open2jam-core --l
 ```
 
 这些窄检查不替代完整 workspace 门禁. 两项旧身份派生测试保留在 `tests/identity_contract.rs`, 当前仍因缺实现而使完整门禁失败. 身份派生还需对齐已批准的 Library Root 决策; 未发布 catalog/bundle 能力, `version` 的能力数组保持为空.
+
+真实 CLI 已接受下列请求传输形式, 但当前所有有效导入请求仍返回结构化 `UNSUPPORTED_FORMAT`, 不代表已支持对应格式:
+
+```text
+open2jam-converter catalog --request /absolute/request.json --progress /absolute/progress.jsonl --result /absolute/result.json
+open2jam-converter bundle --request /absolute/request.json --progress /absolute/progress.jsonl --result /absolute/result.json
+```
+
+输出路径必须不存在, parent 必须存在. 结果文件以 no-clobber 原子发布; 任何重试使用新路径. `version` 握手保持不变. 进度与文件传输的限定检查:
+
+```bash
+mise exec -- cargo test --manifest-path native/Cargo.toml -p open2jam-core --test progress_contract --locked
+mise exec -- cargo test --manifest-path native/Cargo.toml -p open2jam-cli --all-targets --locked
+```

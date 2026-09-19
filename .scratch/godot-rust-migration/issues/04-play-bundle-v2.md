@@ -23,3 +23,13 @@
 此阶段尚未完成 CLI bundle 服务、progress、bundle v2 验证或 Godot 接入, 上方验收复选框保持未完成. 日志: `/tmp/vos-ticket04-protocol-red.log`, `/tmp/vos-ticket04-path-red.log`, `/tmp/vos-ticket04-empty-red.log`, `/tmp/vos-ticket04-cli.log`, `/tmp/vos-ticket04-workspace.log`.
 
 阶段提交: `d35b042`. 独立两轴静态审查均无新增发现: Standards 0, Spec 0. 审查未替代或豁免仍失败的 workspace 总门禁.
+
+## 实施进度: 进度文件与真实 CLI 错误传输
+
+2026-09-19: 新增 ProgressEventV1、owner/phase 校验、连续序号 tracker 和 create-new JSONL writer. 逐条 flush, 已有文件或 symlink 不覆盖. tracker 写入失败后拒绝继续写该流, 不尝试拼接或修复可能截断的记录.
+
+真实 `catalog`/`bundle` CLI 入口现支持固定的 request/progress/result 参数顺序, 1 MiB 请求上限、结构化协议失败、取消路径与传输路径隔离, 以及 no-clobber 原子结果发布. 发布使用同目录私有文件、sync、hard-link、目录 sync、清理和再次目录 sync. 对发布前/后失败分别保持路径 ownership, 不覆盖竞态创建的结果.
+
+本阶段仍没有启用 importer: 有效请求返回 `UNSUPPORTED_FORMAT`, version 能力数组为空, 不伪造成功或 Gameplay Ready. 进度模块尚待实际 bundle 服务驱动; 本阶段未声称完成旧横向 Task 4/6 的全部 job-state、cancellation 和 service composition 要求.
+
+验证: 6 项进度合同、16 项原协议合同、8 项真实 CLI、4 项文件发布、1 项版本握手和 8 项合成回归. 原身份测试仍保留并阻止 workspace 累计门禁通过. 日志: `/tmp/vos-ticket04-progress-green.log`, `/tmp/vos-ticket04-transport-cli-green.log`, `/tmp/vos-ticket04-transport-workspace.log`. 失败后仍需新 transport 路径重试.

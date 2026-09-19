@@ -8,5 +8,6 @@ pub mod format;
 pub mod id;
 pub mod json;
 pub mod path;
+pub mod progress;
 pub mod protocol;
 pub mod schema;

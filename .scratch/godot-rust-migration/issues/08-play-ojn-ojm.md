@@ -84,3 +84,4 @@
 - 编码检测仍有歧义, 当前接口只用于显示文本. companion 文件名保留原始字节, 文件 adapter 尚须结合真实目录安全匹配. 不将猜测文本用作身份或路径依据.
 - red 证据 `/tmp/vos-ticket08-text-red.log`, `/tmp/vos-ticket08-text-legacy-red.log`; 验证命令为 workspace locked tests、clippy 和 fmt, workspace 日志 `/tmp/vos-ticket08-text-workspace.log`.
 - 后续: 持久化 LibraryRootId 请求传递、companion 解析、raw OJN catalog/bundle/Godot 闭环. 本 ticket 仍为 in-progress.
+- 显示文本增量提交 `b993f71`, 固定审查基点不变. 两轴独立审查 Standards 0 项 / Spec 0 项; 不将编码检测样本视作任意短文本正确性保证, 不关闭本 ticket.

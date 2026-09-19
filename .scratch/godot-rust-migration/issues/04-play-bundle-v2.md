@@ -89,3 +89,5 @@
 Godot 新增独立 manifest/key/identity/path/size/hash 验证、严格 JSON 前置检查及 v2-to-runtime adapter. 受控 Rust bundle 在搬移后进入既有 GameplayRuntime, 实际验证 tap/hold/同刻后续 tap 判定、autoplay 与音频事件. 21 类非法 bundle 被拒绝, 包括内容与 hash 匹配但不可解码的 WAV. 入口 `rewrite/tools/verify_native_bundle_gameplay.sh` 必须同时满足退出码、成功标记及无 SCRIPT ERROR.
 
 正式 native bundle request 服务与 transactional staging 仍未完成, 所以 ticket 保持 in-progress. 这一轮已超出单纯 JSON round-trip 或 WAV smoke, 但不能等同于所有格式、产品 UI、取消/进度或 Java-free 迁移完成.
+
+阶段提交 `0d9b233`. 独立两轴静态审查 Standards 0、Spec 0 未解决发现. 审查建议补充的有效目录尾部 `/` 正向控制已纳入 gameplay gate, 与 21 类反例共用相同路径形状. gate 输出包含实际 Gameplay Ready 与 21 类拒绝的成功标记; 既有 gameplay_runtime_test 日志无脚本或断言错误. 本阶段未修改 Rust, 延续上一阶段累计 72 项 native 回归证据. Q6/Q7 的已批准决定继续适用于 tickets 16/17.

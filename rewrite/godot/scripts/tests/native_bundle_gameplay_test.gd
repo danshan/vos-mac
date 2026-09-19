@@ -13,6 +13,9 @@ func _init() -> void:
 	if loaded.is_empty():
 		_fail("Native bundle was rejected.")
 		return
+	if BundleLoader.new().load_bundle(args[0] + "/").is_empty():
+		_fail("Valid bundle with trailing slash was rejected.")
+		return
 	var chart: Dictionary = loaded["chart"]
 	if chart["notes"][0]["startMs"] != 1000.125 or chart["notes"][0]["volume"] != 0.9375 or chart["notes"][0]["pan"] != -0.875:
 		_fail("Time or volume precision was lost.")

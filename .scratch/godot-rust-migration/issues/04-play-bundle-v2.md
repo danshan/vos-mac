@@ -4,14 +4,14 @@
 
 **Blocked by:** 02: 验证 VOS 离线合成可行性; 03: 验证最小 macOS application.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] 落实必要的 core、版本化 CLI request/result/progress 与错误合同, 现有相关协议测试从缺实现状态转为可验证行为.
-- [ ] 受控谱面经真实 Rust 生成与 Godot consumer 到达 Gameplay Ready, 而非只做 JSON round-trip 或在 Godot 内伪造成功.
-- [ ] 冻结并验证 us 等时间单位转换、格式映射、sample 引用、相对资源路径、volume/pan 精度及长音头尾顺序.
-- [ ] 模型表达 judgment/visual timing、scroll 与 measure, 测试使用能暴露丢失语义的输入.
-- [ ] Rust 验证产物, Godot 再次完整验证 manifest/schema、文件大小与 hash; 无效产物不能进入 gameplay.
-- [ ] 只增加可并存的迁移路径, 保留迁移期 oracle; 这一步不删除 Java 或宣布所有格式完成.
+- [x] 落实必要的 core、版本化 CLI request/result/progress 与错误合同, 现有相关协议测试从缺实现状态转为可验证行为.
+- [x] 受控谱面经真实 Rust 生成与 Godot consumer 到达 Gameplay Ready, 而非只做 JSON round-trip 或在 Godot 内伪造成功.
+- [x] 冻结并验证 us 等时间单位转换、格式映射、sample 引用、相对资源路径、volume/pan 精度及长音头尾顺序.
+- [x] 模型表达 judgment/visual timing、scroll 与 measure, 测试使用能暴露丢失语义的输入.
+- [x] Rust 验证产物, Godot 再次完整验证 manifest/schema、文件大小与 hash; 无效产物不能进入 gameplay.
+- [x] 只增加可并存的迁移路径, 保留迁移期 oracle; 这一步不删除 Java 或宣布所有格式完成.
 
 
 ## 实施进度: 严格协议基础
@@ -97,3 +97,14 @@ Godot 新增独立 manifest/key/identity/path/size/hash 验证、严格 JSON 前
 新增 BundleStager 的私有写入、manifest-last 验证、完成目录发布/复用及限域 stale cleanup. 正式 CLI 支持 BUNDLE_V2 导入, 保持原始 declared identity, 仅声明 BUNDLE 能力. request/progress/result 路径经既有 transport 校验, result 仍以 no-clobber 原子方式发布. Godot gate 改为实际启动正式 CLI 并消费成功 staging result, 不再绕过该入口直接加载 probe 目录.
 
 测试覆盖取消与流读失败、不可覆盖 destination、进程在 rename 前后中断、孤儿完成目录重试及真实 CLI 失败合同. 详见 controlled-bundle-probe 文档的边界说明. 本阶段不承诺产品异步取消时限, 不启用原始格式 parser, 不移除 Java oracle. ticket 完成状态待本阶段审查确认.
+
+
+## 完成验收
+
+实现提交 `bfd2b70`, Spec 退出码修复 `cc67ef5`. 最终累计 native workspace 日志 `/tmp/vos-ticket04-staging-workspace.log` 记录 83 项通过、0 失败、0 忽略; 另有 1 项 compile-fail doctest 通过, fmt/clippy 无新增问题. Godot gate 同时输出正式 CLI staging 成功、Gameplay Ready 实际 tap/hold/tap 判定和 21 类非法 bundle 拒绝的成功标记. 初次累计门禁受沙箱 Unix socket bind 限制失败, 同套测试在允许该本地操作的环境复验后通过, 未绕过或删除反例.
+
+Standards: 0 项未解决发现. Spec: 1 项 P2 经真实 CLI RED/GREEN 修复, 最终 0 项未解决发现. 两轴均为独立静态审查, 不替代上述执行证据.
+
+逐项证据: 版本化 request/result/progress 及全 workspace 合同测试可验证; controlled producer 生成真实 WAV/Chart; Godot 调用正式 CLI 后复验并实际游玩; 时间、比例、sample、相对路径、格式映射、长音头尾和独立 timing/scroll/measure 由 consumer 测试覆盖; Rust/Godot 双端拒绝无效产物. Java oracle 与既有路径保持并存.
+
+此完成只关闭 ticket 04. 异步 generation/取消、缓存发布、外部 bundle discovery、全部原始格式与最终 Java-free 均由剩余 tickets 验收. 下一顺序为 ticket 05.

@@ -115,16 +115,17 @@ func _run() -> void:
 	if Loader.new().load_bundle(cache.path_join(version_key.trim_prefix("sha256:"))).is_empty():
 		_fail("Source-change race damaged the prior valid version.")
 		return
-	_errors.clear()
-	_bundle = {}
-	coordinator.start_loading(args[0], version_request, work, args[2].path_join("linked-cache"))
-	await _wait(coordinator)
-	if not _bundle.is_empty() or _errors.size() != 1 or _errors[0].get("code") != "INVALID_REQUEST":
-		_fail("Linked cache root allowed publication outside its owned namespace.")
-		return
-	if not DirAccess.get_directories_at(args[2].path_join("outside-cache")).is_empty():
-		_fail("Rejected cache root modified its link target.")
-		return
+	for suffix: String in ["", "/"]:
+		_errors.clear()
+		_bundle = {}
+		coordinator.start_loading(args[0], version_request, work, args[2].path_join("linked-cache") + suffix)
+		await _wait(coordinator)
+		if not _bundle.is_empty() or _errors.size() != 1 or _errors[0].get("code") != "INVALID_REQUEST":
+			_fail("Linked cache root allowed publication outside its owned namespace.")
+			return
+		if not DirAccess.get_directories_at(args[2].path_join("outside-cache")).is_empty():
+			_fail("Rejected cache root modified its link target.")
+			return
 	_errors.clear()
 	var blocked_cache := work.path_join("blocked-cache")
 	var blocker := FileAccess.open(blocked_cache, FileAccess.WRITE)

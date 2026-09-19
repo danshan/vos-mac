@@ -21,7 +21,6 @@ hdiutil attach "$TEST_ROOT/full.dmg" -mountpoint "$TEST_ROOT/mount" -nobrowse
 MOUNTED=true
 python3 - "$TEST_ROOT/mount" <<'PY'
 import errno
-import os
 import pathlib
 import sys
 root = pathlib.Path(sys.argv[1]).resolve()

@@ -75,6 +75,9 @@ result = subprocess.run([
     str(pathlib.Path("native/target/debug/open2jam-converter").resolve()), str(root / "source"), str(root),
 ] + ([os.environ["OPEN2JAM_FULL_STAGING"]] if os.environ.get("OPEN2JAM_FULL_STAGING") else []), capture_output=True, text=True, timeout=30)
 print(result.stdout, end="")
+if os.environ.get("OPEN2JAM_FULL_STAGING") and "Real full-volume CLI failure preserved valid cache and published no partial artifact." not in result.stdout:
+    print(result.stderr, file=sys.stderr)
+    raise SystemExit("Full-volume cache failure assertion did not complete")
 marker = "Native artifact cache published validated output and reused a verified hit."
 if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.stderr or "SCRIPT ERROR" in result.stdout:
     print(result.stderr, file=sys.stderr)

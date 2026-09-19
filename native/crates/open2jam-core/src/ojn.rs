@@ -10,7 +10,7 @@ pub use gameplay::OjnMetadata;
 pub use timing::{OjnTimeline, TimedOjnEvent};
 
 // These bounds constrain parsing work independently of untrusted header counts.
-const MAX_SOURCE_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_SOURCE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_EVENTS: usize = 1_000_000;
 
 #[derive(Debug)]

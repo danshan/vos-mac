@@ -95,3 +95,14 @@
 - 尚未实现 token 的设置持久化和 UI 重新定位. 新 SettingsStore 持久化测试边界确认已提出, 当前继续使用已批准的 protocol / CLI / Godot 行为链推进独立部分.
 - 首轮 Spec 审查发现 rootIds 的 BTreeMap 默认反序列化会覆盖重复 JSON path key. 已增加 raw JSON bytes 回归及拒绝重复 key 的反序列化 visitor, red 证据 `/tmp/vos-root-ids-duplicate-red.log`, 避免测试 Value 提前合并键.
 - 传输增量 `24321f7`, 重复键修复 `1717e15`. 固定基点两轴复审: Standards 0 项, Spec 0 项. workspace 验证记录已包含重复键回归; SettingsStore 持久化测试边界问题仍待答复, 不影响独立的 raw source adapter 准备工作.
+
+## 当前增量: Raw OJN catalog
+
+- CLI 递归发现大小写不敏感的 `.ojn` 文件, 以已有 rootIds token 和精确 root-relative path 派生一个 SongId, 返回 chartIndex 0/1/2 三个 ChartId. 同名/同内容的不同文件仍是不同 Song, 显式搬移保留 token 时身份不变.
+- OJN catalog entry 带 sourceKind=OJN、chartIndex、level、durationSeconds, 不虚构 SoundFont. Bundle entry 的现有 wire 字段不变. result 的 sourceCount/songCount 按来源计数, chartCount 按实际 Chart 条目计数, 不再假定三者相等.
+- 读取前校验 regular file 与 64 MiB 输入上限, 64 KiB 分块读取并检查取消, 读取中增长超过上限也拒绝. 复用 core 的 OJN 上限, metadata 解码复用已验证 parser 接口. 缺 root token 返回该源的 INVALID_REQUEST, 截断/超限返回 CORRUPT_CHART, 不妨碍其他有效源.
+- 该阶段只验证 OJN header/offset 和显示 metadata, 不提前展开全部事件、定位 companion 或解码音频. 真正加载时仍须完成事件/资源验证; catalog 可读不等于 Gameplay Ready. 文件系统并发替换与整体资源门禁仍需后续安全验收.
+- version 的 catalogFormats 增加 O2JAM, bundleFormats 仍只有 BUNDLE, 不宣称 raw OJN bundle 转换已经接通. 当前 Godot catalog 消费仍为 bundle-only, OJN metadata 结构将在转换链路接入时配套更新.
+- CLI 测试覆盖三个难度、同源 Song 分组、实际 root 搬移、新 token、同名不同文件、缺 token、截断、sparse 超限和 OJN/bundle 混合计数. `.ojn` 后缀的有效 bundle 目录仍按 bundle 处理. 原有 Godot bundle catalog gate 保留验证.
+- red 证据 `/tmp/vos-ojn-catalog-red.log`, `/tmp/vos-ojn-catalog-version-red.log`; 验证记录 `/tmp/vos-ojn-catalog-tests.log`, `/tmp/vos-ojn-catalog-workspace.log`, `/tmp/vos-ojn-catalog-godot.log`. 首次测试调用误将 CLI 参数乱序, 已修正为现有固定顺序并对修改前 catalog 验证实际 sourceCount=0 的 red, 未将用法错误当作缺少 OJN 支持的证据.
+- 下一步: raw bundle request 的稳定来源上下文、OJN companion 安全解析和音频/manifest 组装, 随后更新 Godot 的多 Chart 消费. ticket 保持 in-progress.

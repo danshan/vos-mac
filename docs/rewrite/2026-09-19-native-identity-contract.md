@@ -46,3 +46,9 @@ CATALOG request schema 1 新增可选 `rootIds`, 按请求中的绝对 root path
 提供映射时 catalog v2 entry 携带 `rootId`, Godot 使用原请求映射核对, 拒绝遗漏或替换 token. 外部 bundle 的 declared SongId/ChartId 保持原值. Godot 的 source selection key 使用 `bundle-source-` 加 SHA-256 hex, 输入为 UTF-8 JSON 数组 `[rootId, relativePath]`; 与旧无 token 调用的临时 `[rootPath, relativePath]` 区分. root 内重命名不保证身份延续, 显式重新定位复用 token 和相对路径即可保持 source selection key, 新增副本须提供新 token.
 
 当前增量仅验证 token 的协议传递、catalog 消费和 selection key 的稳定性. token 生成/持久化、完整重新定位 UI 和跨重启选择恢复仍由 ticket 16 实现, 不由 CLI echo 或 key 比较替代验收.
+
+## Raw OJN catalog entry
+
+OJN source 的每个 Chart 返回共同的 rootPath、rootId、relativePath、sourcePath、songId、title、artist, 以及各自的 chartId、chartIndex、level、durationSeconds. sourceKind 为 OJN. 该分支不带外部 bundle 的 soundfont/staticAssetsVersion 字段, 不依赖音频预解码生成元信息. 每个 OJN source 提供三个 Chart, root token 是必需输入. 外部 bundle 的 entry 结构不变.
+
+sourceCount 为有效来源数加被拒绝来源数, songCount 为有效来源下的 Song 数, chartCount 为展开后的 Chart 数. 当前支持的 OJN 和单 Chart bundle 都是一源一 Song, 不跨来源按 declared SongId 去重. Godot 的 OJN catalog 消费与 raw bundle adapter 仍需配套接入, 不能用 bundle-only 计数条件消费多 Chart 输出.

@@ -2,15 +2,17 @@ use open2jam_core::{
     bundle::{SoundFontIdentity, load_bundle_documents},
     error::{CoreError, ErrorCode, ErrorInfo},
     format::SourceKind,
-    id::{ChartId, LibraryRootId, SongId},
-    path::AbsoluteSourcePath,
+    id::{ChartId, ChartIdentity, LibraryRootId, SongId, SongIdentity},
+    ojn::{MAX_SOURCE_BYTES, OjnSource},
+    path::{AbsoluteSourcePath, SourceRelativePath},
     progress::{ProgressOwner, ProgressPhase, ProgressSink, ProgressTracker},
     protocol::{CatalogOutputV1, CatalogRequestV1, Command},
 };
 use serde::Serialize;
 use std::{
+    collections::BTreeSet,
     fs,
-    io::Write,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -29,13 +31,29 @@ struct Entry {
     root_id: Option<LibraryRootId>,
     relative_path: String,
     source_path: AbsoluteSourcePath,
-    source_kind: SourceKind,
-    soundfont: SoundFontIdentity,
-    static_assets_version: String,
+    #[serde(flatten)]
+    details: ChartDetails,
     song_id: SongId,
     chart_id: ChartId,
     title: String,
     artist: String,
+}
+#[derive(Serialize)]
+#[serde(
+    tag = "sourceKind",
+    rename_all = "SCREAMING_SNAKE_CASE",
+    rename_all_fields = "camelCase"
+)]
+enum ChartDetails {
+    BundleV2 {
+        soundfont: SoundFontIdentity,
+        static_assets_version: String,
+    },
+    Ojn {
+        chart_index: u8,
+        level: i16,
+        duration_seconds: u32,
+    },
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -125,7 +143,7 @@ pub fn scan(
         while let Some(path) = pending.pop() {
             cancel(request)?;
             if fs::symlink_metadata(path.join("bundle.json")).is_ok() {
-                candidates.push((origin.clone(), root.clone(), path));
+                candidates.push((origin.clone(), root.clone(), path, SourceKind::BundleV2));
                 continue;
             }
             let children = match fs::read_dir(&path) {
@@ -153,6 +171,13 @@ pub fn scan(
                     });
                 } else if kind.is_dir() {
                     pending.push(child.path());
+                } else if kind.is_file()
+                    && child
+                        .path()
+                        .extension()
+                        .is_some_and(|extension| extension.eq_ignore_ascii_case("ojn"))
+                {
+                    candidates.push((origin.clone(), root.clone(), child.path(), SourceKind::Ojn));
                 }
             }
         }
@@ -166,35 +191,14 @@ pub fn scan(
         "sources".into(),
         None,
     )?;
-    for (index, (origin, root, path)) in candidates.into_iter().enumerate() {
+    for (index, (origin, root, path, kind)) in candidates.into_iter().enumerate() {
         cancel(request)?;
-        match load_bundle_documents(&path, None) {
-            Ok(documents) => {
-                let relative = path.strip_prefix(&root).expect("discovered below root");
-                let relative = relative.to_str().ok_or_else(|| {
-                    CoreError::new(ErrorCode::InvalidRequest, "non-UTF-8 relative catalog path")
-                })?;
-                catalog.entries.push(Entry {
-                    root_id: request.root_ids.get(&absolute(&origin)?).copied(),
-                    root_path: absolute(&origin)?,
-                    relative_path: relative.into(),
-                    source_path: absolute(&origin.join(relative))?,
-                    source_kind: SourceKind::BundleV2,
-                    soundfont: documents.bundle().manifest().soundfont().clone(),
-                    static_assets_version: documents
-                        .bundle()
-                        .manifest()
-                        .static_assets_version()
-                        .into(),
-                    song_id: documents.chart().song_id(),
-                    chart_id: documents.chart().chart_id(),
-                    title: documents.chart().title().into(),
-                    artist: documents.chart().artist().into(),
-                });
-            }
+        match read_entries(request, &origin, &root, &path, kind) {
+            Ok(entries) => catalog.entries.extend(entries),
+            Err(error) if error.code() == ErrorCode::Cancelled => return Err(error),
             Err(error) => catalog.rejected.push(Rejected {
                 source_path: absolute(&path)?,
-                error: CoreError::new(error.code, error.message).into(),
+                error: error.into(),
             }),
         }
         progress.emit(
@@ -230,11 +234,114 @@ pub fn scan(
         .map_err(io_error)?;
     progress.emit(ProgressPhase::WriteCatalog, 1, 1, "catalog".into(), None)?;
     cancel(request)?;
+    let sources: BTreeSet<_> = catalog
+        .entries
+        .iter()
+        .map(|entry| (&entry.root_path, &entry.relative_path))
+        .collect();
     Ok(CatalogOutputV1 {
         catalog_path: absolute(&path)?,
-        source_count: (catalog.entries.len() + catalog.rejected.len()) as u64,
-        song_count: catalog.entries.len() as u64,
+        source_count: (sources.len() + catalog.rejected.len()) as u64,
+        song_count: sources.len() as u64,
         chart_count: catalog.entries.len() as u64,
         rejected_source_count: catalog.rejected.len() as u64,
     })
+}
+
+fn read_entries(
+    request: &CatalogRequestV1,
+    origin: &Path,
+    root: &Path,
+    path: &Path,
+    kind: SourceKind,
+) -> Result<Vec<Entry>, CoreError> {
+    let relative = path.strip_prefix(root).expect("discovered below root");
+    let relative = relative.to_str().ok_or_else(|| {
+        CoreError::new(ErrorCode::InvalidRequest, "non-UTF-8 relative catalog path")
+    })?;
+    let root_path = absolute(origin)?;
+    let root_id = request.root_ids.get(&root_path).copied();
+    let source_path = absolute(&origin.join(relative))?;
+    if kind == SourceKind::Ojn {
+        let root_id = root_id.ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::InvalidRequest,
+                "OJN discovery requires a persistent library root ID",
+            )
+        })?;
+        let bytes = read_ojn(path, request)?;
+        let source = OjnSource::parse(&bytes)?;
+        let song_id =
+            SongIdentity::ojn_file(root_id, SourceRelativePath::parse(relative)?).song_id();
+        let title = source.title()?;
+        let artist = source.artist()?;
+        let mut entries = Vec::with_capacity(3);
+        for chart_index in 0..3 {
+            entries.push(Entry {
+                root_path: root_path.clone(),
+                root_id: Some(root_id),
+                relative_path: relative.into(),
+                source_path: source_path.clone(),
+                song_id,
+                chart_id: ChartIdentity::ojn(chart_index)?.chart_id(&song_id),
+                title: title.clone(),
+                artist: artist.clone(),
+                details: ChartDetails::Ojn {
+                    chart_index,
+                    level: source.levels()[chart_index as usize],
+                    duration_seconds: source.duration_seconds(chart_index as usize)?,
+                },
+            });
+        }
+        return Ok(entries);
+    }
+    let documents = load_bundle_documents(path, None)
+        .map_err(|error| CoreError::new(error.code, error.message))?;
+    Ok(vec![Entry {
+        root_path,
+        root_id,
+        relative_path: relative.into(),
+        source_path,
+        song_id: documents.chart().song_id(),
+        chart_id: documents.chart().chart_id(),
+        title: documents.chart().title().into(),
+        artist: documents.chart().artist().into(),
+        details: ChartDetails::BundleV2 {
+            soundfont: documents.bundle().manifest().soundfont().clone(),
+            static_assets_version: documents.bundle().manifest().static_assets_version().into(),
+        },
+    }])
+}
+
+fn read_ojn(path: &Path, request: &CatalogRequestV1) -> Result<Vec<u8>, CoreError> {
+    let metadata = fs::symlink_metadata(path).map_err(io_error)?;
+    if !metadata.is_file()
+        || metadata.file_type().is_symlink()
+        || metadata.len() > MAX_SOURCE_BYTES as u64
+    {
+        return Err(CoreError::new(
+            ErrorCode::CorruptChart,
+            "OJN source is not a bounded regular file",
+        ));
+    }
+    let mut reader = fs::File::open(path)
+        .map_err(io_error)?
+        .take(MAX_SOURCE_BYTES as u64 + 1);
+    let mut bytes = Vec::new();
+    let mut chunk = [0; 65536];
+    loop {
+        cancel(request)?;
+        let length = reader.read(&mut chunk).map_err(io_error)?;
+        if length == 0 {
+            break;
+        }
+        if bytes.len() + length > MAX_SOURCE_BYTES {
+            return Err(CoreError::new(
+                ErrorCode::CorruptChart,
+                "OJN source grew beyond its input bound",
+            ));
+        }
+        bytes.extend_from_slice(&chunk[..length]);
+    }
+    Ok(bytes)
 }

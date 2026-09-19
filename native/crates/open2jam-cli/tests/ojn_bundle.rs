@@ -147,7 +147,7 @@ fn raw_ojn_bundle_rejects_missing_unsafe_and_unsupported_inputs() {
         "missing-bank",
         "traversal",
         "missing-sample",
-        "m30",
+        "unknown-bank",
         "cancel",
     ] {
         let case = Case::new();
@@ -186,9 +186,9 @@ fn raw_ojn_bundle_rejects_missing_unsafe_and_unsupported_inputs() {
                 fs::write(case.0.join("songs/minimal.ojm"), empty).unwrap();
                 (1, "MISSING_ASSET")
             }
-            "m30" => {
+            "unknown-bank" => {
                 let mut bytes = OJM.to_vec();
-                bytes[..4].copy_from_slice(b"M30\0");
+                bytes[..4].copy_from_slice(b"BAD\0");
                 fs::write(case.0.join("songs/minimal.ojm"), bytes).unwrap();
                 (1, "UNSUPPORTED_FORMAT")
             }
@@ -347,4 +347,94 @@ fn corrupt_omc_does_not_damage_a_previously_prepared_song() {
     let (code, result) = case.invoke(&request, "recovered");
     assert_eq!(code, 0, "{result}");
     assert_eq!(good["output"]["bundleKey"], result["output"]["bundleKey"]);
+}
+
+#[test]
+fn m30_companions_bind_key_and_background_references_through_native_conversion() {
+    for (name, encoded) in [
+        (
+            "plain",
+            include_bytes!("../../open2jam-core/tests/fixtures/ojn/m30-plain.ojm").as_slice(),
+        ),
+        (
+            "nami",
+            include_bytes!("../../open2jam-core/tests/fixtures/ojn/m30-nami.ojm").as_slice(),
+        ),
+        (
+            "0412",
+            include_bytes!("../../open2jam-core/tests/fixtures/ojn/m30-0412.ojm").as_slice(),
+        ),
+    ] {
+        let case = Case::new();
+        let path = case.0.join("songs/song.ojn");
+        let mut source = fs::read(&path).unwrap();
+        let note = source.len() - 4;
+        source[note..note + 2].copy_from_slice(&8_u16.to_le_bytes());
+        source.extend(0_u32.to_le_bytes());
+        source.extend(9_u16.to_le_bytes());
+        source.extend(1_u16.to_le_bytes());
+        source.extend([4, 0, 0xf1, 4]);
+        let end = (source.len() as u32).to_le_bytes();
+        for offset in [288, 292, 296] {
+            source[offset..offset + 4].copy_from_slice(&end);
+        }
+        fs::write(&path, source).unwrap();
+        fs::write(case.0.join("songs/minimal.ojm"), encoded).unwrap();
+        let (code, result) = case.invoke(&case.request(), name);
+        assert_eq!(code, 0, "{name}: {result}");
+        let output = PathBuf::from(result["output"]["stagingPath"].as_str().unwrap());
+        load_bundle_documents(&output, None).unwrap();
+        let chart: serde_json::Value =
+            serde_json::from_slice(&fs::read(output.join("gameplay.json")).unwrap()).unwrap();
+        let audio: serde_json::Value =
+            serde_json::from_slice(&fs::read(output.join("audio-manifest.json")).unwrap()).unwrap();
+        assert_eq!(chart["notes"].as_array().unwrap().len(), 1);
+        assert_eq!(chart["autoPlayEvents"].as_array().unwrap().len(), 1);
+        assert_eq!(audio["assets"].as_array().unwrap().len(), 1);
+        assert_eq!(
+            chart["notes"][0]["sampleId"],
+            audio["assets"][0]["sampleId"]
+        );
+        assert_eq!(
+            chart["autoPlayEvents"][0]["sampleId"],
+            audio["assets"][0]["sampleId"]
+        );
+        assert_eq!(fs::read(case.0.join("songs/minimal.ojm")).unwrap(), encoded);
+    }
+}
+
+#[test]
+fn m30_loading_rejects_missing_references_and_corrupt_banks_without_publishing() {
+    for mutation in [
+        "missing-reference",
+        "truncated",
+        "duplicate",
+        "unknown-flag",
+    ] {
+        let case = Case::new();
+        let mut bank =
+            include_bytes!("../../open2jam-core/tests/fixtures/ojn/m30-nami.ojm").to_vec();
+        let expected = match mutation {
+            "missing-reference" => "MISSING_ASSET",
+            "truncated" => {
+                bank.pop();
+                "CORRUPT_CHART"
+            }
+            "duplicate" => {
+                bank[64..66].copy_from_slice(&5_u16.to_le_bytes());
+                bank[72..74].copy_from_slice(&7_u16.to_le_bytes());
+                "CORRUPT_CHART"
+            }
+            "unknown-flag" => {
+                bank[8..12].copy_from_slice(&99_u32.to_le_bytes());
+                "UNSUPPORTED_FORMAT"
+            }
+            _ => unreachable!(),
+        };
+        fs::write(case.0.join("songs/minimal.ojm"), bank).unwrap();
+        let (code, result) = case.invoke(&case.request(), mutation);
+        assert_eq!(code, 1, "{result}");
+        assert_eq!(result["error"]["code"], expected);
+        assert!(!case.0.join("staging/load-one").exists());
+    }
 }

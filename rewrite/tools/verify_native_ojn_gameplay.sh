@@ -20,19 +20,23 @@ import sys
 
 root = pathlib.Path(sys.argv[1]).resolve()
 variant = sys.argv[2]
-if variant not in {"minimal", "omc"}:
-    raise SystemExit("Expected minimal or omc fixture variant")
+if variant not in {"minimal", "omc", "m30-plain", "m30-nami", "m30-0412"}:
+    raise SystemExit("Unknown OJN audio fixture variant")
 for directory in ["songs", "catalog", "work"]:
     (root / directory).mkdir()
 fixtures = pathlib.Path("rewrite/golden/java-migration/sources/ojn")
-source = bytearray((fixtures / f"{variant}.ojn").read_bytes())
+is_m30 = variant.startswith("m30-")
+source = bytearray((fixtures / ("minimal.ojn" if is_m30 else f"{variant}.ojn")).read_bytes())
+companion_name = f"{variant}.ojm"
+source[236:268] = companion_name.encode().ljust(32, b"\0")
 for index in range(3):
     struct.pack_into("<I", source, 284 + index * 4, len(source))
-    source += struct.pack("<IHH4B", 0, 2 + index, 1, 1, 0, 0xf1, 0)
+    source += struct.pack("<IHH4B", 0, 2 + index, 1, 8 if is_m30 else 1, 0, 0xf1, 0)
 struct.pack_into("<I", source, 296, len(source))
 (root / "songs/song.ojn").write_bytes(source)
 (root / "songs/copy.ojn").write_bytes(source)
-(root / f"songs/{variant}.ojm").write_bytes((fixtures / f"{variant}.ojm").read_bytes())
+audio_fixtures = pathlib.Path("native/crates/open2jam-core/tests/fixtures/ojn") if is_m30 else fixtures
+(root / "songs" / companion_name).write_bytes((audio_fixtures / companion_name).read_bytes())
 converter = str(pathlib.Path("native/target/debug/open2jam-converter").resolve())
 request = {"schemaVersion": 1, "jobId": "catalog", "command": "CATALOG", "roots": [str(root / "songs")],
            "rootIds": {str(root / "songs"): "library:sha256:" + "01" * 32}, "previousIndexPath": None,

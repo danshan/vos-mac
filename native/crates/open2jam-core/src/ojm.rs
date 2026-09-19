@@ -1,6 +1,8 @@
 use crate::error::{CoreError, ErrorCode};
 
+mod m30;
 mod omc;
+pub use m30::parse_m30_in_place;
 mod prepare;
 pub use omc::decode_omc_in_place;
 

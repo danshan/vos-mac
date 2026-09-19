@@ -298,13 +298,6 @@ pub fn convert(
     )?;
     let mut companion = CapturedSource::read(companion_path, ojm::MAX_SOURCE_BYTES, &cancel)?;
     progress.emit(ProgressPhase::HashSources, 2, 2, "files".into(), None)?;
-    progress.emit(ProgressPhase::ParseChart, 0, 1, "chart".into(), None)?;
-    // The captured digest remains the identity of the encoded source, not its derived PCM.
-    if companion.bytes.starts_with(b"OMC\0") {
-        ojm::decode_omc_in_place(&mut companion.bytes, &mut || cancel())?;
-    }
-    let samples = ojm::parse_plain_ojm(&companion.bytes, &mut || cancel())?;
-    progress.emit(ProgressPhase::ParseChart, 1, 1, "chart".into(), None)?;
     let mut fingerprint = CanonicalHasher::new(b"open2jam.source-fingerprint.v1\0");
     fingerprint.write_u16(SOURCE_FINGERPRINT_VERSION);
     fingerprint.write_u32(2);
@@ -314,6 +307,18 @@ pub fn convert(
         fingerprint.write_u64(capture.bytes.len() as u64);
         fingerprint.write_bytes(capture.digest.as_bytes());
     }
+    let mut audio_bytes = std::mem::take(&mut companion.bytes);
+    progress.emit(ProgressPhase::ParseChart, 0, 1, "chart".into(), None)?;
+    // The fingerprint above describes encoded bytes; transforms only touch this private buffer.
+    let samples = if audio_bytes.starts_with(b"M30\0") {
+        ojm::parse_m30_in_place(&mut audio_bytes, &mut || cancel())?
+    } else {
+        if audio_bytes.starts_with(b"OMC\0") {
+            ojm::decode_omc_in_place(&mut audio_bytes, &mut || cancel())?;
+        }
+        ojm::parse_plain_ojm(&audio_bytes, &mut || cancel())?
+    };
+    progress.emit(ProgressPhase::ParseChart, 1, 1, "chart".into(), None)?;
     let mut stage = BundleStager::create(request.staging_root.as_path(), &request.job_id, &cancel)?;
     let private_root = stage.private_root().to_owned();
     let completed_root = staging.join(request.job_id.as_str());

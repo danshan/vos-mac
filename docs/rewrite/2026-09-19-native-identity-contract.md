@@ -59,7 +59,7 @@ OJN BUNDLE request 必须携带 `libraryRoot: {id, path}`. path 是本次 root �
 
 OJN 不使用 SoundFont 合成. 为保持既有 v2 bundle/key 合同, 当前仍携带 request.soundfont 的版本/hash 作为 key 配置输入, 但不打开其 path. 此字段不是 OJN 音色来源, 也不能据此宣称做过 SoundFont 文件校验.
 
-OJN fingerprint 使用既有 v1 framing: 两个 component, PRIMARY=1 与 COMPANION=2, ordinal 均为 0, 分别记录完整源 bytes 长度及 digest, 不记录绝对路径. adapter 从同一打开句柄捕获源 bytes 并先计算原始编码 digest. OMC 可在该私有 buffer 上执行派生变换, fingerprint 始终保留变换前的 digest 和长度, 不把解码后 bytes 作为来源身份. 最终返回前检查句柄及原路径的 identity/size/mtime, 拒绝文件变化. 当前 Unix adapter 使用 dev/ino 和纳秒 mtime; Windows 原始源 capture 尚未实现, 本次 macOS arm64 交付范围不变.
+OJN fingerprint 使用既有 v1 framing: 两个 component, PRIMARY=1 与 COMPANION=2, ordinal 均为 0, 分别记录完整源 bytes 长度及 digest, 不记录绝对路径. adapter 从同一打开句柄捕获源 bytes 并先计算原始编码 digest. OMC/M30 可在该私有 buffer 上执行派生变换, fingerprint 始终保留变换前的 digest 和长度, 不把解码后 bytes 作为来源身份. 最终返回前检查句柄及原路径的 identity/size/mtime, 拒绝文件变化. 当前 Unix adapter 使用 dev/ino 和纳秒 mtime; Windows 原始源 capture 尚未实现, 本次 macOS arm64 交付范围不变.
 
 ## 设置持久化前置能力
 

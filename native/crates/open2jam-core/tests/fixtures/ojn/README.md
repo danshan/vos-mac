@@ -74,3 +74,19 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OmcOracle.java rew
 ```
 
 既有 omc.ojm 的源 hash 由 migration manifest 管理. 重排 permutation 从现有 Java format table 迁移; 对照输出来自 Java 生产解码, 不是 Rust 自己生成的期望值. 原始 Ogg bytes 不经过 OMC WAV 变换; 本轮短 Ogg sentinel 只验证不变性, 不作为音频可解码证明.
+
+## M30 可播放输入与 oracle
+
+create_m30_audio_fixtures.py 使用既有自制 tone.ogg 构造 plain / nami / 0412 三个编码 bank, 先写 codec 0/ref 3 (index 1003), 再写 codec 5/ref 7 (index 7), 不以文件顺序猜测 sample ID. M30Oracle.java 直接调用生产 OJMParser 与 OggPcmDecoder. 三种输入的解密 SHA-256/metadata oracle 一致, 两个 sample 的 Java PCM 均与已冻结 tone-java.pcm 完全一致. Rust 对 Ogg bytes 要求精确一致, prepared PCM 使用此前已声明的 1 LSB Vorbis decoder 容差. 无外部歌曲素材, 沿用项目许可证.
+
+- m30-plain.ojm: SHA-256 `5b390755b58c3917296da973acbf060d4f883f2ef308c17f331b92e87c9bb972`.
+- m30-nami.ojm: SHA-256 `7fb08be6266f6ac3bf7378ed7a44fc7404e78f4c8a5d0945c758163646a51077`.
+- m30-0412.ojm: SHA-256 `6b27749061f8bb366a7d6c306c1a14ffbb8e1bacc45896f89f7988615f232dd2`.
+- m30-java.json: SHA-256 `1e70bce280c4a9c360126f6015e78fe4a2017ffb3944cde62ffbbfab9b743058`.
+
+```bash
+mise exec -- python3 rewrite/tools/create_m30_audio_fixtures.py
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/M30Oracle.java native/crates/open2jam-core/tests/fixtures/ojn/m30-nami.ojm /tmp/m30-java
+```
+
+其余两个 flag 使用同一 generator 命令更换输入路径; 比较 JSON 与两个 PCM 输出, 不覆盖既有 expected. 原 migration sources 中的 M30 stub fixture 仍只代表 metadata 可解析, reference 为 1, 8-byte payload 明确返回 AudioDecodeFailed.

@@ -19,3 +19,7 @@
 验收入口 `rewrite/tools/verify_native_load_coordinator.sh` 使用真实 native CLI 到 runtime, 并加入已启动的 late-success、拒绝退出/持续写 stdout/stderr、marker 不可写 helper 反例. 断言主线程持续处理帧、旧 generation 不发 ready/progress、helper 被回收、当前 generation 可运行 gameplay, 且 SOURCE_CHANGED 保留结构化错误码.
 
 尚未接入 main_ui 的选择/返回按钮与加载页, 未关闭 ticket. 稳定 callback 在 UI 接入时仍需覆盖重入切换, Godot bundle 验证期间的块级取消、退出场景和资源回收需要继续补齐. 工作线程使用同步 loader, 因此主线程可响应, 但 app 退出时 join 仍可能等待当前音频解码完成; 不声称最终资源/响应预算已经满足.
+
+阶段实现 `f4c28c5`, 进度 EOF 审查修复 `13a0d5a`. Spec 发现完成时可能未排空进度文件的 P2, 已用有效前缀超过单帧预算后追加非法序号、末行截断两个真实 helper 反例 RED/GREEN 修复. 当前任务完成后继续分帧读至 EOF, 拒绝残行, 不因 helper 退出而跳过验证. 最终两轴静态复审 Standards 0、Spec 0 未解决发现.
+
+验证日志 `/tmp/vos-ticket05-async.log` 与 `/tmp/vos-ticket05-bundle-regression.log` 包含成功标记且无 SCRIPT ERROR; 原 bundle CLI/gameplay 与 21 类拒绝矩阵继续有效. 本轮无 Rust 修改, 延续 ticket 04 的 83 项累计 native 回归证据. ticket 05 继续 in-progress, 下一步为实际 UI 选择/返回及加载页接入和验证期间取消.

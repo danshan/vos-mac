@@ -9,3 +9,5 @@ native_load_job 每次分配随机 JobId 和 create-new transport 目录, 将用
 工作目录与 stagingRoot 应由应用创建并传入规范化绝对路径. helper 无需 shell wrapper, 生产 converter 当前不启动子进程. 不支持任意多进程 shell pipeline 的所有权推断. 应用异常退出后的孤儿 helper 与 staging 恢复仍属于 ticket 22; 活跃任务取消不替代该责任.
 
 API 依据通过 Context7 核实的 [Godot 4.6 OS 文档](https://docs.godotengine.org/en/4.6/classes/class_os.html). [Godot Unix 实现](https://github.com/godotengine/godot/blob/4.6/drivers/unix/os_unix.cpp) 显示 kill 包含子进程回收, 因此将其放在专属 worker, 并避免 kill 后再次读取已被回收的退出状态. 测试 helper 的 PID 在 Godot 退出后还由 gate 检查不存在, 不只依赖模拟的完成状态.
+
+worker 完成后, 当前 generation 仍继续按帧读取 progress 至 EOF, 并确认不存在截断末行, 才允许交付 bundle. retired generation 仅回收 worker, 不再交付其日志或结果. 对有效前缀超过 16 KiB 后追加错误序号、最终行缺失 LF 的 helper 反例均必须拒绝成功.

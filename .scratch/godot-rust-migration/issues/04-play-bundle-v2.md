@@ -83,3 +83,9 @@
 独立 Python wave 解码与 Godot 4.6.3 AudioStreamWAV 加载已提供真实音频资源证据, 详见 `docs/rewrite/2026-09-19-controlled-bundle-probe.md`. 尚未接通正式 CLI bundle 服务与完整 Godot v2 adapter, 不将音频解码 smoke 当成 Gameplay Ready.
 
 阶段提交 `15460f5`. 累计 72 项 native 回归日志无失败: `/tmp/vos-ticket04-controlled-bundle.log`; fmt/clippy 无新增问题. 独立两轴审查 Standards 0、Spec 0. 真实 Godot WAV 加载 gate 退出码为 0, production Chart adapter 与正式 CLI 服务仍是下一步, ticket 不关闭.
+
+## 实施进度: Godot v2 adapter 与 Gameplay Ready 受控证据
+
+Godot 新增独立 manifest/key/identity/path/size/hash 验证、严格 JSON 前置检查及 v2-to-runtime adapter. 受控 Rust bundle 在搬移后进入既有 GameplayRuntime, 实际验证 tap/hold/同刻后续 tap 判定、autoplay 与音频事件. 21 类非法 bundle 被拒绝, 包括内容与 hash 匹配但不可解码的 WAV. 入口 `rewrite/tools/verify_native_bundle_gameplay.sh` 必须同时满足退出码、成功标记及无 SCRIPT ERROR.
+
+正式 native bundle request 服务与 transactional staging 仍未完成, 所以 ticket 保持 in-progress. 这一轮已超出单纯 JSON round-trip 或 WAV smoke, 但不能等同于所有格式、产品 UI、取消/进度或 Java-free 迁移完成.

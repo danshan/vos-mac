@@ -58,3 +58,19 @@ JSON SHA-256: `45de1ecb5d20faf05f2e4f47d2298a2237a60af5815b25d4974c34909979135b`
 `ojn_parser.rs` 的 display metadata 测试使用固定 source bytes 与独立 Unicode 期望值. 四个 legacy 样本分别通过 Python 标准库的 euc_kr、gbk、big5、shift_jis 编码得到, 运行测试不再编码期望值. 原文分别为 `아름다운 세상`, `美丽的音乐世界`, `美麗的音樂世界`, `美しい音楽の世界`. UTF-8 样本为 `音楽の世界`. 测试还验证首个 NUL 后的垃圾字节不会影响显示, 不同字段可使用不同编码, 原始 source bytes 保留.
 
 这组期望值不是 Java 显示 oracle. 对相同文本补零至 64 bytes 后调用旧 `ByteHelper.toString`, Java detector 分别误判四个 legacy 样本为 GB2312、EUC-KR、US-ASCII 和 GB18030. Native 保持有效 UTF-8 原文, 否则逐字段使用 chardetng 检测并通过 encoding_rs 严格解码, 不复刻已观察到的乱码. 此策略不保证任意短字段都可正确推断编码; companion 匹配必须在 file adapter 结合实际目录处理, 不把显示文本的猜测当作路径授权.
+
+## OMC 解码 oracle
+
+OmcOracle.java 直接调用生产 Java OJMParser.parseFile 和 JavaSoundPcmDecoder, 冻结原始解密 payload 与 PCM16 输出. Rust 测试只读取冻结文件, 不执行 Java. 多样本 bank 由固定公式 `(sample_index * 31 + byte_index * 7 + 3) % 256` 构造编码 bytes, 长度为 0, 1..34, 0, 257, 覆盖全部 17 个重排余数、跨 sample XOR 状态和空槽. 该文件是自制测试数据, 沿用项目许可证.
+
+- omc-multisample.ojm: SHA-256 `3b694bbd32feec3ea72da78273743699fb9ab5c2ea5e7c6aa535883f03ac1d9f`.
+- omc-multisample-java.json: SHA-256 `e415ec138a46c70f03a75dd409980138677f2a912ebcd90e9ae0a60ad4d7dce6`.
+- omc-frozen-java.json: SHA-256 `7f877b01c70aadacd5888ab1d4868d487adceeb21dd432c99807a203d4d1d2ba`.
+- Java decoder source SHA-256: `b4a61fb35727b60d152ca318826e9c4fa1b525c765245e372cf472165d518488`.
+
+```bash
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OmcOracle.java native/crates/open2jam-core/tests/fixtures/ojn/omc-multisample.ojm native/crates/open2jam-core/tests/fixtures/ojn/omc-multisample-java.json
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OmcOracle.java rewrite/golden/java-migration/sources/ojn/omc.ojm native/crates/open2jam-core/tests/fixtures/ojn/omc-frozen-java.json
+```
+
+既有 omc.ojm 的源 hash 由 migration manifest 管理. 重排 permutation 从现有 Java format table 迁移; 对照输出来自 Java 生产解码, 不是 Rust 自己生成的期望值. 原始 Ogg bytes 不经过 OMC WAV 变换; 本轮短 Ogg sentinel 只验证不变性, 不作为音频可解码证明.

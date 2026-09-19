@@ -1,6 +1,8 @@
 use crate::error::{CoreError, ErrorCode};
 
+mod omc;
 mod prepare;
+pub use omc::decode_omc_in_place;
 
 pub const MAX_SOURCE_BYTES: usize = 512 * 1024 * 1024;
 const MAX_SAMPLES: usize = 65_536;
@@ -30,14 +32,22 @@ pub fn parse_plain_ojm<'a>(
     bytes: &'a [u8],
     checkpoint: &mut impl FnMut() -> Result<(), CoreError>,
 ) -> Result<Vec<OjmSample<'a>>, CoreError> {
+    parse_bank(bytes, b"OJM\0", checkpoint)
+}
+
+fn parse_bank<'a>(
+    bytes: &'a [u8],
+    signature: &[u8; 4],
+    checkpoint: &mut impl FnMut() -> Result<(), CoreError>,
+) -> Result<Vec<OjmSample<'a>>, CoreError> {
     checkpoint()?;
     if bytes.len() < 20 || bytes.len() > MAX_SOURCE_BYTES {
         return Err(corrupt("OJM source length is outside parser bounds"));
     }
-    if &bytes[..4] != b"OJM\0" {
+    if &bytes[..4] != signature {
         return Err(CoreError::new(
             ErrorCode::UnsupportedFormat,
-            "expected plain OJM audio bank",
+            "unexpected audio bank format",
         ));
     }
     let wave_start = u32_at(bytes, 8) as usize;

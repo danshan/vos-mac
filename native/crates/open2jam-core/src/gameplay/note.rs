@@ -8,6 +8,12 @@ pub struct SoundSettings {
     pan: Ratio,
 }
 impl SoundSettings {
+    pub fn volume(self) -> Ratio {
+        self.volume
+    }
+    pub fn pan(self) -> Ratio {
+        self.pan
+    }
     pub fn new(volume: Ratio, pan: Ratio) -> Result<Self, CoreError> {
         if !volume.is_between(0, 1) || !pan.is_between(-1, 1) {
             return Err(corrupt("invalid note volume or pan"));

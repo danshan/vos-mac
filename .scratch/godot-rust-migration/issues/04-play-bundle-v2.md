@@ -59,3 +59,9 @@
 新增 TimeMicros、约分 Ratio、7-lane Note 与独立 HoldTail. 保留亚毫秒时间、OJN 15/16 音量与 -7/8 声像、头尾 measure/eventOrder; serde 不能绕过 lane、比例和长音先后校验. 数值合同见 `docs/rewrite/2026-09-19-gameplay-v2-values.md`. 完整 Chart、timing、audio 引用与 Godot adapter 尚未实现, 不关闭 ticket.
 
 阶段实现 `253d195`. 累计 61 项 native 回归的日志无失败: `/tmp/vos-ticket04-gameplay-values.log`; workspace clippy 与 fmt 无新增问题. 独立两轴审查 Standards 0、Spec 0. 旧横向计划 Task 3 增加显式替代说明, 防止后续 importer 沿用有损的整数百分比模型.
+
+## 实施进度: Chart 核心事件与引用
+
+新增 GameplayChartV2、TimingPoint、ScrollPoint、AutoplayEvent. judgment/visual timing 分离, scroll ratio 与 measure 索引独立保留. 同一构造/serde 边界拒绝缺失引用、乱序/重复事件、头尾 order 冲突和 duration 越界. sampleless Note 在所有源格式保留音量与声像. Schema、未知/重复字段以及停止速度的回归也已加入.
+
+尚未完成 audio/bundle 跨文件校验、BGA 资源模型、实际 producer 与 Godot consumer, ticket 保持 in-progress. 数值合同补充该阶段的精确边界, 不以序列化 round-trip 代表 Gameplay Ready.

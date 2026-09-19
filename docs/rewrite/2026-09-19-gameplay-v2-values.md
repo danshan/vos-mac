@@ -21,3 +21,15 @@ SampleId 为 null 的跨格式许可和非空 ID 必须命中 audio asset 的检
 ## 验证
 
 `native/crates/open2jam-core/tests/gameplay_values.rs` 覆盖 1,000,125 us、OJN 离散比例、长音尾部独立字段, 以及 lane、时间、音量、声像、分母和 tail 顺序的 serde 绕过检查. 极值测试验证约分与范围比较不溢出. 这些是共享 core 精度边界测试, 仍需真实 Godot 消费与资源加载测试.
+
+## Chart 核心事件模型
+
+GameplayChartV2 现在组合 songId/chartId、源格式、固定 7 keys、title/artist、durationUs、sample ID 集合、notes、measures、judgmentTiming、visualTiming、scroll 和 autoPlayEvents. GameplayChartInput 是未验证的构造参数, validated Chart 字段私有; constructor 与 serde 走同一校验.
+
+judgmentTiming 与 visualTiming 分开保留编译后的 BPM ratio, 允许零速度表达停止. scroll 保留原始非负 multiplier ratio 的时间和 eventOrder, 不被 visualTiming 替代. 同时刻的变化依 eventOrder 严格有序. importer/timing compiler 负责计算这些轨道的一致性; 本层不从一条轨道猜测另一条. measures 按索引保存非递减的微秒位置, 允许既有 exporter 产生重复时间位置.
+
+所有事件数组保留输入顺序, 不在验证期间排序. notes、timing、scroll 和 autoplay 分别按 time/order 严格递增; playable heads/tails 还共享 time/order 唯一性检查, 防止长音释放与下一音头的顺序歧义. durationUs 必须覆盖所有事件和 measure 位置, 属于规范化结果的上界, 不直接照搬旧格式名义长度.
+
+sample ID 集合必须排序且唯一; 非空 Note 引用及所有 autoplay 引用必须命中集合. sampleless Note 在各源格式均可表达, 仍保留 volume/pan; 不因 sampleless 自动丢弃 Note. Note 头尾的 measure 索引必须命中 measures. bundle 是传输来源而非 gameplay 源格式, 因而 Chart format 保留 VOS、O2JAM 或 OSU_MANIA, 不接受 BUNDLE.
+
+该模型尚未完成 audio asset 与 bundle manifest 的跨文件身份/引用校验, BGA 资源表示及实际 Godot adapter. 这些工作继续归迁移范围, 本节不能作为完整 bundle consumer 或 ticket 04 完成的依据. Chart round-trip 只验证字段保留; 最终必须由真实 Rust producer 与 Godot runtime 验证消费语义.

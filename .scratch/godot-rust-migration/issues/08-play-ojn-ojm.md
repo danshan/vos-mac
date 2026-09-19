@@ -93,3 +93,4 @@
 - 验证命令: locked workspace tests、clippy、fmt 和 `rewrite/tools/verify_native_catalog_gameplay.sh`. 证据 `/tmp/vos-root-ids-workspace.log`, `/tmp/vos-root-ids-godot.log`; red `/tmp/vos-root-ids-protocol-red.log`, `/tmp/vos-root-ids-invalid-red.log`, `/tmp/vos-root-ids-transport-red.log`, `/tmp/vos-root-ids-godot-red.log`.
 - 修正 catalog mutation 测试重新序列化时 schemaVersion 变为 float 的问题, 确保拒绝用例不会因无关数字格式提前失败. 合法搬移与新增来源使用同一 wire 重写路径作正向对照.
 - 尚未实现 token 的设置持久化和 UI 重新定位. 新 SettingsStore 持久化测试边界确认已提出, 当前继续使用已批准的 protocol / CLI / Godot 行为链推进独立部分.
+- 首轮 Spec 审查发现 rootIds 的 BTreeMap 默认反序列化会覆盖重复 JSON path key. 已增加 raw JSON bytes 回归及拒绝重复 key 的反序列化 visitor, red 证据 `/tmp/vos-root-ids-duplicate-red.log`, 避免测试 Value 提前合并键.

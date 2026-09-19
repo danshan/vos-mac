@@ -486,3 +486,17 @@ fn catalog_rejects_incomplete_foreign_or_reused_root_ids() {
         assert!(decode_contract::<CatalogRequestV1>(&serde_json::to_vec(&value).unwrap()).is_err());
     }
 }
+
+#[test]
+fn catalog_rejects_duplicate_root_id_keys_in_raw_json() {
+    let prefix = std::str::from_utf8(VALID_CATALOG)
+        .unwrap()
+        .trim()
+        .trim_end_matches('}');
+    let duplicate = format!(
+        "{prefix},\"rootIds\":{{\"/tmp/open2jam-songs\":\"library:{ZERO_DIGEST}\",\"/tmp/open2jam-songs\":\"library:{}\"}}}}",
+        Digest::from_bytes([1; 32])
+    );
+    let error = decode_contract::<CatalogRequestV1>(duplicate.as_bytes()).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::InvalidRequest);
+}

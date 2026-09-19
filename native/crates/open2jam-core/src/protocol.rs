@@ -18,11 +18,42 @@ pub struct CatalogRequestV1 {
     pub job_id: JobId,
     pub command: Command,
     pub roots: Vec<AbsoluteSourcePath>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "deserialize_root_ids"
+    )]
     pub root_ids: BTreeMap<AbsoluteSourcePath, LibraryRootId>,
     pub previous_index_path: Option<AbsoluteSourcePath>,
     pub staging_root: AbsoluteSourcePath,
     pub cancel_marker_path: AbsoluteSourcePath,
+}
+
+fn deserialize_root_ids<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<BTreeMap<AbsoluteSourcePath, LibraryRootId>, D::Error> {
+    struct RootIdsVisitor;
+    impl<'de> serde::de::Visitor<'de> for RootIdsVisitor {
+        type Value = BTreeMap<AbsoluteSourcePath, LibraryRootId>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("unique library root paths mapped to persistent IDs")
+        }
+
+        fn visit_map<M: serde::de::MapAccess<'de>>(
+            self,
+            mut map: M,
+        ) -> Result<Self::Value, M::Error> {
+            let mut ids = BTreeMap::new();
+            while let Some((path, id)) = map.next_entry()? {
+                if ids.insert(path, id).is_some() {
+                    return Err(serde::de::Error::custom("duplicate library root path"));
+                }
+            }
+            Ok(ids)
+        }
+    }
+    deserializer.deserialize_map(RootIdsVisitor)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

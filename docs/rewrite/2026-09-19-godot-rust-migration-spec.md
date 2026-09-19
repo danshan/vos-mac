@@ -1,6 +1,6 @@
 # Godot + Rust Java-free 迁移规格
 
-状态: 测试边界与 27 个实施切片已确认, 用户已选择本地文件 tracker 并授权实施. 本文综合已有产品合同、accepted ADR、代码审查与用户 Q1-Q5 答案. 未回答的问题不视为接受推荐值.
+状态: 测试边界与 27 个实施切片已确认, 用户已选择本地文件 tracker 并授权实施. 本文综合已有产品合同、accepted ADR、代码审查与用户 Q1-Q7 答案. 未回答的问题不视为接受推荐值.
 
 ## Problem Statement
 
@@ -72,11 +72,11 @@ Rust 已有 workspace、CLI version 入口和协议测试草稿, 但生产 catal
 ### 身份、目录与选择
 
 - Library Root 身份与其当前目录分离. 显式 Library Relocation 保留 root 身份及其中仍可对应的 Song/Chart 身份和选择状态; 新增目录不按内容推断搬移.
-- Song ID 必须隔离不同曲库来源与歌曲包, 不以 title 或当前绝对路径作为身份. 具体 namespace 持久化和 hash 输入尚未冻结.
+- Song ID 必须隔离不同曲库来源与歌曲包, 不以 title 或当前绝对路径作为身份. 原始歌曲 hash 输入已按 `2026-09-19-native-identity-contract.md` 修订为 root token、格式和相对路径; namespace 持久化与外部 bundle catalog 组合由 ticket 16 完成.
 - 保持 Song 分组与独立 Difficulty Selection. O2Jam 同一来源文件中的多个 chartIndex 属于同一 Song 的不同 Chart.
 - Song Search 仅匹配 basename/title, 不匹配完整路径、artist 或难度. Format Filter 默认全部选中且至少保留一种格式.
 - Catalog 缓存可用时先显示可操作列表, 后台扫描和增量更新; 没有可用缓存时显示阻塞式真实加载进度. 搜索与筛选不启动 converter 或扫描.
-- 重叠 root 和部分 root 离线的规则仍未获用户确认, 见 Further Notes; 本规格不将 Q6/Q7 推荐选项写成产品承诺.
+- 首发拒绝相同物理目录或相互包含的 root, 每个 root 内递归扫描. root 暂不可读时保留旧记录并标不可用; 只有完整成功扫描才确认歌曲删除.
 
 ### 领域语义与 bundle v2
 
@@ -170,11 +170,11 @@ Rust 已有 workspace、CLI version 入口和协议测试草稿, 但生产 catal
 ## Further Notes
 
 - 已确认 Q1-Q5: 前置两个原型; 显式 Library Relocation; 固定性能验收规模且更大曲目允许更久加载; 每配置单实例; 本机自用 ad-hoc 签名.
-- Q6 未决: 相同物理目录或相互包含的 Library Root 是否拒绝. 当前建议拒绝重复/重叠并提示覆盖来源, 但尚未成为要求.
-- Q7 未决: 部分曲库因外置盘断开而不可读时如何呈现. 当前建议保留旧记录并标记不可用, 只有可读目录的完整成功扫描才确认删除, 但尚未成为要求.
+- Q6 已批准: 拒绝相同物理目录或相互包含的 Library Root, 每个 root 内递归扫描.
+- Q7 已批准: root 暂不可读时保留旧记录并标记不可用, 只有完整成功扫描才确认歌曲删除.
 - 仍需工程细化: identity namespace/hash 与 bundle declared ID 的组合, session/job/orphan ownership, 协议数值精度与完整时序字段. 这些问题必须在相关实现合同冻结前解决, 不应让 agent 自行假定已批准.
 - 仍需原型证据: synth 选择、固定合成配置、跨格式验收工作集、安全资源上限、内存与磁盘成本. 当前规格不填入未经测量的数值, 也不声称 cold 5 s 已证明可达.
 - 已有环境问题包括 macOS SDK linker 兼容问题、尚未发现可用 Godot installation, 以及 golden verifier 的 JVM temp-root 检查失败. 这些是前序审查记录, 本次仅整理规格, 未重新验证环境或执行实现测试.
 - 代码审查基线为 `d4cedf802e22a4eefd08426ddba17f3cd17c2856`. 当前 Rust 协议测试引用的若干模块尚未实现; 应将其视为未完成工作, 不将 RED 测试视作功能完成.
 - 用户已选择本地文件 tracker, 27 个 tickets 已发布并使用 `ready-for-agent` triage 标签. 不创建远程 issues; 未决项不能因标签而被推定为已解决.
-- 用户已批准纵向切片顺序并明确调用 implement. Godot v2 consumer 提前随最小完整链路落地, 各格式接入时验证真实 gameplay; 这一执行顺序替代旧横向阶段约束, 保留完整产品范围与累计门禁. Q6/Q7 只阻塞依赖它们的工作.
+- 用户已批准纵向切片顺序并明确调用 implement. Godot v2 consumer 提前随最小完整链路落地, 各格式接入时验证真实 gameplay; 这一执行顺序替代旧横向阶段约束, 保留完整产品范围与累计门禁. Q6/Q7 的产品决策前置现已满足.

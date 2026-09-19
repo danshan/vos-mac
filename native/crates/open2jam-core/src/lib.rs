@@ -2,6 +2,7 @@
 
 pub mod version;
 
+pub mod canonical;
 pub mod digest;
 pub mod error;
 pub mod format;

@@ -35,3 +35,9 @@
 验证: 7 项进度合同、16 项原协议合同、8 项真实 CLI、4 项文件发布、1 项版本握手和 8 项合成回归. 原身份测试仍保留并阻止 workspace 累计门禁通过. 日志: `/tmp/vos-ticket04-progress-green.log`, `/tmp/vos-ticket04-transport-cli-green.log`, `/tmp/vos-ticket04-transport-workspace.log`. 失败后仍需新 transport 路径重试.
 
 阶段实现提交: `a41a8b3`. Spec 审查发现 1 项 P2: 进度 schema 不兼容经 serde 丢失 `UNSUPPORTED_SCHEMA` 稳定码. 已由 `62abbaa` 修复, 精确错误码回归先 RED 后 GREEN. 最终两轴复审均无未解决发现: Standards 0, Spec 0. 44 项限定回归与 release build 通过; fmt 和相关 clippy 通过. 未豁免旧 identity 缺实现导致的 workspace 总门禁失败.
+
+## 实施进度: 原始歌曲身份与累计门禁
+
+原始 Song identity 改为 root namespace、格式和相对路径, 移除标题与绝对路径输入. Song/Chart algorithm v2 与独立 Python preimage/hash vectors 已实现; source/sample domain v1 有明确 framing. 合同修订见 `docs/rewrite/2026-09-19-native-identity-contract.md`. 旧 native 草稿的标题敏感断言和无 root 构造被新已批准语义取代, 冻结 Java goldens 未改变.
+
+完整 native workspace 现有 48 项测试通过, workspace all-target clippy 通过. 日志: `/tmp/vos-ticket04-identity-workspace.log`. 先前 identity 缺实现导致的累计门禁失败已解除, 不代表 ticket 04 的 bundle/gameplay 验收完成. bundle declared wire ID 保留, catalog 来源组合与 root 持久化仍归 ticket 16.

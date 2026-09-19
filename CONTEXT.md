@@ -21,8 +21,12 @@ _Avoid_: Expanded song row, flattened chart list
 _Avoid_: Title key, display name
 
 **Library Root**:
-用户独立管理的一处曲库来源, 其身份与当前所在目录分离. 新增目录表示新来源, 不隐式替代已有曲库.
+用户独立管理的一处曲库来源, 其身份与当前所在目录分离. 新增目录表示新来源, 不隐式替代已有曲库. 首发不允许相同或互相包含的曲库目录.
 _Avoid_: Absolute path identity, content-deduplicated library
+
+**Library Availability**:
+曲库当前是否可读的状态. 暂不可读时旧歌曲记录保留并标为不可用, 只有完整成功扫描才能确认歌曲删除.
+_Avoid_: Empty library on scan failure, implicit source removal
 
 **Library Relocation**:
 用户明确为已有 Library Root 指定新目录的操作, 保留该曲库身份及其中仍可对应的歌曲身份和选择状态. 根据内容相同自动推断搬移不属于该操作.

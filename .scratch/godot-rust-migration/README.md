@@ -7,7 +7,7 @@
 - Triage vocabulary: ready-for-agent. 此标签不表示依赖已经完成; 只有所有 Blocked by 项及外部前置满足的 ticket 才能开始依赖这些条件的实施.
 - 当前状态: 01/02/03 已完成并通过两轴审查, 可执行 frontier 为 04. 02 只证明受控合成原型可继续集成, 不解除最终性能门禁. 不因已有草稿或部分代码将 ticket 标为完成.
 - 01 完成后 02 与 03 可独立推进. 原型只有通过 go/no-go 才解除 04 的阻塞, 失败报告不等于通过.
-- 16 另受 Q6 阻塞, 17 另受 Q7 阻塞. 两项推荐答案尚未批准, agent 不得自行当作产品规则.
+- Q6/Q7 已明确批准: 拒绝重复或重叠 root; 离线保留旧记录并标不可用, 仅完整成功扫描确认删除. 16/17 的外部决策前置已满足, ticket 依赖仍须完成.
 - 每项验收以可观察的 CLI/bundle/Godot 行为为主, 保留必要的精度 golden 与包验收. 完成时在该 ticket 记录验证证据、剩余限制并更新复选框.
 - 这套已批准的纵向顺序将 Godot v2 consumer 提前到 04, 各格式接入时直接验证 gameplay, 不再以旧 roadmap 的横向阶段顺序阻止这些切片. 原 roadmap 的产品范围、正确性与累计退出门禁继续适用.
 - 最终目标是全部保留能力由 Godot + Rust 接替, 运行、构建、测试与打包不依赖 Java. 已退役格式与旧应用移除, 不逐项重写. 本机自用只影响分发要求.
@@ -32,8 +32,8 @@
 | [13: 游玩基础 VOS 歌曲](issues/13-play-basic-vos.md) | 04 | - |
 | [14: 保持复杂 VOS 的 MIDI 与 gameplay 语义](issues/14-play-complex-vos.md) | 13 | - |
 | [15: 跨 Chart 复用 VOS 合成缓存](issues/15-share-vos-sample-cache.md) | 06, 14 | - |
-| [16: 管理稳定的 Library Root 与重新定位](issues/16-relocate-library-roots.md) | 07 | Q6 |
-| [17: 后台刷新曲库并处理部分来源不可用](issues/17-refresh-partially-available-library.md) | 16 | Q7 |
+| [16: 管理稳定的 Library Root 与重新定位](issues/16-relocate-library-roots.md) | 07 | 已确认 |
+| [17: 后台刷新曲库并处理部分来源不可用](issues/17-refresh-partially-available-library.md) | 16 | 已确认 |
 | [18: 交付大型曲库的分组、搜索和筛选](issues/18-search-large-catalog.md) | 17 | - |
 | [19: 预热 Chart 并展示完整真实进度](issues/19-prewarm-with-real-progress.md) | 06, 18 | - |
 | [20: 有界加载音频并回收播放器](issues/20-bound-audio-resources.md) | 04 | - |

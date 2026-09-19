@@ -32,7 +32,7 @@ fn schema_constants_are_frozen() {
     assert_eq!(BUNDLE_SCHEMA_VERSION, 2);
     assert_eq!(GAMEPLAY_SCHEMA_VERSION, 2);
     assert_eq!(AUDIO_MANIFEST_SCHEMA_VERSION, 2);
-    assert_eq!(ID_ALGORITHM_VERSION, 1);
+    assert_eq!(ID_ALGORITHM_VERSION, 2);
     assert_eq!(SOURCE_FINGERPRINT_VERSION, 1);
     assert_eq!(BUNDLE_KEY_ALGORITHM_VERSION, 1);
     assert_eq!(STATIC_ASSETS_VERSION, "open2jam-gameplay-assets-v1");

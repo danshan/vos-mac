@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-外部前置: Q6 重复/重叠 Library Root 的产品规则尚未确认; ticket 07 完成不自动解除此条件.
+Q6 已确认: 首发拒绝相同物理目录和互相包含的 root, 每个 root 内递归扫描.
 
-- [ ] 开始依赖产品规则的实现前取得 Q6 的明确决定: 相同物理目录及相互包含的 root 如何处理; 不把推荐的拒绝策略当作已批准.
+- [x] Q6 产品决定已取得: 拒绝重复或重叠 root.
 - [ ] 冻结 root namespace 的持久化、Song/Chart identity 输入及 bundle declared ID 的组合, 身份不依赖当前绝对路径或 title.
 - [ ] 不同来源的同名歌曲不合并, 新增内容副本不自动替代已有来源.
 - [ ] 显式 Library Relocation 在仍可对应的源条目上保留身份与选择, 重启后仍成立.

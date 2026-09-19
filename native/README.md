@@ -22,7 +22,7 @@ mise exec -- cargo test --manifest-path native/Cargo.toml -p open2jam-core --tes
 mise exec -- cargo clippy --manifest-path native/Cargo.toml -p open2jam-core --lib --test protocol_contract --locked -- -D warnings
 ```
 
-这些窄检查不替代完整 workspace 门禁. 两项旧身份派生测试保留在 `tests/identity_contract.rs`, 当前仍因缺实现而使完整门禁失败. 身份派生还需对齐已批准的 Library Root 决策; 未发布 catalog/bundle 能力, `version` 的能力数组保持为空.
+这些窄检查不替代完整 workspace 门禁. 身份派生现已按 root namespace 修订并实现, 完整 workspace tests 与 clippy 已恢复通过. 算法修订及独立参考向量见 `docs/rewrite/2026-09-19-native-identity-contract.md`. 未发布 catalog/bundle 能力, `version` 的能力数组保持为空.
 
 真实 CLI 已接受下列请求传输形式, 但当前所有有效导入请求仍返回结构化 `UNSUPPORTED_FORMAT`, 不代表已支持对应格式:
 

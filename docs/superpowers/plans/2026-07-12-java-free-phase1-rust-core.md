@@ -10,6 +10,8 @@
 
 **2026-09-19 设计修订状态:** 当前 grill-with-docs 访谈已接受曲库显式重新定位与来源身份保留, 前置两个可行性原型, 以及 roadmap 中更新的性能、单实例和本机自用发布条件. 本文下方 Task 2/3 的 identity 和领域字段合同仍待完成一致性修订, 不应视为已按新决定重新冻结. 具体已决/未决项见 `docs/rewrite/2026-09-19-godot-rust-design-decisions.md`; 既有 Task 1 的历史验收不因此变为新合同的验收证据.
 
+**当前 identity 合同修订:** 原始 Song/Chart 的 algorithm version 已改为 2, 引入 LibraryRootId 并移除 VOS title 输入. 下方旧 Task 2/3 的无 root 构造签名和旧 ID vectors 不再作为实现依据; 以 `docs/rewrite/2026-09-19-native-identity-contract.md` 及当前测试为准. Source/Sample domain 保留 v1, 精确 framing 与可复现向量见该修订. UI/catalog 来源组合仍由 ticket 16 完成.
+
 ### Task 0: Binding execution context, not an implementation task
 
 Task 0 has no code, review or commit. It exists so SDD can extract the complete global contract separately from the selected implementation Task. Before Task 1, and again only if this plan changes, run:

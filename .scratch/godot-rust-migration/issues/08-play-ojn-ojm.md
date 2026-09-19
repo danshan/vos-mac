@@ -28,3 +28,4 @@
 - 小节展开最多 1,000,000 个, 循环提供取消检查; 会导致时间倒退的小节长度与无法表示的时间返回 CorruptChart. 空谱面仍有初始小节和 timing. OJN 无独立 scroll / STOP, 两条 timing track 可共享编译结果.
 - public parser/timing seam 覆盖 BPM 变化、短小节、分数拍、4096 事件微秒精度、过大 measure、异常 BPM 和展开期间取消. `/tmp/vos-ticket08-java-timeline.log` 记录 Java `RenderTimingCompiler` 对同一 120 -> 240 BPM / 半小节案例的输出, 小节为 1500000/2500000/3500000 us, 音符为 2000000/3000000/3500000 us. 工作集证据为 `/tmp/vos-ticket08-timeline-workspace.log`, 首个 red 为 `/tmp/vos-ticket08-timeline-red.log`.
 - 此结果仍是带时间的原始事件, 未实施 `EventList.OPEN2JAM` 长音修复及最终 playable eventOrder 分配. 不据此勾选完整 timing / 长音 parity 验收.
+- 时间轴增量提交 `e86359f`, 固定基点不变. Standards 0 项, Spec 0 项; 审查认可当前增量边界, 不代表完整 ticket 验收.

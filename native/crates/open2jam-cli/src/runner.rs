@@ -4,9 +4,7 @@ use std::io::Write;
 use open2jam_core::error::{CoreError, ErrorCode, ProtocolError};
 use open2jam_core::id::JobId;
 use open2jam_core::progress::JsonlProgressWriter;
-use open2jam_core::protocol::{
-    BundleRequestV1, CatalogOutputV1, CatalogRequestV1, Command, CommandResultV1,
-};
+use open2jam_core::protocol::{BundleRequestV1, CatalogRequestV1, Command, CommandResultV1};
 use open2jam_core::version::VersionInfo;
 
 use crate::args::{ParsedCommand, parse_args};
@@ -46,6 +44,7 @@ pub fn run(
             return 2;
         }
     };
+    let mut bundle_request = None;
     let decoded: Result<(JobId, Command, std::path::PathBuf), ProtocolError> = match command {
         Command::Catalog => {
             read_request_document::<CatalogRequestV1>(&files.request).and_then(|mut r| {
@@ -64,6 +63,7 @@ pub fn run(
                 let requested_command = r.command;
                 r.command = Command::Bundle;
                 r.validate()?;
+                bundle_request = Some(r.clone());
                 Ok((
                     r.job_id,
                     requested_command,
@@ -72,9 +72,9 @@ pub fn run(
             })
         }
     };
-    let (scope, result, exit_code) = match decoded {
+    let (scope, mut result, mut exit_code) = match decoded {
         Err(error) => {
-            let result = CommandResultV1::<CatalogOutputV1>::protocol_failure(
+            let result = CommandResultV1::<serde_json::Value>::protocol_failure(
                 command,
                 CoreError::new(error.code(), "Invalid request document").into(),
             );
@@ -114,11 +114,36 @@ pub fn run(
             return 2;
         }
     };
-    if exit_code == 1
-        && let Err(error) = JsonlProgressWriter::create(&files.progress)
-    {
-        let _ = writeln!(stderr, "{error}");
-        return 4;
+    if exit_code == 1 {
+        let mut progress = match JsonlProgressWriter::create(&files.progress) {
+            Ok(progress) => progress,
+            Err(error) => {
+                let _ = writeln!(stderr, "{error}");
+                return 4;
+            }
+        };
+        if let Some(request) = bundle_request
+            && request.source_kind == open2jam_core::format::SourceKind::BundleV2
+        {
+            match crate::bundle_service::import_bundle(&request, &mut progress) {
+                Ok(output) => {
+                    result = CommandResultV1::succeeded(
+                        request.job_id,
+                        command,
+                        serde_json::to_value(output).expect("serializable bundle output"),
+                    );
+                    exit_code = 0;
+                }
+                Err(error) if error.code() == ErrorCode::Cancelled => {
+                    result = CommandResultV1::cancelled(request.job_id, command, error.into());
+                    exit_code = 3;
+                }
+                Err(error) => {
+                    result = CommandResultV1::failed(request.job_id, command, error.into());
+                    exit_code = 1;
+                }
+            }
+        }
     }
     match writer.publish(&result) {
         Ok(()) => exit_code,

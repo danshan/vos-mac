@@ -36,3 +36,15 @@ gate 从 Rust producer 重新生成 bundle, 搬移到含空格目录, 调用生�
 Godot 独立校验和受控实际玩法已有证据, 但正式 open2jam-converter bundle request 服务、transactional staging 和产品加载协调仍未接通. 该 loader 当前同步读取并验证资源, 后续任务必须接入 generation/cancellation、进度、资源上限和预热协调. BGA 支持与所有原始格式仍属于整个迁移的剩余工作.
 
 实现参考 [Godot 4.6 HashingContext](https://docs.godotengine.org/en/4.6/classes/class_hashingcontext.html)、[DirAccess](https://docs.godotengine.org/en/4.6/classes/class_diraccess.html) 及 [Unix FileAccess 实现](https://github.com/godotengine/godot/blob/4.6/drivers/unix/file_access_unix.cpp). Context7 目录 API 请求短暂失败后, 通过官方文档页面补充核实; 未依靠未验证的 API 猜测.
+
+## 正式 CLI 与事务式 staging
+
+`open2jam-converter bundle` 现已支持 `sourceKind=BUNDLE_V2`, 通过共享 verifier 验证自包含输入、保持 declared Song/Chart ID 和原有合成配置, 将资源流式复制到 job staging. 此路径不访问 request 中的 SoundFont 文件, 因为 prepared bundle 已包含音频. 只声明 `bundleFormats=["BUNDLE"]`, catalog 和原始格式能力尚未启用. 这落实 ticket 04 的可并存路径, 并替代旧横向计划 Task 8 在 importer 落地前保持所有 capability 为空的临时安排.
+
+BundleStager 使用 `.partial/<jobId>` 私有目录, 每个资源以 create-new 临时文件、64 KiB 流式 hash、文件 sync 和私有 rename 写入. manifest 最后写入, 全树验证与目录 sync 后才 rename 为 `<jobId>`. 已有相同产物独立复验后复用; 损坏或不同内容拒绝且不覆盖. 完成目录不等于消费授权: 必须再有当前 generation 对应的成功 result, Godot 仍复验. 单实例协调器必须保证同一 staging namespace 的写入/清理互斥, 此层不承诺防御其他进程恶意修改或并发争用同一 job.
+
+取消 callback 在创建前、流式块之间、manifest 前和最终 rename 前检查. 已创建的私有树发生错误后保留并报告 privatePath, 发布后失败留下 completed orphan. cleanup_stale_job 只供协调器确认无活跃 owner 后调用, 预检两个 job 树, 拒绝 symlink/特殊文件, 不触碰 sibling 或 artifacts namespace. 原始 JobId 仍可用于其他协议范围, staging 对 artifacts 名称另行保留.
+
+Godot gate 现在由测试脚本实际写 request, 用 OS.execute 调用正式 native CLI, 检查成功 result 后加载 staging. OS.execute 只用于本次同步验收 harness; 产品异步进程、generation 和取消协调属于后续 tickets. bundle 验证内的大文件 hash 尚无块级取消, process kill/恢复与 UI 进度要求仍需 ticket 05 等后续工作覆盖, 不以本次 callback 检查声称最终响应时限已满足.
+
+Native 新增 staging 发布/复用、取消、流读失败、损坏或不同 destination、限域 cleanup、保留 artifacts namespace、流块间取消及真实子进程在 rename 前后退出的测试. CLI 新增 bundle 导入/新 transport 重试、预取消、输入损坏、Chart identity 变化和源/输出目录重叠测试. 完整 CLI result publication 故障已有 file_transport 测试, Godot generation 消费隔离仍待产品协调器接入.

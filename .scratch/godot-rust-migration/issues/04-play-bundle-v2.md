@@ -91,3 +91,9 @@ Godot 新增独立 manifest/key/identity/path/size/hash 验证、严格 JSON 前
 正式 native bundle request 服务与 transactional staging 仍未完成, 所以 ticket 保持 in-progress. 这一轮已超出单纯 JSON round-trip 或 WAV smoke, 但不能等同于所有格式、产品 UI、取消/进度或 Java-free 迁移完成.
 
 阶段提交 `0d9b233`. 独立两轴静态审查 Standards 0、Spec 0 未解决发现. 审查建议补充的有效目录尾部 `/` 正向控制已纳入 gameplay gate, 与 21 类反例共用相同路径形状. gate 输出包含实际 Gameplay Ready 与 21 类拒绝的成功标记; 既有 gameplay_runtime_test 日志无脚本或断言错误. 本阶段未修改 Rust, 延续上一阶段累计 72 项 native 回归证据. Q6/Q7 的已批准决定继续适用于 tickets 16/17.
+
+## 实施进度: 正式 CLI bundle 导入与事务式 staging
+
+新增 BundleStager 的私有写入、manifest-last 验证、完成目录发布/复用及限域 stale cleanup. 正式 CLI 支持 BUNDLE_V2 导入, 保持原始 declared identity, 仅声明 BUNDLE 能力. request/progress/result 路径经既有 transport 校验, result 仍以 no-clobber 原子方式发布. Godot gate 改为实际启动正式 CLI 并消费成功 staging result, 不再绕过该入口直接加载 probe 目录.
+
+测试覆盖取消与流读失败、不可覆盖 destination、进程在 rename 前后中断、孤儿完成目录重试及真实 CLI 失败合同. 详见 controlled-bundle-probe 文档的边界说明. 本阶段不承诺产品异步取消时限, 不启用原始格式 parser, 不移除 Java oracle. ticket 完成状态待本阶段审查确认.

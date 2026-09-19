@@ -6,14 +6,20 @@ const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 
 func _init() -> void:
 	var args := OS.get_cmdline_user_args()
-	if args.size() != 1:
+	if args.size() != 1 and args.size() != 3:
 		_fail("Expected controlled bundle directory.")
 		return
-	var loaded: Dictionary = BundleLoader.new().load_bundle(args[0])
+	var bundle_path: String = args[0]
+	if args.size() == 3:
+		bundle_path = _stage_with_cli(args[0], args[1], args[2])
+		if bundle_path.is_empty():
+			_fail("Native CLI did not publish the requested bundle.")
+			return
+	var loaded: Dictionary = BundleLoader.new().load_bundle(bundle_path)
 	if loaded.is_empty():
 		_fail("Native bundle was rejected.")
 		return
-	if BundleLoader.new().load_bundle(args[0] + "/").is_empty():
+	if BundleLoader.new().load_bundle(bundle_path + "/").is_empty():
 		_fail("Valid bundle with trailing slash was rejected.")
 		return
 	var chart: Dictionary = loaded["chart"]
@@ -59,6 +65,39 @@ func _init() -> void:
 	runtime.free()
 	print("Native bundle reached Gameplay Ready and judged tap/hold/tap with audio.")
 	quit(0)
+
+
+func _stage_with_cli(source: String, work: String, converter: String) -> String:
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(source.path_join("bundle.json")))
+	var request := {
+		"schemaVersion": 1, "jobId": "godot-controlled", "command": "BUNDLE",
+		"chartId": manifest["chartId"], "sourcePath": source, "sourceKind": "BUNDLE_V2",
+		"selector": {"kind": "BUNDLE_CHART", "chartId": manifest["chartId"]},
+		"stagingRoot": work.path_join("staging"), "cancelMarkerPath": work.path_join("cancel"),
+		"soundfont": {"path": work.path_join("unused.sf2"), "version": manifest["soundfont"]["version"], "sha256": manifest["soundfont"]["sha256"]},
+		"staticAssetsVersion": manifest["staticAssetsVersion"],
+	}
+	if DirAccess.make_dir_absolute(request["stagingRoot"]) != OK:
+		return ""
+	var request_path := work.path_join("request.json")
+	var file := FileAccess.open(request_path, FileAccess.WRITE)
+	if file == null:
+		return ""
+	file.store_string(JSON.stringify(request))
+	file.close()
+	var result_path := work.path_join("result.json")
+	var output: Array = []
+	var code := OS.execute(converter, ["bundle", "--request", request_path, "--progress", work.path_join("progress.jsonl"), "--result", result_path], output, true)
+	if code != 0:
+		return ""
+	var result: Variant = JSON.parse_string(FileAccess.get_file_as_string(result_path))
+	if not result is Dictionary or result.get("status") != "SUCCEEDED" or result.get("jobId") != request["jobId"]:
+		return ""
+	var staged: String = result["output"]["stagingPath"]
+	if staged != work.path_join("staging/godot-controlled") or result["output"]["bundleKey"] != manifest["bundleKey"]:
+		return ""
+	print("Godot invoked the native bundle CLI and received a completed staging result.")
+	return staged
 
 
 func _fail(message: String) -> void:

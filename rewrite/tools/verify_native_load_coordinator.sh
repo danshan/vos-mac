@@ -14,15 +14,36 @@ mise exec -- cargo run --manifest-path native/Cargo.toml -p open2jam-cli --bin c
 mise exec -- cargo build --manifest-path native/Cargo.toml -p open2jam-cli --bin open2jam-converter --locked
 mise exec -- python3 - "$TEST_ROOT" <<'PY'
 import pathlib
+import hashlib
+import json
+import shutil
+import struct
 import os
 import subprocess
 import sys
 root = pathlib.Path(sys.argv[1]).resolve()
-for name in ["hang-helper", "late-helper", "marker-error-helper", "bad-progress-helper", "truncated-progress-helper"]:
+for name in ["hang-helper", "late-helper", "marker-error-helper", "bad-progress-helper", "truncated-progress-helper", "source-change-helper"]:
     helper = root / name
     body = pathlib.Path("rewrite/tools/native_load_test_helper.py").read_text().split("\n", 1)[1]
     helper.write_text("#!" + sys.executable + "\n" + body)
     helper.chmod(0o700)
+# Independent key framing for the controlled OJN chart's producer-version variant.
+variant = root / "version-source"
+shutil.copytree(root / "source", variant)
+manifest = json.loads((variant / "bundle.json").read_text())
+manifest["converterVersion"] = "cache-test-next-version"
+def framed(value):
+    return struct.pack(">Q", len(value)) + value
+def digest(value):
+    return bytes.fromhex(value.split(":")[-1])
+assert manifest["chartSelector"] == {"kind": "OJN_CHART", "index": 0}
+key = b"open2jam.bundle-key.v1\0" + struct.pack(">HH", 1, 2)
+key += framed(manifest["converterVersion"].encode()) + framed(manifest["staticAssetsVersion"].encode())
+for value in [manifest["soundfont"]["sha256"], manifest["songId"], manifest["chartId"]]:
+    key += framed(digest(value))
+key += struct.pack(">HH", 2, 0) + framed(digest(manifest["sourceFingerprint"]))
+manifest["bundleKey"] = "sha256:" + hashlib.sha256(key).hexdigest()
+(variant / "bundle.json").write_text(json.dumps(manifest))
 result = subprocess.run([
     "godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "godot.log"),
     "--script", "res://scripts/tests/native_load_coordinator_test.gd", "--",

@@ -13,7 +13,10 @@ job_dir = request_path.parent
 work = job_dir.parent
 mode = pathlib.Path(sys.argv[0]).name
 (work / (mode + ".pid")).write_text(str(os.getpid()))
-if mode == "late-helper" or "progress-helper" in mode:
+if mode == "source-change-helper":
+    source = pathlib.Path(request["sourcePath"])
+    shutil.copytree(pathlib.Path(sys.argv[0]).parent / "version-source", source, dirs_exist_ok=True)
+if mode in ["late-helper", "source-change-helper"] or "progress-helper" in mode:
     source = pathlib.Path(request["sourcePath"])
     staged = pathlib.Path(request["stagingRoot"]) / request["jobId"]
     shutil.copytree(source, staged)
@@ -21,6 +24,8 @@ if mode == "late-helper" or "progress-helper" in mode:
     result = {"schemaVersion": 1, "jobId": request["jobId"], "command": "BUNDLE", "status": "SUCCEEDED", "error": None,
               "output": {"stagingPath": str(staged), "bundleKey": manifest["bundleKey"], "manifestPath": str(staged / "bundle.json")}}
     (job_dir / "result.json").write_text(json.dumps(result))
+    if mode == "source-change-helper":
+        sys.exit(0)
     if "progress-helper" in mode:
         event = {"schemaVersion": 1, "jobId": request["jobId"], "command": "BUNDLE", "phase": "VERIFY_BUNDLE",
                  "completedUnits": 1, "totalUnits": 1, "unit": "bundle", "currentItem": None}

@@ -150,14 +150,14 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 	var cancel_path: String = request["cancelMarkerPath"]
 	if _cancellation_requested() or FileAccess.file_exists(cancel_path):
 		return _failure("CANCELLED", "Cancelled before helper startup.")
-	var replace_corrupt := false
+	var replace_key := ""
 	if not cache_root.is_empty():
 		var cached: Dictionary = ArtifactCache.new().lookup(cache_root, request, _cancellation_requested)
 		if cached.has("bundle"):
 			return {"ok": true, "bundle": cached["bundle"]}
 		if cached.get("conflict", false):
 			return _failure("CACHE_CORRUPT", "Valid cache and source disagree under the same bundle key.")
-		replace_corrupt = cached.get("replace", false)
+		replace_key = cached.get("replaceKey", "")
 		if _cancellation_requested():
 			return _failure("CANCELLED", "Cancelled during cache validation.")
 	var child := OS.execute_with_pipe(converter, ["bundle", "--request", directory.path_join("request.json"), "--progress", directory.path_join("progress.jsonl"), "--result", directory.path_join("result.json")], false)
@@ -197,7 +197,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 		return _failure("CANCELLED", "Cancelled while validating native output.")
 	if bundle.is_empty() or bundle["chart"]["chartId"] != request["chartId"]:
 		return _failure("CACHE_CORRUPT", "Native bundle validation failed.")
-	return {"ok": true, "bundle": bundle, "stagingPath": expected_path, "replaceCorrupt": replace_corrupt}
+	return {"ok": true, "bundle": bundle, "stagingPath": expected_path, "replaceKey": replace_key}
 
 
 static func _failure(code: String, message: String) -> Dictionary:

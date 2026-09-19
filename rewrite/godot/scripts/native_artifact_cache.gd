@@ -18,18 +18,18 @@ func lookup(root: String, request: Dictionary, cancel: Callable) -> Dictionary:
 	var bundle: Dictionary = Loader.new().load_bundle(path, source["bundleKey"], cancel)
 	if not bundle.is_empty():
 		return {"bundle": bundle} if cached == source else {"conflict": true}
-	return {"replace": DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path)}
+	return {"replaceKey": source["bundleKey"] if DirAccess.dir_exists_absolute(path) or FileAccess.file_exists(path) else ""}
 
 
 # Called only by the active generation on the scene thread after both validators
 # and final progress EOF. No callbacks or frame yields occur during publication.
-func publish(root: String, staging: String, bundle: Dictionary, replace_corrupt: bool) -> Dictionary:
+func publish(root: String, staging: String, bundle: Dictionary, replace_key: String) -> Dictionary:
 	var destination := root.path_join(str(bundle["bundleKey"]).trim_prefix("sha256:"))
 	if DirAccess.make_dir_recursive_absolute(root) != OK:
 		return {"ok": false, "error": {"code": "INTERNAL_ERROR", "message": "Unable to create artifact cache."}}
 	var retired := ""
 	if DirAccess.dir_exists_absolute(destination) or FileAccess.file_exists(destination):
-		if not replace_corrupt:
+		if replace_key != bundle["bundleKey"]:
 			return {"ok": false, "error": {"code": "CACHE_CORRUPT", "message": "Artifact cache destination already exists."}}
 		retired = destination + ".retired-" + staging.get_file()
 		if DirAccess.dir_exists_absolute(retired) or FileAccess.file_exists(retired) or DirAccess.rename_absolute(destination, retired) != OK:

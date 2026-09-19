@@ -53,7 +53,7 @@ func _process(_delta: float) -> void:
 			continue
 		_active = null
 		if result.get("ok", false) and not job.cache_root.is_empty() and result.has("stagingPath"):
-			result = ArtifactCache.new().publish(job.cache_root, result["stagingPath"], result["bundle"], result["replaceCorrupt"])
+			result = ArtifactCache.new().publish(job.cache_root, result["stagingPath"], result["bundle"], result["replaceKey"])
 		if result.get("ok", false):
 			loaded.emit(job.generation, result["bundle"])
 		else:

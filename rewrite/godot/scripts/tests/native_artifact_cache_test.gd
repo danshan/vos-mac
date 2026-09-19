@@ -64,6 +64,57 @@ func _run() -> void:
 		if _bundle.is_empty() or not _errors.is_empty() or Loader.new().load_bundle(published).is_empty():
 			_fail("Corrupt cache was not rebuilt: " + damage)
 			return
+	var source_asset: String = args[1].path_join(str(_bundle["audio"]["assets"][0]["path"]).trim_prefix(published + "/"))
+	var original := FileAccess.get_file_as_bytes(source_asset)
+	var modified := original.duplicate()
+	modified[modified.size() - 1] ^= 1
+	var source_file := FileAccess.open(source_asset, FileAccess.WRITE)
+	source_file.store_buffer(modified)
+	source_file.close()
+	_bundle = {}
+	coordinator.start_loading(args[0], request, work, cache)
+	await _wait(coordinator)
+	source_file = FileAccess.open(source_asset, FileAccess.WRITE)
+	source_file.store_buffer(original)
+	source_file.close()
+	if not _bundle.is_empty() or _errors.size() != 1 or Loader.new().load_bundle(published).is_empty():
+		_fail("Changed source reused stale cache or damaged a valid prior artifact.")
+		return
+	_errors.clear()
+	# A late successful helper must not publish after its generation is cancelled.
+	var cancel_cache := work.path_join("cancel-artifacts-v2")
+	coordinator.start_loading(args[2].path_join("late-helper"), request, work, cancel_cache)
+	var deadline := Time.get_ticks_msec() + 5000
+	while not FileAccess.file_exists(work.path_join("late-helper.ready")) and Time.get_ticks_msec() < deadline:
+		await process_frame
+	if not FileAccess.file_exists(work.path_join("late-helper.ready")):
+		_fail("Cache cancellation helper did not start.")
+		return
+	coordinator.cancel_loading()
+	await _wait(coordinator)
+	if not _bundle.is_empty() or not _errors.is_empty() or DirAccess.dir_exists_absolute(cancel_cache):
+		_fail("Cancelled generation published an artifact cache entry.")
+		return
+	var version_request := request.duplicate(true)
+	version_request["sourcePath"] = args[2].path_join("version-source")
+	coordinator.start_loading(args[0], version_request, work, cache)
+	await _wait(coordinator)
+	if _bundle.is_empty() or not _errors.is_empty() or _bundle["bundleKey"] == manifest["bundleKey"]:
+		_fail("Producer version change did not create a distinct cache entry.")
+		return
+	var version_key: String = _bundle["bundleKey"]
+	var corrupt := FileAccess.open(published.path_join("audio/tone.wav"), FileAccess.WRITE)
+	corrupt.store_string("broken")
+	corrupt.close()
+	_bundle = {}
+	coordinator.start_loading(args[2].path_join("source-change-helper"), request, work, cache)
+	await _wait(coordinator)
+	if not _bundle.is_empty() or _errors.size() != 1 or _errors[0].get("code") != "CACHE_CORRUPT":
+		_fail("Corruption of one key authorized replacing a different valid key.")
+		return
+	if Loader.new().load_bundle(cache.path_join(version_key.trim_prefix("sha256:"))).is_empty():
+		_fail("Source-change race damaged the prior valid version.")
+		return
 	coordinator.free()
 	print("Native artifact cache published validated output and reused a verified hit.")
 	quit(0)

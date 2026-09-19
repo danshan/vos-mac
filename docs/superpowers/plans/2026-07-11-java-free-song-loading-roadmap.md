@@ -171,4 +171,6 @@ Exit gate:
 
 ## Execution Rule
 
+2026-09-19 后续修订: 用户已批准 `.scratch/godot-rust-migration/README.md` 中的 27 个纵向 tickets 并授权 implement. 此后的实际执行按 tickets 的阻塞关系推进, 以最小 Godot v2 consumer 随格式实现验证真实 gameplay, 替代下段旧的横向阶段串行限制. 原有产品范围、数据保留和累计退出门禁继续有效; Q6/Q7 未决规则不能由 agent 自行假定.
+
 Production implementation 只执行当前 phase plan. 上述 Early Feasibility Prototypes 是用户确认的前置验证例外, 不替代任何 phase exit gate. 当前 phase 通过退出门禁与评审后, 标记完成, 核对 live tree, 再使用 `superpowers:writing-plans` 创建下一阶段计划. 除非用户明确选择 inline execution, 否则按既有约定使用 `superpowers:subagent-driven-development`.

@@ -16,6 +16,10 @@ run = "mvn -s $MAVEN_SETTINGS clean verify"
 description = "Verify hermetic Java migration goldens"
 run = "bash rewrite/tools/verify_java_migration_goldens.sh"
 
+[tasks.native-release]
+description = "Build the locked native converter for release prototypes"
+run = "mise exec -- cargo build --manifest-path native/Cargo.toml --workspace --locked --release"
+
 [tasks.package]
 description = "Build the shaded jar"
 run = "mvn -s $MAVEN_SETTINGS clean package"

@@ -106,10 +106,17 @@ if [[ "${1:-}" != "exec" || "${2:-}" != "--" \
 fi
 
 case "${5:-}" in
-	*java.io.tmpdir*)
-		printf '%s\n' "${NESTED_BEHAVIOR_JVM_ROOT:?}"
+	*XshowSettings:properties*)
+		if [[ "${7:-}" == -Djava.io.tmpdir=* ]]; then
+			printf '%s\n' "${7#-Djava.io.tmpdir=}"
+		elif [[ "${TMPDIR:-}" == "$NESTED_BEHAVIOR_JVM_ROOT"/* ]]; then
+			printf '%s\n' "$TMPDIR"
+		else
+			printf '%s\n' "${NESTED_BEHAVIOR_JVM_ROOT:?}"
+		fi
 		;;
 	*mvn*)
+		[[ "${8:-}" == "$NESTED_BEHAVIOR_JVM_ROOT" ]] || exit 3
 		printf '%s\n' "${TMPDIR:?}" >"${NESTED_BEHAVIOR_READY:?}"
 		printf '%s\n' "$$" >"${NESTED_BEHAVIOR_CHILD_PID:?}"
 		trap 'exit 0' INT TERM HUP

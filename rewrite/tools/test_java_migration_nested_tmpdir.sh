@@ -81,9 +81,9 @@ done
 
 read_java_tmpdir() {
 	mise exec -- bash -c '
-		java -XshowSettings:properties -version 2>&1 \
+		java "$@" -XshowSettings:properties -version 2>&1 \
 			| sed -n "s/^[[:space:]]*java.io.tmpdir = //p"
-	'
+	' bash "$@"
 }
 
 JVM_TEMP_INPUT="$(read_java_tmpdir)"
@@ -106,7 +106,9 @@ NESTED_TMPDIR="$(cd "$NESTED_TMPDIR" && pwd -P)"
 	exit 1
 }
 
-NESTED_JVM_TEMP_INPUT="$(TMPDIR="$NESTED_TMPDIR" read_java_tmpdir)"
+# macOS derives java.io.tmpdir from TMPDIR unless it is explicitly pinned.
+NESTED_JVM_TEMP_INPUT="$(TMPDIR="$NESTED_TMPDIR" \
+	read_java_tmpdir "-Djava.io.tmpdir=$JVM_TEMP_ROOT")"
 [[ -n "$NESTED_JVM_TEMP_INPUT" && -d "$NESTED_JVM_TEMP_INPUT" ]] || {
 	printf 'Unable to resolve JVM temp under nested TMPDIR: %s\n' \
 		"${NESTED_JVM_TEMP_INPUT:-<empty>}" >&2
@@ -121,7 +123,8 @@ NESTED_JVM_TEMP_ROOT="$(cd "$NESTED_JVM_TEMP_INPUT" && pwd -P)"
 
 tests_csv="$(IFS=,; printf '%s' "${TEST_CLASSES[*]}")"
 TMPDIR="$NESTED_TMPDIR" mise exec -- bash -c \
-	'mvn -s "$MAVEN_SETTINGS" clean test -Dtest="$1"' bash "$tests_csv" &
+	'mvn -s "$MAVEN_SETTINGS" clean test -Dtest="$1" "-Djava.io.tmpdir=$2"' \
+	bash "$tests_csv" "$JVM_TEMP_ROOT" &
 ACTIVE_CHILD_PID=$!
 if wait "$ACTIVE_CHILD_PID"; then
 	ACTIVE_CHILD_PID=""

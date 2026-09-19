@@ -34,3 +34,21 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.jav
 | tone-java.pcm | 132a25d298c440ef5bd27451f96d46d46e7ec40cfeccc7a53a41bc4e099b050d |
 
 FFmpeg 与 Java 仅用于一次性生成冻结 fixture, Rust 测试不调用它们. ticket 27 删除 Java generator, 保留 fixtures.
+
+## 整数 PCM 量化 oracle
+
+`integer-pcm-java.json` 由同一个 JavaSound decoder 生成. PCM8 覆盖所有 256 个 unsigned 值; PCM24/32 各覆盖 256 个边界及固定种子随机 signed 值. WAV format tag 为 1, mono / 8000 Hz, 预期为 PCM16 little-endian. 测试要求逐样本完全一致, 不使用 Ogg 的 1 LSB 容差.
+
+```bash
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java --integer-fixtures native/crates/open2jam-core/tests/fixtures/ojn/integer-pcm-java.json
+```
+
+JSON SHA-256: `20aa21cf3d51c39e4b71b7db41ff95065f0883f1c4534651ebe006b9d8ddd619`. 量化规则同时核对了项目 mise Zulu 17.66.19.0 的 `lib/src.zip` 内 `AudioFloatConverter`: PCM8/24 按正负端点分别归一化, PCM32 使用 binary32 比例, 输出再按 PCM16 正负端点量化. PCM16 自身使用原样路径.
+
+`extended-pcm-java.json` 补充 format tag 3 的 float32/64 和 tag 6/7 的 A-law / μ-law. float 样本覆盖 0、正负端点、小值和 ±2, 每种 11 个; A-law / μ-law 各穷举 256 个编码字节. input 为原始字节数组, expected 为 PCM16 signed 数值. 所有样本要求与 Java 完全一致. 有限 float 超出 [-1, 1] 时保留 Java 的 int -> short 窄化行为, 不隐式改为 clipping; 非有限 float 在 Rust 中明确拒绝.
+
+```bash
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java --extended-fixtures native/crates/open2jam-core/tests/fixtures/ojn/extended-pcm-java.json
+```
+
+JSON SHA-256: `45de1ecb5d20faf05f2e4f47d2298a2237a60af5815b25d4974c34909979135b`.

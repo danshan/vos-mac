@@ -5,6 +5,167 @@ const PLAIN: &[u8] =
     include_bytes!("../../../../rewrite/golden/java-migration/sources/ojn/minimal.ojm");
 
 #[test]
+fn integer_pcm_depths_match_frozen_java_quantization() {
+    let oracle: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/ojn/integer-pcm-java.json")).unwrap();
+    for case in oracle["cases"].as_array().unwrap() {
+        let bits = case["bits"].as_u64().unwrap() as u16;
+        let mut pcm = Vec::new();
+        for value in case["input"].as_array().unwrap() {
+            let bytes = (value.as_i64().unwrap() as i32).to_le_bytes();
+            pcm.extend_from_slice(&bytes[..usize::from(bits / 8)]);
+        }
+        let wav = OjmSampleData::Wave {
+            format: 1,
+            channels: 1,
+            sample_rate: 8000,
+            byte_rate: 8000 * u32::from(bits / 8),
+            block_align: bits / 8,
+            bits_per_sample: bits,
+            pcm: &pcm,
+        }
+        .prepare_wav(&mut || Ok(()))
+        .unwrap();
+        let actual: Vec<_> = wav[44..]
+            .chunks_exact(2)
+            .map(|bytes| i16::from_le_bytes(bytes.try_into().unwrap()))
+            .collect();
+        assert_eq!(
+            serde_json::to_value(actual).unwrap(),
+            case["expected"],
+            "PCM{bits}"
+        );
+        assert_eq!(&wav[32..36], &[2, 0, 16, 0]);
+        assert_eq!(u32::from_le_bytes(wav[28..32].try_into().unwrap()), 16000);
+    }
+}
+
+#[test]
+fn pcm_conversion_preserves_interleaving_rejects_partial_frames_and_cancels() {
+    let pcm = [0, 255, 128, 129];
+    let wav = OjmSampleData::Wave {
+        format: 1,
+        channels: 2,
+        sample_rate: 8000,
+        byte_rate: 16000,
+        block_align: 2,
+        bits_per_sample: 8,
+        pcm: &pcm,
+    }
+    .prepare_wav(&mut || Ok(()))
+    .unwrap();
+    assert_eq!(&wav[44..], &[0, 128, 255, 127, 0, 0, 2, 1]);
+    assert_eq!(u32::from_le_bytes(wav[28..32].try_into().unwrap()), 32000);
+    assert_eq!(&wav[32..36], &[4, 0, 16, 0]);
+    let invalid = OjmSampleData::Wave {
+        format: 1,
+        channels: 2,
+        sample_rate: 8000,
+        byte_rate: 48000,
+        block_align: 6,
+        bits_per_sample: 24,
+        pcm: &[0; 5],
+    };
+    assert_eq!(
+        invalid.prepare_wav(&mut || Ok(())).unwrap_err().code(),
+        ErrorCode::AudioDecodeFailed
+    );
+    let pcm = vec![128; 65537];
+    let input = OjmSampleData::Wave {
+        format: 1,
+        channels: 1,
+        sample_rate: 8000,
+        byte_rate: 8000,
+        block_align: 1,
+        bits_per_sample: 8,
+        pcm: &pcm,
+    };
+    let mut checkpoints = 0;
+    let error = input
+        .prepare_wav(&mut || {
+            checkpoints += 1;
+            if checkpoints == 3 {
+                Err(CoreError::new(ErrorCode::Cancelled, "cancelled"))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::Cancelled);
+}
+
+#[test]
+fn float_and_companded_wave_samples_match_frozen_java_quantization() {
+    let oracle: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/ojn/extended-pcm-java.json")).unwrap();
+    for case in oracle["cases"].as_array().unwrap() {
+        let format = case["format"].as_u64().unwrap() as u16;
+        let bits = case["bits"].as_u64().unwrap() as u16;
+        let pcm: Vec<u8> = case["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|value| value.as_u64().unwrap() as u8)
+            .collect();
+        let wav = OjmSampleData::Wave {
+            format,
+            channels: 1,
+            sample_rate: 8000,
+            byte_rate: 8000 * u32::from(bits / 8),
+            block_align: bits / 8,
+            bits_per_sample: bits,
+            pcm: &pcm,
+        }
+        .prepare_wav(&mut || Ok(()))
+        .unwrap();
+        let actual: Vec<_> = wav[44..]
+            .chunks_exact(2)
+            .map(|bytes| i16::from_le_bytes(bytes.try_into().unwrap()))
+            .collect();
+        assert_eq!(
+            serde_json::to_value(actual).unwrap(),
+            case["expected"],
+            "format {format}, bits {bits}"
+        );
+    }
+}
+
+#[test]
+fn unsupported_wave_layouts_and_nonfinite_float_audio_are_diagnosed() {
+    for (format, bits) in [(1, 64), (3, 16), (6, 16), (7, 24), (2, 16)] {
+        let input = OjmSampleData::Wave {
+            format,
+            channels: 1,
+            sample_rate: 8000,
+            byte_rate: 8000 * u32::from(bits / 8),
+            block_align: bits / 8,
+            bits_per_sample: bits,
+            pcm: &[0; 8],
+        };
+        assert_eq!(
+            input.prepare_wav(&mut || Ok(())).unwrap_err().code(),
+            ErrorCode::AudioDecodeFailed
+        );
+    }
+    for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let pcm = value.to_le_bytes();
+        let input = OjmSampleData::Wave {
+            format: 3,
+            channels: 1,
+            sample_rate: 8000,
+            byte_rate: 32000,
+            block_align: 4,
+            bits_per_sample: 32,
+            pcm: &pcm,
+        };
+        assert_eq!(
+            input.prepare_wav(&mut || Ok(())).unwrap_err().code(),
+            ErrorCode::AudioDecodeFailed
+        );
+    }
+}
+
+#[test]
 fn plain_ojm_preserves_frozen_pcm_without_decoding_or_copying_it() {
     let samples = parse_plain_ojm(PLAIN, &mut || Ok(())).unwrap();
     assert_eq!(samples.len(), 1);

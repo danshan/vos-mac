@@ -59,3 +59,18 @@
 - red: `/tmp/vos-ticket08-pcm-red.log`, `/tmp/vos-ticket08-ogg-red.log`; 证据: `/tmp/vos-ticket08-ogg-java.log`, `/tmp/vos-ticket08-audio-tests.log`, `/tmp/vos-ticket08-audio-workspace.log`.
 - 待续: 其他 WAV 编码的支持/兼容性核对、字符集、LibraryRootId 请求传递、raw OJN CLI/catalog/bundle/Godot 闭环. 当前明确拒绝非 PCM16 WAV, 不据此勾选基础 OJM 完整播放验收.
 - 音频准备增量提交 `cd570b4`, 固定基点不变, Standards 0 项 / Spec 0 项. 下一增量已有 Java PCM8/24/32 探针: `/tmp/ojn-pcm8.wav` 的输入 0/1/127/128/129/254/255 对应 -32768/-32512/-256/0/258/32508/32767; 不能直接以左移 8 位宣称 Java 量化 parity. 临时 PCM 原始对照文件为 `/tmp/ojn-pcm8.raw`, `/tmp/ojn-pcm24.raw`, `/tmp/ojn-pcm32.raw`.
+
+## 当前增量: 整数 PCM 位深兼容
+
+- 在 format tag 1 下补齐 PCM8 unsigned、PCM24/32 signed little-endian -> PCM16, 保留 PCM16 原样路径. 使用 JavaSound 的 binary32 归一化/量化规则, 不以截取高位或移位近似.
+- WAV 输出重新计算 PCM16 byte rate、block alignment、RIFF/data size; 保留输入采样率、声道数和交错顺序. 验证源 frame alignment, 在分配前按转换后的输出大小检查 256 MiB 上限. 每 32768 个样本检查取消.
+- 冻结 Java oracle 含 768 个整数输入/输出样本, 另验证 stereo 交错、截断 frame 和转换期间取消. 来源/hash 见 fixtures/ojn/README.md. red `/tmp/vos-ticket08-integer-pcm-red.log`, 验证记录 `/tmp/vos-ticket08-integer-pcm-tests.log`, `/tmp/vos-ticket08-integer-pcm-workspace.log`.
+- 该增量更新上一节的 PCM16-only 限制; 当前支持整数 PCM8/16/24/32 与 Ogg/Vorbis. float / companded WAV 尚需兼容性核对, 字符集、Root ID 和 CLI/Godot 闭环仍待续, ticket 保持 in-progress.
+
+## 同轮补齐: float / companded WAV
+
+- Java 探针确认旧路径接受 float32/64、A-law 和 μ-law, 因此同步补齐 tag 3/6/7, 不将基础 OJM 缩减为整数 PCM. float64 按 Java 路径先降为 binary32, 再按 PCM16 量化; 有限超幅值保留 Java int -> short 窄化行为. 归一化后的非有限 float 返回 AudioDecodeFailed.
+- A-law / μ-law 各穷举 256 个编码值, float32/64 各 11 个固定值, 共 534 个 Java oracle 样本, 要求逐样本完全一致. fixture 来源及 SHA-256 记录在同目录 README.
+- 更新当前音频支持范围: integer PCM8/16/24/32、float32/64、A-law、μ-law、Ogg/Vorbis, 均输出 PCM16 mono/stereo WAV. 不支持的 tag/bit depth 组合明确拒绝, 不猜测格式.
+- 验证证据: `/tmp/vos-ticket08-extended-pcm-red.log`, `/tmp/vos-ticket08-extended-pcm-tests.log`, `/tmp/vos-ticket08-wave-formats-workspace.log`. 此增量未新增运行时依赖.
+- 后续集中推进字符集、LibraryRootId 请求传递和 raw OJN CLI/catalog/bundle/Godot 闭环, 尚不勾选 ticket 08 完整验收.

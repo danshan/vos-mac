@@ -40,4 +40,6 @@
 
 原始 Song identity 改为 root namespace、格式和相对路径, 移除标题与绝对路径输入. Song/Chart algorithm v2 与独立 Python preimage/hash vectors 已实现; source/sample domain v1 有明确 framing. 合同修订见 `docs/rewrite/2026-09-19-native-identity-contract.md`. 旧 native 草稿的标题敏感断言和无 root 构造被新已批准语义取代, 冻结 Java goldens 未改变.
 
-完整 native workspace 现有 48 项测试通过, workspace all-target clippy 通过. 日志: `/tmp/vos-ticket04-identity-workspace.log`. 先前 identity 缺实现导致的累计门禁失败已解除, 不代表 ticket 04 的 bundle/gameplay 验收完成. bundle declared wire ID 保留, catalog 来源组合与 root 持久化仍归 ticket 16.
+完整 native workspace 现有 49 项测试通过, workspace all-target clippy 通过. 日志: `/tmp/vos-ticket04-identity-workspace.log`. 先前 identity 缺实现导致的累计门禁失败已解除, 不代表 ticket 04 的 bundle/gameplay 验收完成. bundle declared wire ID 保留, catalog 来源组合与 root 持久化仍归 ticket 16.
+
+身份阶段提交 `8463df2`, Spec 发现 root-level osu set 表达缺口, 已由 `a3f0750` 修复并通过新回归与复审. 最终 Standards 0、Spec 0 未解决发现. 当前完整 workspace 49 项通过, 没有因身份草稿跳过测试. 下一步接入实际 bundle v2 生成、严格验证和 Godot runtime 消费.

@@ -52,7 +52,7 @@ trap cleanup EXIT
 
 cargo_tool='cargo'
 rustc_tool='rustc'
-expected_json='{"schemaVersion":1,"converterVersion":"0.1.0","protocolSchemaVersion":1,"catalogSchemaVersion":2,"bundleSchemaVersion":2,"catalogFormats":[],"bundleFormats":[]}'
+expected_json='{"schemaVersion":1,"converterVersion":"0.1.0","protocolSchemaVersion":1,"catalogSchemaVersion":2,"bundleSchemaVersion":2,"catalogFormats":["O2JAM","OSU_MANIA","BUNDLE"],"bundleFormats":["O2JAM","OSU_MANIA","BUNDLE"]}'
 gate_stdout="$fixture_root/gate.stdout"
 gate_stderr="$fixture_root/gate.stderr"
 probe="$fixture_root/rewrite/tools/probe.sh"

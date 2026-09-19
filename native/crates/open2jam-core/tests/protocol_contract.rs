@@ -387,7 +387,7 @@ fn bundle_request(
         chart_id,
         source_path: AbsoluteSourcePath::parse("/tmp/chart.vos").unwrap(),
         source_kind,
-        library_root: (source_kind == SourceKind::Ojn).then(|| {
+        library_root: matches!(source_kind, SourceKind::Ojn | SourceKind::Osu).then(|| {
             open2jam_core::protocol::LibraryRootRequest {
                 id: open2jam_core::id::LibraryRootId::from_digest(Digest::from_bytes([0; 32])),
                 path: AbsoluteSourcePath::parse("/tmp").unwrap(),

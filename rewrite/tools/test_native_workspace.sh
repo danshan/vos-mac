@@ -61,7 +61,7 @@ expected_stdout="$temp_root/version.expected.stdout"
 actual_stdout="$temp_root/version.actual.stdout"
 actual_stderr="$temp_root/version.actual.stderr"
 printf '%s\n' \
-  '{"schemaVersion":1,"converterVersion":"0.1.0","protocolSchemaVersion":1,"catalogSchemaVersion":2,"bundleSchemaVersion":2,"catalogFormats":[],"bundleFormats":[]}' \
+  '{"schemaVersion":1,"converterVersion":"0.1.0","protocolSchemaVersion":1,"catalogSchemaVersion":2,"bundleSchemaVersion":2,"catalogFormats":["O2JAM","OSU_MANIA","BUNDLE"],"bundleFormats":["O2JAM","OSU_MANIA","BUNDLE"]}' \
   >"$expected_stdout"
 
 if ! mise exec -- cargo run --quiet --manifest-path native/Cargo.toml -p open2jam-cli --bin open2jam-converter --locked -- version \

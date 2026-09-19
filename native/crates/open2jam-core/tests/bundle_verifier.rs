@@ -115,7 +115,6 @@ fn manifest_rejects_excessive_path_depth_before_walking() {
 
 #[test]
 fn invalid_manifests_never_verify() {
-    use serde_json::json;
     for case in [
         "incomplete",
         "schema",
@@ -179,7 +178,17 @@ fn invalid_manifests_never_verify() {
             "required" => {
                 value["files"].as_array_mut().unwrap().pop();
             }
-            "too-many" => value["files"] = json!(vec![value["files"][1].clone(); 65_537]),
+            "too-many" => {
+                let template = value["files"][1].clone();
+                let files = value["files"].as_array_mut().unwrap();
+                for index in files.len()..65_537 {
+                    let mut file = template.clone();
+                    file["path"] = format!("extra/{index:05}.wav").into();
+                    files.push(file);
+                }
+                files.sort_by_key(|entry| entry["path"].as_str().unwrap().to_owned());
+                assert!(serde_json::from_value::<BundleManifestV2>(value.clone()).is_err());
+            }
             "duplicate-field" | "too-large" => {}
             _ => unreachable!(),
         }

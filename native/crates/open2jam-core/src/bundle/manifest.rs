@@ -53,7 +53,9 @@ pub struct BundleIdentity {
 /// A complete file manifest, constructed only through validation.
 /// ```compile_fail
 /// use open2jam_core::bundle::BundleManifestV2;
-/// let manifest = BundleManifestV2 { complete: true };
+/// fn bypass_validation(mut manifest: BundleManifestV2) {
+///     manifest.complete = false;
+/// }
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", try_from = "BundleManifestWire")]

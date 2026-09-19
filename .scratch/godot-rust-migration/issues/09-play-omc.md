@@ -4,12 +4,12 @@
 
 **Blocked by:** 08: 游玩基础 OJN/OJM 歌曲.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] 真实 OJN/OMC 输入从扫描、难度选择到 gameplay 全链路通过, 使用生产解码路径.
-- [ ] 解码与样本映射对照固定 fixtures/oracle, 不用预解码文件绕过 OMC.
-- [ ] 畸形或截断 OMC 可诊断失败, 不破坏已可用的其他歌曲.
-- [ ] 既有基础 OJM 行为保持通过, 记录任何经明确接受的语义差异.
+- [x] 真实 OJN/OMC 输入从扫描、难度选择到 gameplay 全链路通过, 使用生产解码路径.
+- [x] 解码与样本映射对照固定 fixtures/oracle, 不用预解码文件绕过 OMC.
+- [x] 畸形或截断 OMC 可诊断失败, 不破坏已可用的其他歌曲.
+- [x] 既有基础 OJM 行为保持通过, 记录任何经明确接受的语义差异.
 
 
 ## 前置代码核对
@@ -34,3 +34,12 @@
 - CLI 回归对实际冻结 OMC fixture 比较 Java PCM16, 验证原始文件未变及编码/明文身份不同. 截断 OMC 返回 CORRUPT_CHART, 不发布残缺 bundle, 已准备的有效 bundle 仍完整, 随后的健康源仍可正常转换. M30 继续明确拒绝.
 - verify_native_ojn_gameplay.sh 增加 omc fixture 参数, 直接读取原始 omc.ojn/omc.ojm, 在 OJN 中补三个轨道的可判定事件; OMC bank bytes 保持冻结原样, 未预解码. 复用真实设置扫描、独立难度选择、native converter、判定/音频与 Result 全链路. 同时保留默认 plain OJM gate.
 - red /tmp/vos-omc-cli-red.log; 验证记录 /tmp/vos-omc-cli.log, /tmp/vos-omc-gameplay.log, /tmp/vos-omc-plain-regression.log, /tmp/vos-omc-integration-workspace.log. 此增量没有 Godot runtime 改动或新增依赖.
+
+## 最终 ticket 验收
+
+- 状态 done. 生产集成提交 f579f5d, 独立固定基点审查 Standards 0 项 / Spec 0 项.
+- 原始输入全链路证据: /tmp/vos-omc-gameplay.log 标明 omc variant, 从目录设置到三个难度各自的 gameplay/audio/Result; 原始 OMC bank 没有经过预解码替代.
+- 解码/映射证据: 冻结生产 Java oracle 与 core omc_decode 三个测试, CLI 对原始 OMC fixture 比较 prepared PCM16, encoded source fingerprint 独立于 decoded PCM.
+- 异常隔离证据: CLI 多个截断点返回 CORRUPT_CHART, 不发布失败任务的完成目录, 既有 healthy bundle 验证完整, 健康输入可恢复转换.
+- 回归证据: /tmp/vos-omc-plain-regression.log 与 /tmp/vos-omc-integration-workspace.log, 对应进程退出 0; clippy/fmt 退出 0. 未引入未解释的 parity 差异.
+- 后续 M30、全格式资源/性能门禁仍由 10/24/25 处理, 此 ticket 完成不代表整体迁移完成.

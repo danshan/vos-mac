@@ -3,69 +3,54 @@ use crate::source_capture::{
 };
 use open2jam_core::{
     audio::{AudioAsset, AudioManifestV2},
+    audio::{AudioFileFormat, MAX_AUDIO_FILE_BYTES, prepare_audio_file},
     bundle::{BundleIdentity, BundleStager, SoundFontIdentity, load_bundle_documents},
     canonical::CanonicalHasher,
     error::{CoreError, ErrorCode},
     format::Format,
     id::{ChartIdentity, SongIdentity, SourceFingerprint, derive_sample_id},
     json::encode_contract,
-    ojm,
-    ojn::{self, OjnMetadata, OjnSource},
+    osu::{self, OsuMetadata, OsuSource},
     path::{BundleRelativePath, SourceRelativePath},
     progress::{ProgressOwner, ProgressPhase, ProgressSink, ProgressTracker},
     protocol::{BundleOutputV1, BundleRequestV1, ChartSelector, Command},
     schema::SOURCE_FINGERPRINT_VERSION,
 };
-use std::{
-    collections::BTreeMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, fs, path::Path};
 
-fn resolve_companion(
-    parent: &Path,
-    bytes: &[u8],
-    cancel: &impl Fn() -> Result<(), CoreError>,
-) -> Result<PathBuf, CoreError> {
-    let names = if let Ok(name) = std::str::from_utf8(bytes) {
-        vec![name.to_owned()]
-    } else {
-        let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
-        detector.feed(bytes, true);
-        [
-            detector.guess(None, chardetng::Utf8Detection::Allow),
-            encoding_rs::EUC_KR,
-            encoding_rs::GBK,
-            encoding_rs::BIG5,
-            encoding_rs::SHIFT_JIS,
-        ]
-        .into_iter()
-        .filter_map(|encoding| {
-            encoding
-                .decode_without_bom_handling_and_without_replacement(bytes)
-                .map(|name| name.into_owned())
-        })
-        .collect()
+pub(crate) fn source_identity(
+    root_id: open2jam_core::id::LibraryRootId,
+    relative: &str,
+) -> Result<(open2jam_core::id::SongId, SourceRelativePath), CoreError> {
+    let (song, chart_path) = match relative.rsplit_once('/') {
+        Some((parent, filename)) => (
+            SongIdentity::osu_beatmap_set(root_id, SourceRelativePath::parse(parent)?),
+            SourceRelativePath::parse(filename)?,
+        ),
+        None => (
+            SongIdentity::osu_beatmap_set_at_root(root_id),
+            SourceRelativePath::parse(relative)?,
+        ),
     };
-    let mut paths = std::collections::BTreeSet::new();
-    for name in names {
-        cancel()?;
-        let Ok(relative) = SourceRelativePath::parse(&name) else {
-            continue;
-        };
-        if let Ok(path) = resolve_file(parent, &relative)
-            && fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file())
-        {
-            paths.insert(path);
-        }
+    Ok((song.song_id(), chart_path))
+}
+
+fn audio_format(path: &Path) -> Result<AudioFileFormat, CoreError> {
+    match path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "wav" => Ok(AudioFileFormat::Wave),
+        "ogg" => Ok(AudioFileFormat::Ogg),
+        "mp3" => Ok(AudioFileFormat::Mp3),
+        _ => Err(failure(
+            ErrorCode::AudioDecodeFailed,
+            "unsupported osu audio file type",
+        )),
     }
-    if paths.len() != 1 {
-        return Err(failure(
-            ErrorCode::MissingCompanion,
-            "companion filename has no unique regular-file match",
-        ));
-    }
-    Ok(paths.into_iter().next().expect("one companion"))
 }
 
 pub fn convert(
@@ -77,7 +62,7 @@ pub fn convert(
     let root = request
         .library_root
         .as_ref()
-        .ok_or_else(|| failure(ErrorCode::InvalidRequest, "missing OJN library root"))?;
+        .ok_or_else(|| failure(ErrorCode::InvalidRequest, "missing osu library root"))?;
     let relative = request
         .source_path
         .as_path()
@@ -93,11 +78,13 @@ pub fn convert(
             .to_str()
             .ok_or_else(|| failure(ErrorCode::InvalidRequest, "non-UTF-8 source path"))?,
     )?;
-    let song_id = SongIdentity::ojn_file(root.id, relative.clone()).song_id();
-    let ChartSelector::OjnChart { index } = request.selector else {
-        return Err(failure(ErrorCode::InvalidRequest, "expected OJN selector"));
+    let (song_id, chart_path) = source_identity(root.id, relative.as_str())?;
+    let ChartSelector::OsuBeatmap { relative_path } = &request.selector else {
+        return Err(failure(ErrorCode::InvalidRequest, "expected osu selector"));
     };
-    if ChartIdentity::ojn(index)?.chart_id(&song_id) != request.chart_id {
+    if relative_path != &chart_path
+        || ChartIdentity::osu(chart_path.clone()).chart_id(&song_id) != request.chart_id
+    {
         return Err(failure(
             ErrorCode::SourceChanged,
             "selected chart does not match its library source",
@@ -134,41 +121,70 @@ pub fn convert(
         ProgressOwner::BundleCli,
         sink,
     )?;
-    progress.emit(ProgressPhase::HashSources, 0, 2, "files".into(), None)?;
+    progress.emit(ProgressPhase::HashSources, 0, 1, "files".into(), None)?;
     let primary = CapturedSource::read(
         resolve_file(&root, &relative)?,
-        ojn::MAX_SOURCE_BYTES,
+        osu::MAX_SOURCE_BYTES,
         &cancel,
     )?;
-    progress.emit(ProgressPhase::HashSources, 1, 2, "files".into(), None)?;
-    let source = OjnSource::parse(&primary.bytes)?;
-    let companion_path = resolve_companion(
-        primary.path.parent().expect("source parent"),
-        source.companion_bytes(),
-        &cancel,
-    )?;
-    let mut companion = CapturedSource::read(companion_path, ojm::MAX_SOURCE_BYTES, &cancel)?;
-    progress.emit(ProgressPhase::HashSources, 2, 2, "files".into(), None)?;
+    let source = OsuSource::parse(&primary.bytes, &mut || cancel())?;
+    let mut references = BTreeMap::new();
+    if let Some(path) = &source.audio_filename {
+        references.insert(1, path);
+    }
+    for sample in &source.samples {
+        references.insert(sample.index, &sample.filename);
+    }
+    let total = references.len() as u64 + 1;
+    progress.emit(ProgressPhase::HashSources, 1, total, "files".into(), None)?;
+    let mut captures = Vec::new();
+    let mut encoded_bytes = 0_u64;
+    for (position, (index, relative)) in references.into_iter().enumerate() {
+        cancel()?;
+        let path = resolve_file(primary.path.parent().expect("source parent"), relative).map_err(
+            |error| {
+                if error.code() == ErrorCode::SourceChanged {
+                    failure(
+                        ErrorCode::MissingAsset,
+                        "referenced osu audio file is missing",
+                    )
+                    .with_context("relativePath", relative.as_str())
+                } else {
+                    error
+                }
+            },
+        )?;
+        let format = audio_format(&path)?;
+        let capture = CapturedSource::read(path, MAX_AUDIO_FILE_BYTES, &cancel)?;
+        encoded_bytes += capture.bytes.len() as u64;
+        if encoded_bytes > 512 * 1024 * 1024 {
+            return Err(failure(
+                ErrorCode::AudioDecodeFailed,
+                "encoded osu audio exceeds the job bound",
+            ));
+        }
+        captures.push((index, format, capture));
+        progress.emit(
+            ProgressPhase::HashSources,
+            position as u64 + 2,
+            total,
+            "files".into(),
+            None,
+        )?;
+    }
     let mut fingerprint = CanonicalHasher::new(b"open2jam.source-fingerprint.v1\0");
     fingerprint.write_u16(SOURCE_FINGERPRINT_VERSION);
-    fingerprint.write_u32(2);
-    for (role, capture) in [(1, &primary), (2, &companion)] {
+    fingerprint.write_u32(captures.len() as u32 + 1);
+    for (role, ordinal, capture) in std::iter::once((1, 0, &primary)).chain(
+        captures
+            .iter()
+            .map(|(index, _, capture)| (3, *index, capture)),
+    ) {
         fingerprint.write_u16(role);
-        fingerprint.write_u32(0);
+        fingerprint.write_u32(ordinal);
         fingerprint.write_u64(capture.bytes.len() as u64);
         fingerprint.write_bytes(capture.digest.as_bytes());
     }
-    let mut audio_bytes = std::mem::take(&mut companion.bytes);
-    progress.emit(ProgressPhase::ParseChart, 0, 1, "chart".into(), None)?;
-    // The fingerprint above describes encoded bytes; transforms only touch this private buffer.
-    let samples = if audio_bytes.starts_with(b"M30\0") {
-        ojm::parse_m30_in_place(&mut audio_bytes, &mut || cancel())?
-    } else {
-        if audio_bytes.starts_with(b"OMC\0") {
-            ojm::decode_omc_in_place(&mut audio_bytes, &mut || cancel())?;
-        }
-        ojm::parse_plain_ojm(&audio_bytes, &mut || cancel())?
-    };
     progress.emit(ProgressPhase::ParseChart, 1, 1, "chart".into(), None)?;
     let mut stage = BundleStager::create(request.staging_root.as_path(), &request.job_id, &cancel)?;
     let private_root = stage.private_root().to_owned();
@@ -176,16 +192,16 @@ pub fn convert(
     let result = (|| {
         progress.emit(ProgressPhase::CompileTiming, 0, 1, "chart".into(), None)?;
         let compiled = source.compile(
-            index,
-            OjnMetadata {
+            OsuMetadata {
                 song_id,
-                title: source.title()?,
-                artist: source.artist()?,
+                chart_path,
+                title: source.title.clone(),
+                artist: source.artist.clone(),
             },
             &mut || cancel(),
         )?;
         progress.emit(ProgressPhase::CompileTiming, 1, 1, "chart".into(), None)?;
-        let total = samples.len() as u64;
+        let total = captures.len() as u64;
         progress.emit(
             ProgressPhase::PrepareAudio,
             0,
@@ -196,18 +212,18 @@ pub fn convert(
         let mut indices = BTreeMap::new();
         let mut assets = BTreeMap::new();
         let mut decoded_bytes = 0_u64;
-        for (position, sample) in samples.into_iter().enumerate() {
-            let wave = sample.data.prepare_wav(&mut || cancel())?;
+        for (position, (index, format, capture)) in captures.iter().enumerate() {
+            let wave = prepare_audio_file(&capture.bytes, *format, &mut || cancel())?;
             decoded_bytes += wave.len() as u64;
             if decoded_bytes > 4 * 1024 * 1024 * 1024 {
                 return Err(failure(
                     ErrorCode::AudioDecodeFailed,
-                    "prepared OJM audio exceeds the job bound",
+                    "prepared osu audio exceeds the job bound",
                 ));
             }
             let content = digest(&wave, &cancel)?;
             let sample_id = derive_sample_id(&content);
-            indices.insert(sample.index, sample_id);
+            indices.insert(*index, sample_id);
             if let std::collections::btree_map::Entry::Vacant(entry) = assets.entry(sample_id) {
                 let path = BundleRelativePath::parse(&format!(
                     "audio/{}.wav",
@@ -228,7 +244,7 @@ pub fn convert(
         let audio = AudioManifestV2::new(
             song_id,
             request.chart_id,
-            Format::O2Jam,
+            Format::OsuMania,
             assets.into_values().collect(),
         )?;
         progress.emit(ProgressPhase::WriteBundle, 0, 2, "documents".into(), None)?;
@@ -262,7 +278,9 @@ pub fn convert(
         }
         cancel()?;
         primary.verify()?;
-        companion.verify()?;
+        for (_, _, capture) in &captures {
+            capture.verify()?;
+        }
         progress.emit(ProgressPhase::VerifyBundle, 0, 1, "bundle".into(), None)?;
         let complete = stage.finalize(
             BundleIdentity {
@@ -282,7 +300,9 @@ pub fn convert(
         load_bundle_documents(complete.completed_root(), Some(complete.bundle_key()))
             .map_err(|error| CoreError::new(error.code, error.message))?;
         primary.verify()?;
-        companion.verify()?;
+        for (_, _, capture) in &captures {
+            capture.verify()?;
+        }
         cancel()?;
         progress.emit(ProgressPhase::VerifyBundle, 1, 1, "bundle".into(), None)?;
         cancel()?;

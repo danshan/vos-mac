@@ -1265,6 +1265,8 @@ func _on_native_song_selected(source_id: String) -> void:
 		var name := "Chart"
 		if entry.get("format", "") == "O2JAM":
 			name = ["Easy", "Normal", "Hard"][int(entry["chartIndex"])]
+		elif entry.get("format", "") == "OSU":
+			name = str(entry.get("difficultyName", "Chart"))
 		var button := _button("Difficulty_" + _safe_name(str(entry["id"])), "%s | Level %s" % [name, _song_level_text(entry)])
 		button.pressed.connect(_on_song_selected.bind(entry.duplicate(true)))
 		list.add_child(button)

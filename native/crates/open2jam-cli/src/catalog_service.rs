@@ -3,7 +3,8 @@ use open2jam_core::{
     error::{CoreError, ErrorCode, ErrorInfo},
     format::SourceKind,
     id::{ChartId, ChartIdentity, LibraryRootId, SongId, SongIdentity},
-    ojn::{MAX_SOURCE_BYTES, OjnSource},
+    ojn::{self, OjnSource},
+    osu::{self, OsuSource},
     path::{AbsoluteSourcePath, SourceRelativePath},
     progress::{ProgressOwner, ProgressPhase, ProgressSink, ProgressTracker},
     protocol::{CatalogOutputV1, CatalogRequestV1, Command},
@@ -48,6 +49,12 @@ enum ChartDetails {
     BundleV2 {
         soundfont: SoundFontIdentity,
         static_assets_version: String,
+    },
+    Osu {
+        chart_path: SourceRelativePath,
+        difficulty_name: String,
+        level: u32,
+        duration_seconds: u32,
     },
     Ojn {
         chart_index: u8,
@@ -171,13 +178,22 @@ pub fn scan(
                     });
                 } else if kind.is_dir() {
                     pending.push(child.path());
-                } else if kind.is_file()
-                    && child
-                        .path()
+                } else if kind.is_file() {
+                    let path = child.path();
+                    let extension = path
                         .extension()
-                        .is_some_and(|extension| extension.eq_ignore_ascii_case("ojn"))
-                {
-                    candidates.push((origin.clone(), root.clone(), child.path(), SourceKind::Ojn));
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("");
+                    let source_kind = if extension.eq_ignore_ascii_case("ojn") {
+                        Some(SourceKind::Ojn)
+                    } else if extension.eq_ignore_ascii_case("osu") {
+                        Some(SourceKind::Osu)
+                    } else {
+                        None
+                    };
+                    if let Some(source_kind) = source_kind {
+                        candidates.push((origin.clone(), root.clone(), path, source_kind));
+                    }
                 }
             }
         }
@@ -239,10 +255,34 @@ pub fn scan(
         .iter()
         .map(|entry| (&entry.root_path, &entry.relative_path))
         .collect();
+    let songs: BTreeSet<_> = catalog
+        .entries
+        .iter()
+        .map(|entry| match &entry.details {
+            ChartDetails::Osu { .. } => (
+                &entry.root_path,
+                SourceKind::Osu,
+                entry
+                    .relative_path
+                    .rsplit_once('/')
+                    .map_or("", |(parent, _)| parent),
+            ),
+            ChartDetails::Ojn { .. } => (
+                &entry.root_path,
+                SourceKind::Ojn,
+                entry.relative_path.as_str(),
+            ),
+            ChartDetails::BundleV2 { .. } => (
+                &entry.root_path,
+                SourceKind::BundleV2,
+                entry.relative_path.as_str(),
+            ),
+        })
+        .collect();
     Ok(CatalogOutputV1 {
         catalog_path: absolute(&path)?,
         source_count: (sources.len() + catalog.rejected.len()) as u64,
-        song_count: sources.len() as u64,
+        song_count: songs.len() as u64,
         chart_count: catalog.entries.len() as u64,
         rejected_source_count: catalog.rejected.len() as u64,
     })
@@ -269,7 +309,7 @@ fn read_entries(
                 "OJN discovery requires a persistent library root ID",
             )
         })?;
-        let bytes = read_ojn(path, request)?;
+        let bytes = read_chart(path, ojn::MAX_SOURCE_BYTES, request)?;
         let source = OjnSource::parse(&bytes)?;
         let song_id =
             SongIdentity::ojn_file(root_id, SourceRelativePath::parse(relative)?).song_id();
@@ -295,6 +335,39 @@ fn read_entries(
         }
         return Ok(entries);
     }
+    if kind == SourceKind::Osu {
+        let root_id = root_id.ok_or_else(|| {
+            CoreError::new(
+                ErrorCode::InvalidRequest,
+                "osu discovery requires a persistent library root ID",
+            )
+        })?;
+        let bytes = read_chart(path, osu::MAX_SOURCE_BYTES, request)?;
+        let source = OsuSource::parse(&bytes, &mut || cancel(request))?;
+        let (song_id, chart_path) = crate::osu_bundle::source_identity(root_id, relative)?;
+        let duration_ms = source
+            .notes
+            .iter()
+            .map(|note| note.end_ms.unwrap_or(note.time_ms))
+            .max()
+            .unwrap_or(0) as u32;
+        return Ok(vec![Entry {
+            root_path,
+            root_id: Some(root_id),
+            relative_path: relative.into(),
+            source_path,
+            song_id,
+            chart_id: ChartIdentity::osu(chart_path.clone()).chart_id(&song_id),
+            title: source.title,
+            artist: source.artist,
+            details: ChartDetails::Osu {
+                chart_path,
+                difficulty_name: source.difficulty_name,
+                level: source.level,
+                duration_seconds: duration_ms.div_ceil(1000),
+            },
+        }]);
+    }
     let documents = load_bundle_documents(path, None)
         .map_err(|error| CoreError::new(error.code, error.message))?;
     Ok(vec![Entry {
@@ -313,20 +386,17 @@ fn read_entries(
     }])
 }
 
-fn read_ojn(path: &Path, request: &CatalogRequestV1) -> Result<Vec<u8>, CoreError> {
+fn read_chart(path: &Path, limit: usize, request: &CatalogRequestV1) -> Result<Vec<u8>, CoreError> {
     let metadata = fs::symlink_metadata(path).map_err(io_error)?;
-    if !metadata.is_file()
-        || metadata.file_type().is_symlink()
-        || metadata.len() > MAX_SOURCE_BYTES as u64
-    {
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len() > limit as u64 {
         return Err(CoreError::new(
             ErrorCode::CorruptChart,
-            "OJN source is not a bounded regular file",
+            "chart source is not a bounded regular file",
         ));
     }
     let mut reader = fs::File::open(path)
         .map_err(io_error)?
-        .take(MAX_SOURCE_BYTES as u64 + 1);
+        .take(limit as u64 + 1);
     let mut bytes = Vec::new();
     let mut chunk = [0; 65536];
     loop {
@@ -335,10 +405,10 @@ fn read_ojn(path: &Path, request: &CatalogRequestV1) -> Result<Vec<u8>, CoreErro
         if length == 0 {
             break;
         }
-        if bytes.len() + length > MAX_SOURCE_BYTES {
+        if bytes.len() + length > limit {
             return Err(CoreError::new(
                 ErrorCode::CorruptChart,
-                "OJN source grew beyond its input bound",
+                "chart source grew beyond its input bound",
             ));
         }
         bytes.extend_from_slice(&chunk[..length]);

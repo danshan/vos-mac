@@ -50,3 +50,11 @@
 - 输入文件暂限 64 MiB、单个准备后 PCM 256 MiB, 每 chunk/frame 检查取消. 此处不宣称 ticket 20 最终资源策略完成. free-bitrate MP3、任意非 ID3 尾部以及 WAV extensible/未支持编码明确失败, 更广实际歌曲工作集仍需 ticket 24/25 验证.
 - red: /tmp/vos-audio-files-red.log、/tmp/vos-wave-file-red.log, MP3 时序差异记录 /tmp/vos-mp3-parity-probe.log, 文件音频矩阵 /tmp/vos-audio-files-matrix.log. 当前完成 adapter 的音频前置能力; 文件身份/资源捕获、catalog、bundle producer 与 Godot osu 入口仍待接线, ticket 保持 in-progress.
 - 音频增量 029e4cd 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace 记录 /tmp/vos-audio-files-workspace.log, Clippy /tmp/vos-audio-files-clippy.log, fmt 与 diff check 退出 0. M30 真实 CLI -> Godot 音频回归记录 /tmp/vos-audio-files-m30-gameplay.log, 退出 0. 该回归覆盖共享音频提取对既有链路的影响, 不代表原始 osu 全链路已完成.
+
+## 当前增量: raw osu 到 Godot 完整接线
+
+- Native catalog 递归识别 `.osu`/`.OSU`, 将同目录难度归入一个 Song, root 自身也是合法 beatmap set. 复用已冻结的路径身份, 同名不同目录不合并; 搬移 root 保留身份, 新来源 token 保持独立. Godot 显示 title-only Song 行和有名称的难度按钮, 分别校验 source/song/chart 计数.
+- OSU bundle adapter 捕获谱面和引用音频, 重建并核对 Chart selector/ID, 编译 timing/holds, 准备 WAV/Ogg/MP3 并按内容去重, 发布经过完整 bundle v2 校验的自包含产物. 文件捕获从 OJN adapter 提取共享, 保持原有 no-follow/identity/size/mtime 验证. 音频内容改变 key, root 搬移不改变 key.
+- CLI 矩阵覆盖冻结 seven-key、WAV PCM 对照、MP3 BGM/Ogg custom sample、无 sample 音符、bundle 搬移、missing audio、错误 chart/selector、非 mania、路径越界、symlink、坏音频和取消. catalog 中不支持/畸形/超大来源逐个隔离, 缺少 root token 不使用路径 fallback.
+- red: /tmp/vos-osu-catalog-red.log、/tmp/vos-osu-bundle-red.log、/tmp/vos-osu-gameplay-red.log. Godot gate 为 rewrite/tools/verify_native_osu_gameplay.sh, 在混合 OJN/osu 曲库中选择两个 osu 难度, 验证七轨 tap、hold、BGM/custom sample、重开选择身份与结果页. 当前记录 /tmp/vos-osu-gameplay-green.log、/tmp/vos-osu-adapter-matrix.log.
+- 待本轮完整回归与双轴审查后关闭 ticket. OSZ、统一资源上限、真实大曲库性能、原生默认启动及最终 Java 删除仍分别由后续 tickets 完成.

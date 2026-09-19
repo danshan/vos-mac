@@ -8,3 +8,6 @@ mod bundle_service;
 
 mod catalog_service;
 mod ojn_bundle;
+
+mod osu_bundle;
+mod source_capture;

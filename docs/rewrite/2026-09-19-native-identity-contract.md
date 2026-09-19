@@ -64,3 +64,17 @@ OJN fingerprint 使用既有 v1 framing: 两个 component, PRIMARY=1 与 COMPANI
 ## 设置持久化前置能力
 
 Godot SettingsStore 在 songs.root_ids 保存 path -> LibraryRootId, token 为安全随机 32-byte seed 的 SHA-256, 不从路径或文件内容派生. 旧配置未保存该字段时, 首次 native catalog 之前生成并保存; 只有保存成功后才传给 CLI. 已存在但畸形、部分或复用 token 的配置不能静默重建. 删除来源后再新增不恢复原 token. 显式重新定位与多 root UI 属于 ticket 16, 配置崩溃恢复属于 ticket 23.
+
+## Raw osu catalog 与 bundle 请求
+
+每个 `.osu` 文件是一个来源和一个 Chart, 同一直接父目录内的 beatmaps 是一个 Song. 该目录可恰好为 Library Root. catalog 递归发现大小写不敏感的 `.osu`, 只接收 mania 7K, 逐文件拒绝不支持模式或畸形数据. 扫描只解析谱面元信息, 不要求此时音频可读; 音频缺失由选中后的转换报告.
+
+OSU entry 携带 rootPath、rootId、relativePath、sourcePath、songId、chartId、title、artist, 以及 chartPath、difficultyName、level、durationSeconds. relativePath 相对 Library Root, chartPath 相对 beatmap set, 当前裸文件发现时为文件名. durationSeconds 是最后音符或 hold tail 的源毫秒向上取整到秒, 不是带 lead-in 的最终 gameplay 时长. 同一目录各难度的标题可以不同, 稳定路径排序后首个可用 Chart 的标题用于 Song 行, 不按标题拆分目录.
+
+sourceCount 按有效源文件和拒绝项计数, songCount 按有效 beatmap set 计数, chartCount 按可选 Chart 计数. 外部 bundle 继续按其来源计数, 不跨来源按 declared ID 合并. Godot 分别核对三个计数; OSU source selection key 输入为 UTF-8 JSON 数组 `[rootId, "OSU", rootRelativeDirectory]`, 根目录用空字符串. Chart selection 在该 Song key 下再区分 chartId. 标题变化、显式 root 搬移均不改变选择身份.
+
+OSU BUNDLE request 与 OJN 一样必须携带 libraryRoot. selector 为 OSU_BEATMAP, relativePath 必须等于所选文件的 beatmap-set-relative path. CLI 从 root token 与相对路径重建身份, 不信任调用方提供的 chartId. SoundFont 描述仅进入通用 bundle key, 不读取其文件.
+
+osu fingerprint 使用 v1 component framing: 首项 PRIMARY=1、ordinal=0 为完整 `.osu` 编码 bytes; 后续 AUDIO=3 按 source sample index 升序, ordinal 为该 index, BGM index=1、自定义 sample 从 2 开始. 每项写入原始 bytes 长度和 SHA-256. 文件名关联已由 primary bytes 覆盖, 不引入绝对路径. 同一音频作为 BGM 与 custom sample 时保留两个逻辑 component, 准备后的相同 WAV 按内容去重. 更改引用音频会改变 fingerprint/key, 搬移 root 不会.
+
+转换复用 Unix CapturedSource, 在返回前复核各打开文件与路径的 identity/size/mtime. 暂定每音频输入 64 MiB、累计编码音频 512 MiB、单个解码 PCM 256 MiB、累计准备 WAV 4 GiB, 以可取消操作处理; ticket 20 仍负责统一资源策略. 拒绝越界路径和 symlink, 不回退 Java 或系统音源. WAV/Ogg/MP3 的支持边界和精度沿用 core audio fixtures, OSZ 由 ticket 12 单独接入.

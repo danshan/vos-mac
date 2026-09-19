@@ -213,8 +213,12 @@ impl BundleRequestV1 {
                 "bundle command, source kind, and selector must agree",
             ));
         }
-        if self.source_kind == SourceKind::Ojn && self.library_root.is_none() {
-            return Err(invalid("OJN bundle requires a persistent library root"));
+        if matches!(self.source_kind, SourceKind::Ojn | SourceKind::Osu)
+            && self.library_root.is_none()
+        {
+            return Err(invalid(
+                "raw chart bundle requires a persistent library root",
+            ));
         }
         if let Some(root) = &self.library_root {
             let relative = self

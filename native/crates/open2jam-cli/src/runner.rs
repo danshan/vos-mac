@@ -153,10 +153,13 @@ pub fn run(
                 request.source_kind,
                 open2jam_core::format::SourceKind::BundleV2
                     | open2jam_core::format::SourceKind::Ojn
+                    | open2jam_core::format::SourceKind::Osu
             )
         {
             let conversion = if request.source_kind == open2jam_core::format::SourceKind::Ojn {
                 crate::ojn_bundle::convert(&request, &mut progress)
+            } else if request.source_kind == open2jam_core::format::SourceKind::Osu {
+                crate::osu_bundle::convert(&request, &mut progress)
             } else {
                 crate::bundle_service::import_bundle(&request, &mut progress)
             };

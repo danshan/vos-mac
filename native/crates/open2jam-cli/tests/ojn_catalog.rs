@@ -163,3 +163,106 @@ fn mixed_catalog_counts_sources_separately_from_charts_and_keeps_same_title_file
     assert!(bundle.get("soundfont").is_some());
     assert!(bundle.get("chartIndex").is_none());
 }
+
+const OSU: &str =
+    include_str!("../../../../rewrite/golden/java-migration/sources/osu/seven-key.osu");
+
+#[test]
+fn osu_catalog_groups_beatmap_sets_and_preserves_selection_on_relocation() {
+    let library = Library::new("osu-identity");
+    fs::write(library.0.join("songs/nested/easy.osu"), OSU).unwrap();
+    fs::write(
+        library.0.join("songs/nested/hard.OSU"),
+        OSU.replace("Version:Test 7K", "Version:Hard 7K"),
+    )
+    .unwrap();
+    fs::write(library.0.join("songs/root.osu"), OSU).unwrap();
+    let id = format!("library:sha256:{}", "01".repeat(32));
+    let (result, catalog) = library.scan("osu-first", "songs", Some(&id));
+    assert_eq!(result["output"]["sourceCount"], 4);
+    assert_eq!(result["output"]["songCount"], 3);
+    assert_eq!(result["output"]["chartCount"], 6);
+    let entries = catalog["entries"].as_array().unwrap();
+    let osu: Vec<_> = entries
+        .iter()
+        .filter(|e| e["sourceKind"] == "OSU")
+        .collect();
+    assert_eq!(osu.len(), 3);
+    assert_eq!(osu[0]["relativePath"], "nested/easy.osu");
+    assert_eq!(osu[0]["chartPath"], "easy.osu");
+    assert_eq!(osu[0]["difficultyName"], "Test 7K");
+    assert_eq!(osu[1]["difficultyName"], "Hard 7K");
+    assert_eq!(osu[0]["songId"], osu[1]["songId"]);
+    assert_ne!(osu[0]["chartId"], osu[1]["chartId"]);
+    assert_ne!(osu[0]["songId"], osu[2]["songId"]);
+    for entry in &osu {
+        assert_eq!(entry["rootId"], id);
+        assert_eq!(entry["title"], "Seven Key Fixture");
+        assert_eq!(entry["artist"], "Fixture Artist");
+        assert_eq!(entry["level"], 8);
+        assert_eq!(entry["durationSeconds"], 3);
+        assert!(entry.get("soundfont").is_none());
+    }
+    fs::rename(library.0.join("songs"), library.0.join("moved")).unwrap();
+    let (_, moved) = library.scan("osu-moved", "moved", Some(&id));
+    for (index, entry) in entries.iter().enumerate() {
+        assert_eq!(moved["entries"][index]["songId"], entry["songId"]);
+        assert_eq!(moved["entries"][index]["chartId"], entry["chartId"]);
+    }
+    let (_, added) = library.scan(
+        "osu-added",
+        "moved",
+        Some(&format!("library:sha256:{}", "02".repeat(32))),
+    );
+    for (index, entry) in entries.iter().enumerate() {
+        assert_ne!(added["entries"][index]["songId"], entry["songId"]);
+    }
+}
+
+#[test]
+fn osu_catalog_isolates_unsupported_corrupt_and_unidentified_sources() {
+    let library = Library::new("osu-invalid");
+    for (name, text) in [
+        ("valid", OSU.to_owned()),
+        ("four-key", OSU.replace("CircleSize:7", "CircleSize:4")),
+        ("standard", OSU.replace("Mode: 3", "Mode: 0")),
+        ("broken", "broken".into()),
+    ] {
+        fs::write(library.0.join(format!("songs/{name}.osu")), text).unwrap();
+    }
+    fs::File::create(library.0.join("songs/oversized.osu"))
+        .unwrap()
+        .set_len(64 * 1024 * 1024 + 1)
+        .unwrap();
+    let id = format!("library:sha256:{}", "01".repeat(32));
+    let (result, catalog) = library.scan("osu-invalid", "songs", Some(&id));
+    assert_eq!(result["output"]["sourceCount"], 6);
+    assert_eq!(result["output"]["songCount"], 2);
+    assert_eq!(result["output"]["chartCount"], 4);
+    assert_eq!(result["output"]["rejectedSourceCount"], 4);
+    let rejected = catalog["rejected"].as_array().unwrap();
+    assert_eq!(
+        rejected
+            .iter()
+            .filter(|e| e["error"]["code"] == "UNSUPPORTED_FORMAT")
+            .count(),
+        2
+    );
+    assert_eq!(
+        rejected
+            .iter()
+            .filter(|e| e["error"]["code"] == "CORRUPT_CHART")
+            .count(),
+        2
+    );
+    let (result, catalog) = library.scan("osu-no-id", "songs", None);
+    assert_eq!(result["output"]["chartCount"], 0);
+    assert_eq!(result["output"]["rejectedSourceCount"], 6);
+    assert!(
+        catalog["rejected"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|entry| entry["error"]["code"] == "INVALID_REQUEST")
+    );
+}

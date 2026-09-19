@@ -20,3 +20,4 @@
 - 冻结 representative OJN 只有 header 声明的 note count, 没有实际事件. 新增 public parser seam 测试用显式事件覆盖分数位置、长音、同拍事件及 volume/pan, 原 goldens 未改动. 这些测试不等同于 timing 编译后的 Java parity.
 - 验证命令: `mise exec -- cargo test --manifest-path native/Cargo.toml --workspace --all-targets --locked`, `mise exec -- cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets --locked -- -D warnings`.
 - 待续: 字符集策略、timing 编译、音频准备、持久化 LibraryRootId 传递以及 raw OJN 的 CLI/catalog/bundle/Godot 闭环. 本 ticket 的最终验收项暂不勾选.
+- 解析增量提交 `d2669aa`. 固定基点 `d4cedf802e22a4eefd08426ddba17f3cd17c2856` 的两轴增量审查: Standards 0, Spec 0. workspace 证据保存于 `/tmp/vos-ticket08-parser-workspace.log`; red 证据为 `/tmp/vos-ticket08-ojn-red.log`, `/tmp/vos-ticket08-precision-red.log`, `/tmp/vos-ticket08-ojm-red.log`, `/tmp/vos-ticket08-ojm-bounds-red.log`. 既有 Unix socket verifier 需要沙箱外执行, 沙箱内 PermissionDenied 不代表 parser 回归.

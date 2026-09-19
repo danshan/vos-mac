@@ -94,3 +94,4 @@
 - 修正 catalog mutation 测试重新序列化时 schemaVersion 变为 float 的问题, 确保拒绝用例不会因无关数字格式提前失败. 合法搬移与新增来源使用同一 wire 重写路径作正向对照.
 - 尚未实现 token 的设置持久化和 UI 重新定位. 新 SettingsStore 持久化测试边界确认已提出, 当前继续使用已批准的 protocol / CLI / Godot 行为链推进独立部分.
 - 首轮 Spec 审查发现 rootIds 的 BTreeMap 默认反序列化会覆盖重复 JSON path key. 已增加 raw JSON bytes 回归及拒绝重复 key 的反序列化 visitor, red 证据 `/tmp/vos-root-ids-duplicate-red.log`, 避免测试 Value 提前合并键.
+- 传输增量 `24321f7`, 重复键修复 `1717e15`. 固定基点两轴复审: Standards 0 项, Spec 0 项. workspace 验证记录已包含重复键回归; SettingsStore 持久化测试边界问题仍待答复, 不影响独立的 raw source adapter 准备工作.

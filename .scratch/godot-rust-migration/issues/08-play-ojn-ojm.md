@@ -123,3 +123,12 @@
 - 待续: 普通 Godot catalog 的 OJN 消费、多 Chart 选择和稳定 root 设置持久化, 完整 ticket 08 仍不关闭. SettingsStore 新测试 seam 的确认仍待答复, 现有 UI/CLI 验收边界继续用于独立推进.
 - 补充源文件选中后被删除的 CLI 回归, 从 INTERNAL_ERROR 修正为 SOURCE_CHANGED, red `/tmp/vos-ojn-source-removed-red.log`. 不将源消失误报为 converter 内部崩溃.
 - 转换增量 `865f887` 固定基点两轴审查: Standards 0 项, Spec 0 项. 验证日志保留上述路径, 仅作为当前转换链路证据, 不关闭 ticket.
+
+## 当前增量: Godot 消费 OJN catalog
+
+- NativeCatalogLoader 接受 OJN 的 chartIndex、level、durationSeconds, 要求稳定 root token, 构造带 libraryRoot 的 native bundle 请求. 整数显式转换, 避免 Godot JSON 浮点值污染 CLI 请求. OJN SoundFont 使用固定 unused descriptor, 不读取音色文件.
+- 同一来源保留 sourceId 与 SongId, 三个 Chart 各自具有选择 ID 和 selector. 验证同源 metadata 一致、ChartId/索引不重复以及 0/1/2 三个索引完整. 外部 bundle 的现有选择 ID 不变.
+- NativeLoadJob 按 distinct 来源校验 songCount/sourceCount, 按条目数校验 chartCount, 不再假定一歌一谱.
+- 原 OJN gate 改为 Godot coordinator 实际发起 catalog 请求, 消费三个 Chart 后交给公开 MainUi entry 接口, 再通过真实 converter 到判定和音频事件. 覆盖合法重序列化对照及重复、索引越界、同源不同 SongId、负 level、缺 root、缺 Chart 拒绝.
+- red 证据 `/tmp/vos-ojn-catalog-consumer-red.log`, `/tmp/vos-ojn-catalog-missing-chart-red.log`; 验证记录 `/tmp/vos-ojn-catalog-consumer.log`, `/tmp/vos-ojn-consumer-bundle-regression.log`.
+- 本增量仍通过 MainUi.set_song_entries 传入结果, 普通设置驱动扫描的 token 持久化与独立难度选择 UI 尚待实现, 不关闭 ticket.

@@ -23,26 +23,54 @@ func load_catalog(path: String, roots: Array, cancel: Callable, root_ids: Dictio
 		allowed[_root_path(root)] = root_id
 	var entries: Array[Dictionary] = []
 	var origins := {}
+	var charts := {}
 	for entry: Variant in document["entries"]:
 		if Wire.cancelled(cancel) or not _entry_valid(entry, allowed):
 			return {}
-		# Declared bundle IDs remain unchanged; selection identity belongs to its source.
+		# A source owns its song selection identity; charts remain independently selectable.
 		var origin := JSON.stringify([entry.get("rootId", _root_path(entry["rootPath"])), entry["relativePath"]])
-		if origins.has(origin):
+		var chart_origin := JSON.stringify([origin, entry["chartId"]])
+		if charts.has(chart_origin):
 			return {}
-		origins[origin] = true
-		entries.append({
-			"id": "bundle-source-" + Wire.sha256(origin.to_utf8_buffer()).trim_prefix("sha256:"),
+		charts[chart_origin] = true
+		if origins.has(origin):
+			var previous: Dictionary = origins[origin]
+			if entry["sourceKind"] != "OJN" or previous["sourceKind"] != "OJN" or previous["songId"] != entry["songId"] or previous["title"] != entry["title"] or previous["artist"] != entry["artist"]:
+				return {}
+			if previous["indices"].has(entry["chartIndex"]):
+				return {}
+			previous["indices"].append(entry["chartIndex"])
+		else:
+			origins[origin] = {"sourceKind": entry["sourceKind"], "songId": entry["songId"], "title": entry["title"], "artist": entry["artist"], "indices": [entry.get("chartIndex", -1)]}
+		var source_id := "bundle-source-" + Wire.sha256(origin.to_utf8_buffer()).trim_prefix("sha256:")
+		var item := {
+			"id": source_id, "sourceId": source_id,
 			"rootPath": entry["rootPath"], "relativePath": entry["relativePath"], "sourcePath": entry["sourcePath"],
 			"rootId": entry.get("rootId", ""),
 			"songId": entry["songId"], "chartId": entry["chartId"], "title": entry["title"], "artist": entry["artist"],
 			"format": "BUNDLE", "keys": 7, "levelKnown": false,
-			"nativeRequest": {"schemaVersion": 1, "command": "BUNDLE", "sourceKind": "BUNDLE_V2",
-				"chartId": entry["chartId"], "sourcePath": entry["sourcePath"],
-				"selector": {"kind": "BUNDLE_CHART", "chartId": entry["chartId"]},
-				"staticAssetsVersion": entry["staticAssetsVersion"],
-				"soundfont": {"path": str(entry["sourcePath"]).path_join("bundle.json"), "version": entry["soundfont"]["version"], "sha256": entry["soundfont"]["sha256"]}}
-		})
+		}
+		var request := {"schemaVersion": 1, "command": "BUNDLE", "sourceKind": entry["sourceKind"],
+			"chartId": entry["chartId"], "sourcePath": entry["sourcePath"], "staticAssetsVersion": Integrity.STATIC_ASSETS}
+		if entry["sourceKind"] == "OJN":
+			item["id"] = source_id + "-" + str(int(entry["chartIndex"]))
+			item["format"] = "O2JAM"
+			item["levelKnown"] = true
+			item["level"] = int(entry["level"])
+			item["chartIndex"] = int(entry["chartIndex"])
+			item["durationSeconds"] = int(entry["durationSeconds"])
+			request["selector"] = {"kind": "OJN_CHART", "index": int(entry["chartIndex"])}
+			request["libraryRoot"] = {"id": entry["rootId"], "path": entry["rootPath"]}
+			# OJN does not use a SoundFont; the generic bundle key still requires this descriptor.
+			request["soundfont"] = {"path": entry["sourcePath"], "version": "unused", "sha256": "sha256:" + "00".repeat(32)}
+		else:
+			request["selector"] = {"kind": "BUNDLE_CHART", "chartId": entry["chartId"]}
+			request["soundfont"] = {"path": str(entry["sourcePath"]).path_join("bundle.json"), "version": entry["soundfont"]["version"], "sha256": entry["soundfont"]["sha256"]}
+		item["nativeRequest"] = request
+		entries.append(item)
+	for source: Dictionary in origins.values():
+		if source["sourceKind"] == "OJN" and source["indices"].size() != 3:
+			return {}
 	var errors: Array[String] = []
 	for rejected: Variant in document["rejected"]:
 		if Wire.cancelled(cancel) or not Wire.fields(rejected, ["sourcePath", "error"]) or not Wire.text(rejected["sourcePath"], true) or not str(rejected["sourcePath"]).is_absolute_path():
@@ -51,11 +79,20 @@ func load_catalog(path: String, roots: Array, cancel: Callable, root_ids: Dictio
 		if not Wire.fields(error, ["code", "message", "sourcePath", "context"]) or not Wire.text(error["code"], true) or not Wire.text(error["message"]) or not error["context"] is Dictionary:
 			return {}
 		errors.append("%s: %s" % [rejected["sourcePath"], error["message"]])
-	return {} if Wire.cancelled(cancel) else {"entries": entries, "errors": errors}
+	return {} if Wire.cancelled(cancel) else {"entries": entries, "errors": errors, "songCount": origins.size()}
 
 
 func _entry_valid(entry: Variant, allowed: Dictionary) -> bool:
-	var fields := ["rootPath", "relativePath", "sourcePath", "sourceKind", "songId", "chartId", "title", "artist", "soundfont", "staticAssetsVersion"]
+	if not entry is Dictionary:
+		return false
+	var kind: Variant = entry.get("sourceKind", "")
+	var fields := ["rootPath", "relativePath", "sourcePath", "sourceKind", "songId", "chartId", "title", "artist"]
+	if kind == "BUNDLE_V2":
+		fields.append_array(["soundfont", "staticAssetsVersion"])
+	elif kind == "OJN":
+		fields.append_array(["chartIndex", "level", "durationSeconds"])
+	else:
+		return false
 	if entry is Dictionary and entry.has("rootId"):
 		fields.append("rootId")
 	if not Wire.fields(entry, fields):
@@ -73,10 +110,13 @@ func _entry_valid(entry: Variant, allowed: Dictionary) -> bool:
 	elif entry.has("rootId"):
 		return false
 	var expected := root if relative.is_empty() else root.path_join(relative)
-	if entry["sourcePath"] != expected or entry["sourceKind"] != "BUNDLE_V2" or entry["staticAssetsVersion"] != Integrity.STATIC_ASSETS:
+	if entry["sourcePath"] != expected:
 		return false
-	return Wire.identifier(entry["songId"], "song:sha256:") and Wire.identifier(entry["chartId"], "chart:sha256:") \
-		and Wire.fields(entry["soundfont"], ["version", "sha256"]) and Wire.text(entry["soundfont"]["version"], true) and Wire.identifier(entry["soundfont"]["sha256"], "sha256:")
+	if not Wire.identifier(entry["songId"], "song:sha256:") or not Wire.identifier(entry["chartId"], "chart:sha256:"):
+		return false
+	if kind == "OJN":
+		return allowed[root] != "" and not relative.is_empty() and Wire.integer(entry["chartIndex"], 2) and Wire.integer(entry["level"], 32767) and Wire.integer(entry["durationSeconds"], 2147483647)
+	return entry["staticAssetsVersion"] == Integrity.STATIC_ASSETS and Wire.fields(entry["soundfont"], ["version", "sha256"]) and Wire.text(entry["soundfont"]["version"], true) and Wire.identifier(entry["soundfont"]["sha256"], "sha256:")
 
 
 static func _root_path(path: String) -> String:

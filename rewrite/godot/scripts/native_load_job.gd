@@ -211,7 +211,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 			return _failure("CACHE_CORRUPT", "Invalid native catalog snapshot.")
 		var count: int = catalog["entries"].size()
 		var rejected: int = catalog["errors"].size()
-		if output["sourceCount"] != count + rejected or output["songCount"] != count or output["chartCount"] != count or output["rejectedSourceCount"] != rejected:
+		if output["sourceCount"] != catalog["songCount"] + rejected or output["songCount"] != catalog["songCount"] or output["chartCount"] != count or output["rejectedSourceCount"] != rejected:
 			return _failure("CACHE_CORRUPT", "Native catalog counts disagree with its snapshot.")
 		return {"ok": true, "catalog": catalog}
 	if result["error"] != null or not Wire.fields(output, ["stagingPath", "bundleKey", "manifestPath"]) or output["stagingPath"] != expected_path or output["manifestPath"] != expected_path.path_join("bundle.json") or not Wire.identifier(output["bundleKey"], "sha256:"):

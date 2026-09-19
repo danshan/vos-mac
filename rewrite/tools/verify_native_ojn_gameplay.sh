@@ -41,7 +41,7 @@ assert len(catalog["entries"]) == 3
 (root / "entry.json").write_text(json.dumps(catalog["entries"][0]))
 run = subprocess.run(["godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "godot.log"),
                       "--script", "res://scripts/tests/native_ojn_gameplay_test.gd", "--", converter,
-                      str(root / "entry.json"), str(root / "work")], capture_output=True, text=True, timeout=45)
+                      str(root / "songs"), str(root / "work")], capture_output=True, text=True, timeout=45)
 print(run.stdout, end="")
 marker = "Raw OJN reached Gameplay Ready through the native converter and judged its note with audio."
 if run.returncode or marker not in run.stdout or "SCRIPT ERROR" in run.stdout or "SCRIPT ERROR" in run.stderr:

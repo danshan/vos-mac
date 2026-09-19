@@ -49,3 +49,4 @@
 - 四组 Java PCM oracle 冻结 mono/stereo、CBR/VBR、MPEG-1/2/2.5、ID3/Xing 的长度与时序. MP3 decoder 数值容差明确为峰值 <= 32 PCM16 LSB, RMS <= 16 LSB, 不放宽长度或允许时间偏移. 两组 stereo oracle 的实测峰值为 17 LSB; 该容差只用于 MP3. WAV 精确与 Ogg 1 LSB 约束不变.
 - 输入文件暂限 64 MiB、单个准备后 PCM 256 MiB, 每 chunk/frame 检查取消. 此处不宣称 ticket 20 最终资源策略完成. free-bitrate MP3、任意非 ID3 尾部以及 WAV extensible/未支持编码明确失败, 更广实际歌曲工作集仍需 ticket 24/25 验证.
 - red: /tmp/vos-audio-files-red.log、/tmp/vos-wave-file-red.log, MP3 时序差异记录 /tmp/vos-mp3-parity-probe.log, 文件音频矩阵 /tmp/vos-audio-files-matrix.log. 当前完成 adapter 的音频前置能力; 文件身份/资源捕获、catalog、bundle producer 与 Godot osu 入口仍待接线, ticket 保持 in-progress.
+- 音频增量 029e4cd 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace 记录 /tmp/vos-audio-files-workspace.log, Clippy /tmp/vos-audio-files-clippy.log, fmt 与 diff check 退出 0. M30 真实 CLI -> Godot 音频回归记录 /tmp/vos-audio-files-m30-gameplay.log, 退出 0. 该回归覆盖共享音频提取对既有链路的影响, 不代表原始 osu 全链路已完成.

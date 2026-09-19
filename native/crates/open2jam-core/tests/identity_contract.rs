@@ -107,3 +107,41 @@ fn canonical_ids_match_independently_framed_python_vectors() {
         derive_sample_id(&Digest::from_bytes([1; 32]))
     );
 }
+
+#[test]
+fn osu_set_at_library_root_groups_charts_without_a_synthetic_directory_name() {
+    let song = SongIdentity::osu_beatmap_set_at_root(root(1));
+    let easy = ChartIdentity::osu(path("easy.osu"));
+    let hard = ChartIdentity::osu(path("hard.osu"));
+    assert_ne!(
+        easy.chart_id(&song.song_id()),
+        hard.chart_id(&song.song_id())
+    );
+    assert_eq!(
+        song.song_id(),
+        SongIdentity::osu_beatmap_set_at_root(root(1)).song_id()
+    );
+    assert_ne!(
+        song.song_id(),
+        SongIdentity::osu_beatmap_set_at_root(root(2)).song_id()
+    );
+    assert_ne!(
+        song.song_id(),
+        SongIdentity::osu_beatmap_set(root(1), path("set")).song_id()
+    );
+    let wire = serde_json::to_value(&song).unwrap();
+    assert_eq!(wire["kind"], "OSU_BEATMAP_SET");
+    assert!(wire["packagePath"].is_null());
+    assert_eq!(
+        serde_json::from_value::<SongIdentity>(wire.clone()).unwrap(),
+        song
+    );
+    let mut missing_location = wire;
+    missing_location
+        .as_object_mut()
+        .unwrap()
+        .remove("packagePath");
+    assert!(serde_json::from_value::<SongIdentity>(missing_location).is_err());
+    assert!(SourceRelativePath::parse("").is_err());
+    assert!(SourceRelativePath::parse(".").is_err());
+}

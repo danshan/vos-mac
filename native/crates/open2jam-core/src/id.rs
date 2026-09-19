@@ -141,7 +141,8 @@ enum SongIdentityWire {
     },
     OsuBeatmapSet {
         root_id: LibraryRootId,
-        package_path: SourceRelativePath,
+        #[serde(deserialize_with = "deserialize_package_location")]
+        package_path: Option<SourceRelativePath>,
     },
     OszPackage {
         root_id: LibraryRootId,
@@ -150,6 +151,13 @@ enum SongIdentityWire {
     BundleDeclared {
         song_id: SongId,
     },
+}
+
+// Require an explicit null for a root-level set; an omitted location is malformed.
+fn deserialize_package_location<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<SourceRelativePath>, D::Error> {
+    Option::<SourceRelativePath>::deserialize(deserializer)
 }
 
 impl SongIdentity {
@@ -165,7 +173,13 @@ impl SongIdentity {
     pub fn osu_beatmap_set(root_id: LibraryRootId, package_path: SourceRelativePath) -> Self {
         Self(SongIdentityWire::OsuBeatmapSet {
             root_id,
-            package_path,
+            package_path: Some(package_path),
+        })
+    }
+    pub fn osu_beatmap_set_at_root(root_id: LibraryRootId) -> Self {
+        Self(SongIdentityWire::OsuBeatmapSet {
+            root_id,
+            package_path: None,
         })
     }
     pub fn osz_package(root_id: LibraryRootId, package_path: SourceRelativePath) -> Self {
@@ -182,23 +196,27 @@ impl SongIdentity {
             SongIdentityWire::Vos {
                 root_id,
                 package_path,
-            } => (1, root_id, package_path),
-            SongIdentityWire::OjnFile { root_id, file_path } => (2, root_id, file_path),
+            } => (1, root_id, package_path.as_str()),
+            SongIdentityWire::OjnFile { root_id, file_path } => (2, root_id, file_path.as_str()),
             SongIdentityWire::OsuBeatmapSet {
                 root_id,
                 package_path,
-            } => (3, root_id, package_path),
+            } => (
+                3,
+                root_id,
+                package_path.as_ref().map_or("", SourceRelativePath::as_str),
+            ),
             SongIdentityWire::OszPackage {
                 root_id,
                 package_path,
-            } => (4, root_id, package_path),
+            } => (4, root_id, package_path.as_str()),
             SongIdentityWire::BundleDeclared { song_id } => return *song_id,
         };
         let mut hash = CanonicalHasher::new(b"open2jam.song-id.v2\0");
         hash.write_u16(crate::schema::ID_ALGORITHM_VERSION);
         hash.write_bytes(root.digest().as_bytes());
         hash.write_u16(tag);
-        hash.write_str(path.as_str());
+        hash.write_str(path);
         SongId::from_digest(hash.finish())
     }
 }
@@ -214,7 +232,10 @@ impl TryFrom<SongIdentityWire> for SongIdentity {
             SongIdentityWire::OsuBeatmapSet {
                 root_id,
                 package_path,
-            } => Self::osu_beatmap_set(root_id, package_path),
+            } => match package_path {
+                Some(path) => Self::osu_beatmap_set(root_id, path),
+                None => Self::osu_beatmap_set_at_root(root_id),
+            },
             SongIdentityWire::OszPackage {
                 root_id,
                 package_path,

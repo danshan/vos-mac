@@ -8,6 +8,8 @@
 
 原始 Song identity 由 root token、格式 tag 和精确 root-relative path 构成. VOS/OJN 使用文件路径, osu 使用 beatmap set 目录路径, OSZ 使用包路径. 不包含显示标题、搜索字段、当前绝对路径或内容 hash. 改标题不改变身份, 搬移整个 root 并保留 token/相对路径不改变身份, 新增副本因 root token 不同而独立. 在 root 内改名不属于自动身份恢复承诺.
 
+osu beatmap set 可以恰好位于 Library Root 本身. 使用显式 `osu_beatmap_set_at_root(root_id)` 构造, wire 中 `packagePath: null` 表示该位置; 字段缺失仍非法. 哈希使用同一 OSU_BEATMAP_SET tag 和长度为 0 的 path payload, 不与任何合法非空相对路径冲突. 通用 SourceRelativePath 继续拒绝空字符串和 `.`, 不使用当前目录 basename 作为替代.
+
 Chart identity 在 Song ID 下区分 VOS index 0、OJN index 0/1/2 或 osu beatmap 相对路径. 不允许用未经验证的 serde 数据绕过 index 与 path 约束.
 
 ## Bundle 与 catalog 边界

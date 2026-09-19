@@ -21,3 +21,10 @@
 - 验证命令: `mise exec -- cargo test --manifest-path native/Cargo.toml --workspace --all-targets --locked`, `mise exec -- cargo clippy --manifest-path native/Cargo.toml --workspace --all-targets --locked -- -D warnings`.
 - 待续: 字符集策略、timing 编译、音频准备、持久化 LibraryRootId 传递以及 raw OJN 的 CLI/catalog/bundle/Godot 闭环. 本 ticket 的最终验收项暂不勾选.
 - 解析增量提交 `d2669aa`. 固定基点 `d4cedf802e22a4eefd08426ddba17f3cd17c2856` 的两轴增量审查: Standards 0, Spec 0. workspace 证据保存于 `/tmp/vos-ticket08-parser-workspace.log`; red 证据为 `/tmp/vos-ticket08-ojn-red.log`, `/tmp/vos-ticket08-precision-red.log`, `/tmp/vos-ticket08-ojm-red.log`, `/tmp/vos-ticket08-ojm-bounds-red.log`. 既有 Unix socket verifier 需要沙箱外执行, 沙箱内 PermissionDenied 不代表 parser 回归.
+
+## 当前增量: OJN 时间轴
+
+- `OjnSource::timeline` 保留 Java 的 1500 ms 起始延迟与 OJN 特有的小节位置规则: 拍号影响小节剩余时长, 不缩放事件位置. 使用 binary64 毫秒累加, 输出时四舍五入到微秒, 不逐事件量化累加值. BPM 的 binary32 源值精确转为 v2 Ratio, 超出 Ratio 可表示范围时明确拒绝.
+- 小节展开最多 1,000,000 个, 循环提供取消检查; 会导致时间倒退的小节长度与无法表示的时间返回 CorruptChart. 空谱面仍有初始小节和 timing. OJN 无独立 scroll / STOP, 两条 timing track 可共享编译结果.
+- public parser/timing seam 覆盖 BPM 变化、短小节、分数拍、4096 事件微秒精度、过大 measure、异常 BPM 和展开期间取消. `/tmp/vos-ticket08-java-timeline.log` 记录 Java `RenderTimingCompiler` 对同一 120 -> 240 BPM / 半小节案例的输出, 小节为 1500000/2500000/3500000 us, 音符为 2000000/3000000/3500000 us. 工作集证据为 `/tmp/vos-ticket08-timeline-workspace.log`, 首个 red 为 `/tmp/vos-ticket08-timeline-red.log`.
+- 此结果仍是带时间的原始事件, 未实施 `EventList.OPEN2JAM` 长音修复及最终 playable eventOrder 分配. 不据此勾选完整 timing / 长音 parity 验收.

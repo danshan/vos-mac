@@ -145,3 +145,100 @@ fn corrupt_lengths_and_negative_metadata_are_diagnosed_without_trusting_counts()
         ErrorCode::Cancelled
     );
 }
+
+#[test]
+fn timeline_preserves_ojn_measure_length_bpm_changes_and_lead_in() {
+    let mut bytes = with_packages(&[
+        (0, 0, vec![0.5_f32.to_le_bytes()]),
+        (0, 2, vec![[0; 4], [1, 0, 0, 2], [0; 4], [0; 4]]),
+        (0, 1, vec![[0; 4], 240_f32.to_le_bytes()]),
+        (1, 2, vec![[0; 4], [1, 0, 0, 3]]),
+        (2, 3, vec![[1, 0, 0, 0]]),
+    ]);
+    bytes[16..20].copy_from_slice(&120_f32.to_le_bytes());
+    let timeline = OjnSource::parse(&bytes)
+        .unwrap()
+        .timeline(0, &mut || Ok(()))
+        .unwrap();
+    assert_eq!(
+        timeline
+            .measures
+            .iter()
+            .map(|t| t.get())
+            .collect::<Vec<_>>(),
+        [1_500_000, 2_500_000, 3_500_000]
+    );
+    assert_eq!(
+        timeline
+            .events
+            .iter()
+            .map(|e| e.at.get())
+            .collect::<Vec<_>>(),
+        [1_500_000, 2_000_000, 2_500_000, 3_000_000, 3_500_000]
+    );
+    assert_eq!(timeline.timing.len(), 2);
+    assert_eq!(timeline.timing[0].bpm(), Ratio::new(120, 1).unwrap());
+    assert_eq!(timeline.timing[1].bpm(), Ratio::new(240, 1).unwrap());
+    assert_eq!(timeline.timing[1].at().get(), 2_500_000);
+}
+
+#[test]
+fn timeline_keeps_sub_millisecond_precision_without_cumulative_rounding() {
+    let source = OjnSource::parse(STRESS).unwrap();
+    let timeline = source.timeline(0, &mut || Ok(())).unwrap();
+    assert_eq!(timeline.events[1].at.get(), 1_500_451);
+    assert_eq!(timeline.events[4095].at.get(), 3_345_703);
+    let mut bytes = MINIMAL.to_vec();
+    bytes[16..20].copy_from_slice(&130.125_f32.to_le_bytes());
+    let timeline = OjnSource::parse(&bytes)
+        .unwrap()
+        .timeline(0, &mut || Ok(()))
+        .unwrap();
+    assert_eq!(timeline.timing[0].bpm(), Ratio::new(1041, 8).unwrap());
+}
+
+#[test]
+fn timeline_rejects_unbounded_expansion_backward_time_and_unrepresentable_bpm() {
+    let cases = [
+        with_packages(&[(1_000_000, 2, vec![[1, 0, 0, 0]])]),
+        with_packages(&[
+            (0, 0, vec![0.25_f32.to_le_bytes()]),
+            (0, 2, vec![[0; 4], [1, 0, 0, 0]]),
+            (1, 2, vec![[1, 0, 0, 0]]),
+        ]),
+    ];
+    for bytes in cases {
+        assert_eq!(
+            OjnSource::parse(&bytes)
+                .unwrap()
+                .timeline(0, &mut || Ok(()))
+                .unwrap_err()
+                .code(),
+            ErrorCode::CorruptChart
+        );
+    }
+    for bpm in [f32::MIN_POSITIVE, f32::MAX] {
+        let mut bytes = MINIMAL.to_vec();
+        bytes[16..20].copy_from_slice(&bpm.to_le_bytes());
+        assert!(
+            OjnSource::parse(&bytes)
+                .unwrap()
+                .timeline(0, &mut || Ok(()))
+                .is_err()
+        );
+    }
+    let bytes = with_packages(&[(999_999, 2, vec![[1, 0, 0, 0]])]);
+    let mut checkpoints = 0;
+    let error = OjnSource::parse(&bytes)
+        .unwrap()
+        .timeline(0, &mut || {
+            checkpoints += 1;
+            if checkpoints > 10 {
+                Err(CoreError::new(ErrorCode::Cancelled, "cancelled"))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::Cancelled);
+}

@@ -53,3 +53,7 @@
 阶段提交 `1f26909`, 验证质量修正 `dd6f575`. 累计 native workspace 57 项与 1 项 compile-fail doctest 的日志均无失败, fmt/clippy 无新增问题. Standards 发现的无效 compile-fail 示例已修复: 临时公开字段的 mutation probe 使测试失败, 恢复私有后通过. 文件数量测试同时独立验证 65,537 个唯一有序路径, 不依赖重复项或文件字节上限提前拒绝.
 
 最终两轴复审: Standards 0、Spec 0 未解决发现. 仅关闭此文件完整性阶段的审查, ticket 04 与整体 Java-free 迁移继续进行.
+
+## 实施进度: Gameplay 精度与 Note
+
+新增 TimeMicros、约分 Ratio、7-lane Note 与独立 HoldTail. 保留亚毫秒时间、OJN 15/16 音量与 -7/8 声像、头尾 measure/eventOrder; serde 不能绕过 lane、比例和长音先后校验. 数值合同见 `docs/rewrite/2026-09-19-gameplay-v2-values.md`. 完整 Chart、timing、audio 引用与 Godot adapter 尚未实现, 不关闭 ticket.

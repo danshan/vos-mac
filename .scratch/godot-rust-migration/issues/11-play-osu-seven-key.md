@@ -22,3 +22,4 @@
 - 格式核对来源: https://osu.ppy.sh/wiki/en/Client/File_formats/osu_(file_format), 同时以仓库 OsuManiaParser 为当前播放语义依据. 官方格式包含更多默认 hitsound/事件能力, 本次不额外宣称超出 Java 已支持的行为.
 - 测试: frozen seven-key 的七轨与长音、sample 复用/音量、scroll、非 mania/非 7K、畸形输入、4096-note 工作集与取消. red /tmp/vos-osu-parser-red.log, /tmp/vos-osu-number-red.log; 当前记录 /tmp/vos-osu-parser.log, /tmp/vos-osu-parser-workspace.log.
 - 尚待: Java timing/scroll/measure 编译 oracle、完整 sample/audio 准备、osu beatmap-set 身份与 catalog、native bundle adapter 和 Godot 实际加载. ticket 保持 in-progress.
+- 原始解析增量 daff5bc 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace、clippy、fmt 退出 0. 下一步需复刻 Java TimingMap 的 measure 转换与 RenderTimingCompiler 的非 OJN 拍号缩放, 不能直接用源毫秒加固定偏移代替 timing oracle.

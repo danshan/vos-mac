@@ -108,6 +108,24 @@ fn tempo_changes_control_duration_and_delayed_notes_preserve_silence() {
 }
 
 #[test]
+fn redundant_tempo_events_do_not_shorten_the_sequence() {
+    let events: Vec<_> = (1..=960)
+        .map(|tick| json!({"tick":tick,"kind":"tempo","micros_per_quarter":500000}))
+        .collect();
+    let probe = Probe::new();
+    let report = probe.render(json!([
+        {"division":960,"end_tick":960,"events":[]},
+        {"division":960,"end_tick":960,"events":events}
+    ]));
+    assert_eq!(report["samples"][0]["frames"], 44_100);
+    assert_eq!(report["samples"][1]["frames"], 44_100);
+    assert_eq!(
+        report["samples"][0]["pcm_sha256"],
+        report["samples"][1]["pcm_sha256"]
+    );
+}
+
+#[test]
 fn renders_are_identical_across_processes_and_reversed_sample_order() {
     let a = short_note();
     let mut b = short_note();

@@ -1,6 +1,6 @@
 # Ticket 02 VOS 离线合成原型
 
-结论: RustySynth 1.3.6 可以作为下一步集成候选, 已验证固定 SoundFont、离线 PCM、基础 MIDI 行为和重复/逆序确定性. 当前证据只支持继续集成, 不证明完整 cold Gameplay Ready P95 <= 5 s. 1,024 个独立 samples 的串行合成已经超过整体预算, 必须保留为性能风险, 不能从后续压力验收中悄悄移除.
+结论: RustySynth 1.3.6 可以作为下一步集成候选, 已验证固定 SoundFont、离线 PCM、基础 MIDI 行为和重复/逆序确定性. 当前证据只支持继续集成, 不证明完整 cold Gameplay Ready P95 <= 5 s. 1,024 个独立 samples 的串行合成曾超过整体预算, 复测又明显降低, 必须保留性能波动风险, 不能从后续压力验收中悄悄移除.
 
 ## 实现边界
 
@@ -18,6 +18,7 @@
 
 - WAV 格式、非静音、60 ms minimum gate、500 ms tail 与无削波.
 - tempo 变化后的确切时长, 延迟 note-on 前的静音.
+- 相同 tempo 的冗余事件不改变音乐时长, 累计换算保留分数余量而非逐段丢弃.
 - 相同样本跨进程重复和倒序后的 PCM/WAV 一致性.
 - velocity、左右 pan、program 变化和同 tick program/note 顺序.
 - bank 选择、channel 控制隔离、零 velocity note-on 等价 note-off.
@@ -26,7 +27,9 @@
 
 首个 CLI 测试先因不存在探针入口失败, 实现后通过. 超大空序列先复现 panic, 三分钟背景先复现原型边界不足, 均补最小修复后通过. 其他 MIDI 行为测试通过真实 synth 验证, 未引入模拟 synth.
 
-CLI crate 全 targets 输出: 7 个 probe tests 与 1 个既有 version test 均通过. 对 CLI crate 的 clippy -D warnings 与 workspace fmt check 通过. Workspace 全 targets 的旧 protocol_contract 缺模块错误仍属于 ticket 04, 不由该原型绕过.
+Spec 审查发现逐事件整数除法导致时间漂移. 新回归先复现 44,064 frames 而非 44,100, 修复为保留累计分数后通过; 修复后重跑全部合成测量. 这不是性能优化, 不将下方耗时变化归因于时序修复. 生产音频 parity 仍需处理旧 Java 逐段截断与正确 MIDI 累计时间可能存在的细微差异, 本原型未修改生产输出或 oracle.
+
+CLI crate 全 targets 输出: 8 个 probe tests 与 1 个既有 version test 均通过. 对 CLI crate 的 clippy -D warnings 与 workspace fmt check 通过. Workspace 全 targets 的旧 protocol_contract 缺模块错误仍属于 ticket 04, 不由该原型绕过.
 
 ## Release 测量
 
@@ -34,20 +37,22 @@ CLI crate 全 targets 输出: 7 个 probe tests 与 1 个既有 version test 均
 
 | 输入 | Samples / 不同 PCM | 累计音频时长 | PCM bytes | 进程总时间范围 | 最大 RSS |
 |---|---|---|---|---|---|
-| 合成代表性工作集 | 64 / 64 | 48.0 s | 8,467,200 | 0.23–0.57 s | 72,433,664 bytes |
-| 合成压力工作集 | 1,024 / 1,024 | 768.0 s | 135,475,200 | 5.63–7.38 s | 74,121,216 bytes |
-| 真实 Age of empire VOS | 192 / 190 | 324.32 s | 57,210,048 | 1.83–2.17 s | 72,597,504 bytes |
+| 合成代表性工作集 | 64 / 64 | 48.0 s | 8,467,200 | 0.18–0.55 s | 72,318,976 bytes |
+| 合成压力工作集 | 1,024 / 1,024 | 768.0 s | 135,475,200 | 2.04–2.06 s | 73,646,080 bytes |
+| 真实 Age of empire VOS | 192 / 190 | 324.32 s | 57,210,048 | 1.33–1.34 s | 71,843,840 bytes |
 
-进程总时间来自 macOS time, 包含启动、SoundFont 验证/加载、请求解析、合成、写盘与报告输出. 探针内部 wall time 分别为 0.229–0.399 s、5.626–7.373 s、1.563–2.169 s. 两者分开记录, 不把内部计时冒充完整用户等待.
+进程总时间来自 macOS time, 包含启动、SoundFont 验证/加载、请求解析、合成、写盘与报告输出. 修复后探针内部 wall time 分别为 0.182–0.220 s、2.043–2.064 s、1.335–1.344 s. 两者分开记录, 不把内部计时冒充完整用户等待.
 
-三组所有输出均按实际 WAV bytes 复核 PCM SHA-256, repeated 与 reversed 对应结果完全相同; 三组削波计数均为 0. 真实输入最大 float peak 约 0.8143. 完整数值与每个 sample 的 hash 保留在本机 tracker 的 ignored target/synth-probe 目录.
+首次测量的进程时间分别为 0.23–0.57 s、5.63–7.38 s、1.83–2.17 s. 两次测量均为同一机器上的开发环境, 未控制其他进程负载与 OS 文件缓存, 不因复测更快而删除首次超预算结果. 尚无证据解释全部波动, 因而这些测量不能证明 P95 或稳定 cold 性能.
+
+三组所有输出均按实际 WAV bytes 复核 PCM SHA-256, repeated 与 reversed 对应结果完全相同; 三组削波计数均为 0. 完整数值与每个 sample 的 hash 保留在本机 tracker 的 ignored target/synth-probe-final 目录, 首次结果保留在 target/synth-probe.
 
 真实 VOS 只作为补充测量, 不进入 hermetic 自动 gate. 其源 SHA-256 为 `0b1f83bb8985bcc77a40bf871d285b47db37349065d7821887d735d1d8580dab`. 迁移期间使用已有 Java ChartParser/MidiSystem 只读提取其 samples 与 PPQ 事件, Rust 执行音频合成; 并未测量 Rust VOS parser 或 Java-free 端到端加载. 192 个 samples 包含一条约 172.92 s、4,374 个事件的背景音轨. 提取后的 JSON SHA-256 为 `9230e3168892a2262cc157c462f5b6e155a8b6760a368fc3c6d53e12360f803e`.
 
 ## Go/no-go
 
-- Go: 继续使用该固定版本和配置进行生产合成 adapter 的集成验证. 真实 VOS 音频准备在本机约 2 s, 没有发现固定音源读取、重复执行确定性或基础 MIDI 控制阻碍.
-- No-go: 不能宣称所有压力输入满足 cold 5 s, 不能直接跳到 Java 删除或省略后续性能门禁. 1,024 独立 samples 当前串行实现超预算, 需要在 ticket 24/25 根据完整工作集决定并验证并行合成、去重或其他优化.
+- Go: 继续使用该固定版本和配置进行生产合成 adapter 的集成验证. 真实 VOS 音频准备在本机观察到 1.33–2.17 s, 没有发现固定音源读取、重复执行确定性或基础 MIDI 控制阻碍.
+- No-go: 不能宣称所有压力输入满足 cold 5 s, 不能直接跳到 Java 删除或省略后续性能门禁. 1,024 独立 samples 已观察到串行实现超预算, 需要在 ticket 24/25 根据完整工作集和受控测量决定并验证并行合成、去重或其他优化.
 - 本轮没有将 1,024 samples 擅自划到“不承诺预算”的范围. 最终代表性/压力工作集尚未冻结, 不能事后只选择已通过的规模.
 - 64-voice 限制、64-frame 内部渲染块及所覆盖 MIDI 消息并非完整音乐行为证明. 更复杂 polyphony、控制器和源格式行为必须随 production VOS importer 扩充 oracle/behavior gates.
 

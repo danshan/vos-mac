@@ -69,7 +69,7 @@ fn schedule(sample: &mut Sample) -> Result<ScheduledSample, Box<dyn std::error::
         .events
         .sort_by_key(|event| (event.tick, !matches!(event.message, Message::Tempo { .. })));
     let mut tick = 0;
-    let mut micros = 0_u64;
+    let mut elapsed_tick_micros = 0_u64;
     let mut tempo = 500_000;
     let mut end = 0;
     let mut active = HashMap::new();
@@ -78,7 +78,9 @@ fn schedule(sample: &mut Sample) -> Result<ScheduledSample, Box<dyn std::error::
         if event.tick > sample.end_tick {
             return Err("event outside bounded prototype sequence".into());
         }
-        micros += (event.tick - tick) * tempo / sample.division;
+        // Keep the fractional remainder across events and tempo changes.
+        elapsed_tick_micros += (event.tick - tick) * tempo;
+        let micros = elapsed_tick_micros / sample.division;
         tick = event.tick;
         let mut send = micros;
         match event.message {
@@ -114,7 +116,7 @@ fn schedule(sample: &mut Sample) -> Result<ScheduledSample, Box<dyn std::error::
         }
         end = end.max(send);
     }
-    let sequence_end = micros + (sample.end_tick - tick) * tempo / sample.division;
+    let sequence_end = (elapsed_tick_micros + (sample.end_tick - tick) * tempo) / sample.division;
     let frames = (end.max(sequence_end) + 500_000) * RATE / 1_000_000;
     if frames > RATE * 600 {
         return Err("sample exceeds prototype 600 second limit".into());

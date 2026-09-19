@@ -106,3 +106,4 @@
 - CLI 测试覆盖三个难度、同源 Song 分组、实际 root 搬移、新 token、同名不同文件、缺 token、截断、sparse 超限和 OJN/bundle 混合计数. `.ojn` 后缀的有效 bundle 目录仍按 bundle 处理. 原有 Godot bundle catalog gate 保留验证.
 - red 证据 `/tmp/vos-ojn-catalog-red.log`, `/tmp/vos-ojn-catalog-version-red.log`; 验证记录 `/tmp/vos-ojn-catalog-tests.log`, `/tmp/vos-ojn-catalog-workspace.log`, `/tmp/vos-ojn-catalog-godot.log`. 首次测试调用误将 CLI 参数乱序, 已修正为现有固定顺序并对修改前 catalog 验证实际 sourceCount=0 的 red, 未将用法错误当作缺少 OJN 支持的证据.
 - 下一步: raw bundle request 的稳定来源上下文、OJN companion 安全解析和音频/manifest 组装, 随后更新 Godot 的多 Chart 消费. ticket 保持 in-progress.
+- Raw catalog 增量提交 `2ffd103`, 固定基点两轴审查 Standards 0 项 / Spec 0 项. 当前证据证明 CLI metadata discovery, 不证明 raw OJN 已经在 Godot 可游玩.

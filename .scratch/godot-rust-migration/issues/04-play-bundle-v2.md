@@ -49,3 +49,7 @@
 补齐严格 BundleManifestV2、完整内容 key v1 和 bounded verifier. 校验文件集合、size/hash、schema/key/identity、目录组件大小写冲突、symlink 与非普通文件; 支持整个目录搬移. 独立 Python framing vectors 覆盖四种 selector. Manifest 限制 1 MiB、65,536 文件和每路径 64 组件, 防止路径前缀索引放大. 详细边界见 `docs/rewrite/2026-09-19-bundle-integrity-contract.md`.
 
 该层仅完成文件完整性审计, 不证明 gameplay/audio schema 或 Gameplay Ready. 仍无 production importer 能力声明, 不关闭上方完整链路验收项. 验证日志: `/tmp/vos-ticket04-bundle-workspace.log`, `/tmp/vos-ticket04-bundle-doc.log`.
+
+阶段提交 `1f26909`, 验证质量修正 `dd6f575`. 累计 native workspace 57 项与 1 项 compile-fail doctest 的日志均无失败, fmt/clippy 无新增问题. Standards 发现的无效 compile-fail 示例已修复: 临时公开字段的 mutation probe 使测试失败, 恢复私有后通过. 文件数量测试同时独立验证 65,537 个唯一有序路径, 不依赖重复项或文件字节上限提前拒绝.
+
+最终两轴复审: Standards 0、Spec 0 未解决发现. 仅关闭此文件完整性阶段的审查, ticket 04 与整体 Java-free 迁移继续进行.

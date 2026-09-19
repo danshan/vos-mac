@@ -4,12 +4,12 @@
 
 **Blocked by:** 08: 游玩基础 OJN/OJM 歌曲.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] 真实 OJN/M30 输入从扫描、难度选择到 gameplay 通过, 不调用 Java 或预解码替代路径.
-- [ ] 样本 ID、解码输出和引用关系由冻结 fixtures/oracle 验证.
-- [ ] 损坏的头部、长度和样本引用受到边界检查, 不 crash、hang 或无界分配.
-- [ ] 基础 OJM 路径无回归, 未解释的 parity 差异不得通过重写 expected 消除.
+- [x] 真实 OJN/M30 输入从扫描、难度选择到 gameplay 通过, 不调用 Java 或预解码替代路径.
+- [x] 样本 ID、解码输出和引用关系由冻结 fixtures/oracle 验证.
+- [x] 损坏的头部、长度和样本引用受到边界检查, 不 crash、hang 或无界分配.
+- [x] 基础 OJM 路径无回归, 未解释的 parity 差异不得通过重写 expected 消除.
 
 
 ## 前置代码核对
@@ -27,3 +27,12 @@
 - 新可播放编码 fixture 与 Java oracle 见 core fixtures/ojn/README.md. 三种 flag 的 raw Ogg hash、引用 metadata、PCM 均对照生产 Java; Godot gate 以 m30-plain/m30-nami/m30-0412 参数逐一通过设置扫描、难度选择、判定/audio/Result.
 - red /tmp/vos-m30-red.log, /tmp/vos-m30-cli-red.log. 原始 stub fixture 最初测试误认为 ref=0, 核对 factory 后改为实际 ref=1, 不是生产 parity 变更.
 - 证据 /tmp/vos-m30-core.log, /tmp/vos-m30-cli.log, /tmp/vos-m30-workspace.log, /tmp/vos-m30-plain-gameplay.log, /tmp/vos-m30-nami-gameplay.log, /tmp/vos-m30-0412-gameplay.log, /tmp/vos-m30-plain-regression.log, /tmp/vos-m30-omc-regression.log.
+
+## 最终 ticket 验收
+
+- 状态 done, 实现提交 112125a. 固定基点独立 Standards 0 项 / Spec 0 项, reviewer 支持回归通过后关闭.
+- 真实输入: m30-plain、m30-nami、m30-0412 三个原始编码 bank 各通过 Godot 设置扫描、Song/Chart 选择、native 转换、轨道判定/音频与 Result; 无 Java 或预解码运行时替代.
+- Oracle: 生产 Java 三种 flag 解出的 Ogg hash、sample index 7/1003 与 PCM 一致. Rust 验证 hash 精确相等及 PCM 既定 1 LSB 容差, CLI 验证 notes/autoPlayEvents 到 SampleId 关联. 原 metadata stub 继续可解析但音频准备明确失败.
+- 错误: 完整 bank 结构验证先于修改, 负引用、重复引用、错误长度/count/offset、未知 codec/flag、截断与取消均有 core 测试; CLI 缺失引用及坏 bank 失败不发布完成目录.
+- 验证: workspace /tmp/vos-m30-workspace.log 退出 0; 最终新增 CLI 异常回归 /tmp/vos-m30-cli.log 退出 0; /tmp/vos-m30-core.log、clippy、fmt 退出 0. OJM 与 OMC Godot 回归 /tmp/vos-m30-plain-regression.log、/tmp/vos-m30-omc-regression.log 退出 0.
+- 无未解释的 parity 差异, 无新增依赖. 本 ticket 不替代 24/25 的最终性能、安全资源与真实工作集验收.

@@ -38,3 +38,11 @@ mise exec -- cargo test --manifest-path native/Cargo.toml --workspace --all-targ
 ```
 
 参考向量位于 `native/crates/open2jam-core/tests/fixtures/identity/v2-vectors.json`. Python 工具只打印参考结果, 不自动覆盖测试期望. UI 搬移、重启、重叠目录和离线恢复仍在 ticket 16/17 验收, 不能由 core identity 单测替代.
+
+## Catalog root token 传输
+
+CATALOG request schema 1 新增可选 `rootIds`, 按请求中的绝对 root path 映射到 LibraryRootId. 非空映射必须覆盖 roots 的全部且仅有条目, token 不得在多个 root 间复用. CLI 不生成 token, 不根据目录或内容修复遗漏. 迁移期间未提供该字段的既有 bundle-only 调用保持原行为; raw source 接入必须要求来源 token, 不允许沿用路径身份 fallback.
+
+提供映射时 catalog v2 entry 携带 `rootId`, Godot 使用原请求映射核对, 拒绝遗漏或替换 token. 外部 bundle 的 declared SongId/ChartId 保持原值. Godot 的 source selection key 使用 `bundle-source-` 加 SHA-256 hex, 输入为 UTF-8 JSON 数组 `[rootId, relativePath]`; 与旧无 token 调用的临时 `[rootPath, relativePath]` 区分. root 内重命名不保证身份延续, 显式重新定位复用 token 和相对路径即可保持 source selection key, 新增副本须提供新 token.
+
+当前增量仅验证 token 的协议传递、catalog 消费和 selection key 的稳定性. token 生成/持久化、完整重新定位 UI 和跨重启选择恢复仍由 ticket 16 实现, 不由 CLI echo 或 key 比较替代验收.

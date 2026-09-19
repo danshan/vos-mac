@@ -452,3 +452,37 @@ fn catalog_can_represent_an_empty_library() {
         request
     );
 }
+
+#[test]
+fn catalog_carries_persistent_root_ids_independently_of_current_paths() {
+    let mut value: serde_json::Value = serde_json::from_slice(VALID_CATALOG).unwrap();
+    let root_id = format!("library:{ZERO_DIGEST}");
+    value["rootIds"] = serde_json::json!({"/tmp/open2jam-songs": root_id});
+    let request: CatalogRequestV1 = decode_contract(&serde_json::to_vec(&value).unwrap()).unwrap();
+    let encoded: serde_json::Value =
+        serde_json::from_slice(&encode_contract(&request).unwrap()).unwrap();
+    assert_eq!(encoded["rootIds"], value["rootIds"]);
+    value["roots"] = serde_json::json!(["/tmp/relocated-songs"]);
+    value["rootIds"] = serde_json::json!({"/tmp/relocated-songs": root_id});
+    let moved: CatalogRequestV1 = decode_contract(&serde_json::to_vec(&value).unwrap()).unwrap();
+    let encoded: serde_json::Value =
+        serde_json::from_slice(&encode_contract(&moved).unwrap()).unwrap();
+    assert_eq!(encoded["rootIds"]["/tmp/relocated-songs"], root_id);
+}
+
+#[test]
+fn catalog_rejects_incomplete_foreign_or_reused_root_ids() {
+    let first = format!("library:{ZERO_DIGEST}");
+    let second = format!("library:{}", Digest::from_bytes([1; 32]));
+    for ids in [
+        serde_json::json!({"/tmp/a": first}),
+        serde_json::json!({"/tmp/a": first, "/tmp/foreign": second}),
+        serde_json::json!({"/tmp/a": first, "/tmp/b": first}),
+        serde_json::json!({"/tmp/a": first, "/tmp/b": "library:bad"}),
+    ] {
+        let mut value: serde_json::Value = serde_json::from_slice(VALID_CATALOG).unwrap();
+        value["roots"] = serde_json::json!(["/tmp/a", "/tmp/b"]);
+        value["rootIds"] = ids;
+        assert!(decode_contract::<CatalogRequestV1>(&serde_json::to_vec(&value).unwrap()).is_err());
+    }
+}

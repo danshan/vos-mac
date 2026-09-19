@@ -85,3 +85,11 @@
 - red 证据 `/tmp/vos-ticket08-text-red.log`, `/tmp/vos-ticket08-text-legacy-red.log`; 验证命令为 workspace locked tests、clippy 和 fmt, workspace 日志 `/tmp/vos-ticket08-text-workspace.log`.
 - 后续: 持久化 LibraryRootId 请求传递、companion 解析、raw OJN catalog/bundle/Godot 闭环. 本 ticket 仍为 in-progress.
 - 显示文本增量提交 `b993f71`, 固定审查基点不变. 两轴独立审查 Standards 0 项 / Spec 0 项; 不将编码检测样本视作任意短文本正确性保证, 不关闭本 ticket.
+
+## 前置增量: Catalog root identity 传递
+
+- 为后续 raw OJN 接入补齐 CATALOG request 的可选 rootIds 映射, 严格拒绝部分覆盖、外部 root key、重复 token 或畸形 ID. CLI 将 token 附到对应 catalog entry, 不自行生成来源身份.
+- Godot 将请求中的 token 作为 catalog 结果的校验依据, 外部 bundle 的 source selection key 使用 rootId + relativePath, declared Song/Chart ID 不变. 暂未传 token 的既有 bundle-only 请求保留临时路径 key; raw OJN 不得采用此 fallback.
+- 验证命令: locked workspace tests、clippy、fmt 和 `rewrite/tools/verify_native_catalog_gameplay.sh`. 证据 `/tmp/vos-root-ids-workspace.log`, `/tmp/vos-root-ids-godot.log`; red `/tmp/vos-root-ids-protocol-red.log`, `/tmp/vos-root-ids-invalid-red.log`, `/tmp/vos-root-ids-transport-red.log`, `/tmp/vos-root-ids-godot-red.log`.
+- 修正 catalog mutation 测试重新序列化时 schemaVersion 变为 float 的问题, 确保拒绝用例不会因无关数字格式提前失败. 合法搬移与新增来源使用同一 wire 重写路径作正向对照.
+- 尚未实现 token 的设置持久化和 UI 重新定位. 新 SettingsStore 持久化测试边界确认已提出, 当前继续使用已批准的 protocol / CLI / Godot 行为链推进独立部分.

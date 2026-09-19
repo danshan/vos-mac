@@ -18,8 +18,12 @@ fn real_catalog_keeps_bundle_origins_distinct_and_isolates_corrupt_sources() {
     }
     fs::remove_file(root.join("library-a/bad/audio/tone.wav")).unwrap();
     fs::create_dir(root.join("staging")).unwrap();
+    let first_id = format!("library:sha256:{}", "01".repeat(32));
+    let second_id = format!("library:sha256:{}", "02".repeat(32));
     let request = serde_json::json!({"schemaVersion":1,"jobId":"catalog-one","command":"CATALOG",
-        "roots":[root.join("library-a"),root.join("library-b")],"previousIndexPath":null,
+        "roots":[root.join("library-a"),root.join("library-b")],
+        "rootIds": {root.join("library-a").to_str().unwrap(): first_id, root.join("library-b").to_str().unwrap(): second_id},
+        "previousIndexPath":null,
         "stagingRoot":root.join("staging"),"cancelMarkerPath":root.join("cancel")});
     fs::write(
         root.join("request.json"),
@@ -46,6 +50,8 @@ fn real_catalog_keeps_bundle_origins_distinct_and_isolates_corrupt_sources() {
     assert_eq!(catalog["schemaVersion"], 2);
     let entries = catalog["entries"].as_array().unwrap();
     assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["rootId"], first_id);
+    assert_eq!(entries[1]["rootId"], second_id);
     assert_eq!(entries[0]["songId"], entries[1]["songId"]);
     assert_eq!(entries[0]["chartId"], entries[1]["chartId"]);
     assert_ne!(entries[0]["rootPath"], entries[1]["rootPath"]);
@@ -83,6 +89,8 @@ fn real_catalog_keeps_bundle_origins_distinct_and_isolates_corrupt_sources() {
     let mut moved = request.clone();
     moved["jobId"] = "catalog-moved".into();
     moved["roots"] = serde_json::json!([root.join("library-b"), root.join("library-moved")]);
+    moved["rootIds"] = serde_json::json!({root.join("library-b").to_str().unwrap(): second_id,
+        root.join("library-moved").to_str().unwrap(): first_id});
     let (code, result) = invoke(&moved, "moved");
     assert_eq!(code, 0, "{result}");
     let moved_catalog: serde_json::Value = serde_json::from_slice(
@@ -97,6 +105,7 @@ fn real_catalog_keeps_bundle_origins_distinct_and_isolates_corrupt_sources() {
         moved_catalog["entries"][1]["sourcePath"],
         root.join("library-moved/good").to_str().unwrap()
     );
+    assert_eq!(moved_catalog["entries"][1]["rootId"], first_id);
     moved["jobId"] = "catalog-cancelled".into();
     fs::write(root.join("cancel"), b"").unwrap();
     let (code, result) = invoke(&moved, "cancelled");

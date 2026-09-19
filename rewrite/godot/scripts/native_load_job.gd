@@ -206,7 +206,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 		for count_name: String in ["sourceCount", "songCount", "chartCount", "rejectedSourceCount"]:
 			if not Wire.integer(output[count_name]):
 				return _failure("CACHE_CORRUPT", "Invalid native catalog count.")
-		var catalog: Dictionary = CatalogLoader.new().load_catalog(catalog_path, request["roots"], _cancellation_requested)
+		var catalog: Dictionary = CatalogLoader.new().load_catalog(catalog_path, request["roots"], _cancellation_requested, request.get("rootIds", {}))
 		if catalog.is_empty():
 			return _failure("CACHE_CORRUPT", "Invalid native catalog snapshot.")
 		var count: int = catalog["entries"].size()

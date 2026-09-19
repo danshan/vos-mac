@@ -14,3 +14,8 @@ Q6 已确认: 首发拒绝相同物理目录和互相包含的 root, 每个 root
 - [ ] 显式 Library Relocation 在仍可对应的源条目上保留身份与选择, 重启后仍成立.
 - [ ] 通过多 root、搬移、新增副本及已决定的重叠策略验证完整 UI/索引行为.
 
+
+## 前置进展
+
+- ticket 08 接入 raw source 前, 已补齐 CATALOG rootIds 的严格传递和 Godot 结果核对. 显式提供 token 时, 外部 bundle 的 source selection key 由 rootId + relativePath 形成, declared ID 不变. 合同详见 docs/rewrite/2026-09-19-native-identity-contract.md.
+- 当前仅完成 transport / source selection key 的前置工作, 不勾选 token 持久化、重新定位 UI、跨重启选择恢复等验收.

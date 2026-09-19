@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     digest::Digest,
     error::{CoreError, ErrorCode, ErrorInfo, ProtocolError},
     format::SourceKind,
-    id::{BundleKey, ChartId, JobId},
+    id::{BundleKey, ChartId, JobId, LibraryRootId},
     json::Contract,
     path::{AbsoluteSourcePath, SourceRelativePath},
     schema::{REQUEST_SCHEMA_VERSION, RESULT_SCHEMA_VERSION, STATIC_ASSETS_VERSION},
@@ -17,6 +18,8 @@ pub struct CatalogRequestV1 {
     pub job_id: JobId,
     pub command: Command,
     pub roots: Vec<AbsoluteSourcePath>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub root_ids: BTreeMap<AbsoluteSourcePath, LibraryRootId>,
     pub previous_index_path: Option<AbsoluteSourcePath>,
     pub staging_root: AbsoluteSourcePath,
     pub cancel_marker_path: AbsoluteSourcePath,
@@ -133,6 +136,14 @@ impl CatalogRequestV1 {
         {
             return Err(invalid(
                 "catalog requires sorted unique roots and CATALOG command",
+            ));
+        }
+        if !self.root_ids.is_empty()
+            && (self.root_ids.keys().ne(self.roots.iter())
+                || self.root_ids.values().collect::<BTreeSet<_>>().len() != self.root_ids.len())
+        {
+            return Err(invalid(
+                "catalog root IDs must cover every root exactly once",
             ));
         }
         Ok(())

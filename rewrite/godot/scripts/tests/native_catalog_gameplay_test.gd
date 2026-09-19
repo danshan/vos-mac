@@ -23,7 +23,9 @@ func _run() -> void:
 	coordinator.catalog_loaded.connect(func(_generation: int, catalog: Dictionary): _catalog = catalog)
 	coordinator.failed.connect(func(_generation: int, error: Dictionary): _errors.append(error))
 	DirAccess.make_dir_recursive_absolute(args[2].path_join("staging"))
-	var request := {"schemaVersion": 1, "command": "CATALOG", "roots": [args[1]], "previousIndexPath": null, "stagingRoot": args[2].path_join("staging")}
+	var root_id := "library:sha256:" + "01".repeat(32)
+	var root_ids := {args[1]: root_id}
+	var request := {"rootIds": root_ids, "schemaVersion": 1, "command": "CATALOG", "roots": [args[1]], "previousIndexPath": null, "stagingRoot": args[2].path_join("staging")}
 	coordinator.start_loading(args[0], request, args[2])
 	var deadline := Time.get_ticks_msec() + 15000
 	while coordinator.pending_count() > 0 and Time.get_ticks_msec() < deadline:
@@ -34,12 +36,34 @@ func _run() -> void:
 	if not str(_catalog["errors"][0]).contains("broken"):
 		_fail("Rejected catalog source was not identified.")
 		return
+	if _catalog["entries"][0].get("rootId", "") != root_id:
+		_fail("Catalog lost the persistent library root identity.")
+		return
 	var jobs := DirAccess.get_directories_at(args[2].path_join("staging"))
 	var snapshot_path := args[2].path_join("staging").path_join(jobs[0]).path_join("catalog-v2.json")
 	var snapshot: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(snapshot_path))
-	for mutation: String in ["outside", "traversal", "foreign-root", "duplicate", "soundfont"]:
+	# Keep the valid wire integer while rewriting individual fields below.
+	snapshot["schemaVersion"] = 2
+	var moved_root := args[2].path_join("relocated-library")
+	for copied: bool in [false, true]:
+		var moved := snapshot.duplicate(true)
+		var expected_id := "library:sha256:" + ("02" if copied else "01").repeat(32)
+		moved["entries"][0]["rootPath"] = moved_root
+		moved["entries"][0]["sourcePath"] = moved_root.path_join(moved["entries"][0]["relativePath"])
+		moved["entries"][0]["rootId"] = expected_id
+		var moved_path := args[2].path_join("moved-catalog.json")
+		var file := FileAccess.open(moved_path, FileAccess.WRITE)
+		file.store_string(JSON.stringify(moved))
+		file.close()
+		var loaded: Dictionary = CatalogLoader.new().load_catalog(moved_path, [moved_root], Callable(), {moved_root: expected_id})
+		if loaded.is_empty() or (loaded["entries"][0]["id"] == _catalog["entries"][0]["id"]) == copied:
+			_fail("Relocation must preserve selection identity; adding a copy must not.")
+			return
+	for mutation: String in ["outside", "traversal", "foreign-root", "duplicate", "soundfont", "root-id", "missing-id"]:
 		var changed := snapshot.duplicate(true)
 		match mutation:
+			"root-id": changed["entries"][0]["rootId"] = "library:sha256:" + "02".repeat(32)
+			"missing-id": changed["entries"][0].erase("rootId")
 			"outside": changed["entries"][0]["sourcePath"] = "/outside/library"
 			"traversal": changed["entries"][0]["relativePath"] = "../outside"
 			"foreign-root": changed["entries"][0]["rootPath"] = "/outside"
@@ -49,7 +73,7 @@ func _run() -> void:
 		var file := FileAccess.open(invalid_path, FileAccess.WRITE)
 		file.store_string(JSON.stringify(changed))
 		file.close()
-		if not CatalogLoader.new().load_catalog(invalid_path, [args[1]], Callable()).is_empty():
+		if not CatalogLoader.new().load_catalog(invalid_path, [args[1]], Callable(), root_ids).is_empty():
 			_fail("Catalog consumer accepted invalid metadata: " + mutation)
 			return
 	var ui = MainUi.new()

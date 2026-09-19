@@ -2,7 +2,7 @@ use open2jam_core::{
     bundle::{SoundFontIdentity, load_bundle_documents},
     error::{CoreError, ErrorCode, ErrorInfo},
     format::SourceKind,
-    id::{ChartId, SongId},
+    id::{ChartId, LibraryRootId, SongId},
     path::AbsoluteSourcePath,
     progress::{ProgressOwner, ProgressPhase, ProgressSink, ProgressTracker},
     protocol::{CatalogOutputV1, CatalogRequestV1, Command},
@@ -25,6 +25,8 @@ struct Catalog {
 #[serde(rename_all = "camelCase")]
 struct Entry {
     root_path: AbsoluteSourcePath,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    root_id: Option<LibraryRootId>,
     relative_path: String,
     source_path: AbsoluteSourcePath,
     source_kind: SourceKind,
@@ -173,6 +175,7 @@ pub fn scan(
                     CoreError::new(ErrorCode::InvalidRequest, "non-UTF-8 relative catalog path")
                 })?;
                 catalog.entries.push(Entry {
+                    root_id: request.root_ids.get(&absolute(&origin)?).copied(),
                     root_path: absolute(&origin)?,
                     relative_path: relative.into(),
                     source_path: absolute(&origin.join(relative))?,

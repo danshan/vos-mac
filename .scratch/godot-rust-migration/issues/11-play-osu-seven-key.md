@@ -4,12 +4,12 @@
 
 **Blocked by:** 04: 打通 bundle v2 到 Gameplay Ready.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] 原始 osu 谱面从 Rust catalog 到 bundle v2 和 Godot gameplay 全链路可用.
-- [ ] 关联音频、timing、scroll、长音和 sample 行为与冻结 oracle 对照.
-- [ ] 非支持模式或键数明确拒绝, 不静默按 7K 解释.
-- [ ] 缺失音频、畸形内容与无效引用给出可诊断错误, 不影响其他歌曲.
+- [x] 原始 osu 谱面从 Rust catalog 到 bundle v2 和 Godot gameplay 全链路可用.
+- [x] 关联音频、timing、scroll、长音和 sample 行为与冻结 oracle 对照.
+- [x] 非支持模式或键数明确拒绝, 不静默按 7K 解释.
+- [x] 缺失音频、畸形内容与无效引用给出可诊断错误, 不影响其他歌曲.
 
 
 ## 当前增量: 有界 osu!mania 7K 原始解析
@@ -58,3 +58,10 @@
 - CLI 矩阵覆盖冻结 seven-key、WAV PCM 对照、MP3 BGM/Ogg custom sample、无 sample 音符、bundle 搬移、missing audio、错误 chart/selector、非 mania、路径越界、symlink、坏音频和取消. catalog 中不支持/畸形/超大来源逐个隔离, 缺少 root token 不使用路径 fallback.
 - red: /tmp/vos-osu-catalog-red.log、/tmp/vos-osu-bundle-red.log、/tmp/vos-osu-gameplay-red.log. Godot gate 为 rewrite/tools/verify_native_osu_gameplay.sh, 在混合 OJN/osu 曲库中选择两个 osu 难度, 验证七轨 tap、hold、BGM/custom sample、重开选择身份与结果页. 当前记录 /tmp/vos-osu-gameplay-green.log、/tmp/vos-osu-adapter-matrix.log.
 - 待本轮完整回归与双轴审查后关闭 ticket. OSZ、统一资源上限、真实大曲库性能、原生默认启动及最终 Java 删除仍分别由后续 tickets 完成.
+
+## 完成证据与审查
+
+- 实现提交 99ca167, 审查修复 ba9c1a7. 固定基点独立复审最终 Standards 0 项 / Spec 0 项. Spec 初次发现 version 未声明 OSU_MANIA, 已以 /tmp/vos-osu-handshake-red.log 重现, 修复能力列表和真实 CLI 精确输出断言, /tmp/vos-osu-handshake-green.log 退出 0.
+- 完整 workspace 最终记录 /tmp/vos-osu-complete-workspace-final.log 退出 0. 初次发现的 protocol fixture 未带 OSU root 已同步必需输入; CLI 继续覆盖 missing-root 拒绝. Clippy 最终 /tmp/vos-osu-final-clippy.log, fmt 与 diff check 退出 0.
+- 真实 mixed catalog -> Godot -> osu gameplay gate /tmp/vos-osu-gameplay-green.log 退出 0. 共享代码的 M30/OJN 回归 /tmp/vos-osu-complete-ojn-regression.log 退出 0. native workspace shell gate 及其 self-test 分别记录 /tmp/vos-osu-workspace-gate.log、/tmp/vos-osu-workspace-gate-selftest.log, 均退出 0.
+- 至此本 ticket 的原始本地 osu!mania 7K 路径完成. 默认生产启动仍在后续 cutover, 本次不宣称整个产品 Java-free; OSZ 为下一 ticket 12, 最终跨格式资源/性能门禁保持不变.

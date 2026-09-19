@@ -4,16 +4,20 @@ const Wire = preload("res://scripts/native_json.gd")
 const STATIC_ASSETS := "open2jam-gameplay-assets-v1"
 
 
-func verify(root: String, expected_key: String = "") -> Dictionary:
+func verify(root: String, expected_key: String = "", cancel: Callable = Callable()) -> Dictionary:
+	if Wire.cancelled(cancel):
+		return {}
 	var parent := DirAccess.open(root.get_base_dir())
 	if parent == null or parent.is_link(root.get_file()) or not DirAccess.dir_exists_absolute(root):
 		return {}
-	var manifest := read_json(root.path_join("bundle.json"), 1048576)
-	if not _manifest_valid(manifest) or (not expected_key.is_empty() and manifest["bundleKey"] != expected_key):
+	var manifest := read_json(root.path_join("bundle.json"), 1048576, {}, cancel)
+	if not _manifest_valid(manifest, cancel) or (not expected_key.is_empty() and manifest["bundleKey"] != expected_key):
 		return {}
 	var files := {}
 	var directories := {}
 	for entry: Dictionary in manifest["files"]:
+		if Wire.cancelled(cancel):
+			return {}
 		files[entry["path"]] = entry
 		var parts: PackedStringArray = str(entry["path"]).split("/")
 		var prefix := ""
@@ -32,6 +36,8 @@ func verify(root: String, expected_key: String = "") -> Dictionary:
 			return {}
 		var name := directory.get_next()
 		while not name.is_empty():
+			if Wire.cancelled(cancel):
+				return {}
 			var path := name if relative.is_empty() else relative + "/" + name
 			if directory.is_link(name):
 				return {}
@@ -41,7 +47,7 @@ func verify(root: String, expected_key: String = "") -> Dictionary:
 				stack.append(path)
 			elif path == "bundle.json":
 				pass
-			elif not files.has(path) or not _file_valid(root.path_join(path), files[path]):
+			elif not files.has(path) or not _file_valid(root.path_join(path), files[path], cancel):
 				return {}
 			else:
 				seen[path] = true
@@ -52,14 +58,26 @@ func verify(root: String, expected_key: String = "") -> Dictionary:
 	return manifest
 
 
-func read_json(path: String, limit: int, expected: Dictionary = {}) -> Dictionary:
+func read_json(path: String, limit: int, expected: Dictionary = {}, cancel: Callable = Callable()) -> Dictionary:
+	if Wire.cancelled(cancel):
+		return {}
 	var parent := DirAccess.open(path.get_base_dir())
 	if parent == null or parent.is_link(path.get_file()):
 		return {}
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null or file.get_length() > limit:
 		return {}
-	var bytes := file.get_buffer(file.get_length())
+	var bytes := PackedByteArray()
+	var remaining := file.get_length()
+	while remaining > 0:
+		if Wire.cancelled(cancel):
+			return {}
+		var count := mini(remaining, 65536)
+		var chunk := file.get_buffer(count)
+		if chunk.size() != count:
+			return {}
+		bytes.append_array(chunk)
+		remaining -= count
 	if bytes.size() != file.get_length():
 		return {}
 	if not expected.is_empty() and (bytes.size() != expected["sizeBytes"] or Wire.sha256(bytes) != expected["sha256"]):
@@ -67,10 +85,10 @@ func read_json(path: String, limit: int, expected: Dictionary = {}) -> Dictionar
 	var text := bytes.get_string_from_utf8()
 	if text.to_utf8_buffer() != bytes:
 		return {}
-	return Wire.parse_object(text)
+	return Wire.parse_object(text, cancel)
 
 
-func _file_valid(path: String, entry: Dictionary) -> bool:
+func _file_valid(path: String, entry: Dictionary, cancel: Callable) -> bool:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null or file.get_length() != entry["sizeBytes"]:
 		return false
@@ -78,6 +96,8 @@ func _file_valid(path: String, entry: Dictionary) -> bool:
 	var hash := HashingContext.new()
 	hash.start(HashingContext.HASH_SHA256)
 	while remaining > 0:
+		if Wire.cancelled(cancel):
+			return false
 		var count := mini(remaining, 65536)
 		var bytes := file.get_buffer(count)
 		if bytes.size() != count:
@@ -87,7 +107,7 @@ func _file_valid(path: String, entry: Dictionary) -> bool:
 	return file.get_length() == entry["sizeBytes"] and "sha256:" + hash.finish().hex_encode() == entry["sha256"]
 
 
-func _manifest_valid(value: Dictionary) -> bool:
+func _manifest_valid(value: Dictionary, cancel: Callable) -> bool:
 	if not Wire.fields(value, ["schemaVersion", "complete", "bundleKey", "converterVersion", "staticAssetsVersion", "soundfont", "songId", "chartId", "chartSelector", "sourceFingerprint", "files"]):
 		return false
 	if value["schemaVersion"] != 2 or not value["complete"] is bool or not value["complete"]:
@@ -117,6 +137,8 @@ func _manifest_valid(value: Dictionary) -> bool:
 	var paths := {}
 	var previous := ""
 	for entry: Variant in value["files"]:
+		if Wire.cancelled(cancel):
+			return false
 		if not Wire.fields(entry, ["path", "sizeBytes", "sha256"]) or not Wire.relative_path(entry["path"]) or not Wire.integer(entry["sizeBytes"]) or not Wire.identifier(entry["sha256"], "sha256:"):
 			return false
 		var path: String = entry["path"]

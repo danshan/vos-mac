@@ -33,11 +33,25 @@ marker = "Async native loading yielded frames, discarded cancelled generation an
 if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.stderr or "SCRIPT ERROR" in result.stdout:
     print(result.stderr, file=sys.stderr)
     raise SystemExit("Native asynchronous loading gate failed")
-for pid_file in root.glob("*.pid"):
+ui_root = root / "ui"
+ui_root.mkdir()
+result = subprocess.run([
+    "godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "ui.log"),
+    "--script", "res://scripts/tests/main_ui_native_load_test.gd", "--",
+    str(pathlib.Path("native/target/debug/open2jam-converter").resolve()), str(root / "source"), str(ui_root),
+], capture_output=True, text=True, timeout=30)
+print(result.stdout, end="")
+marker = "Native UI selected, cancelled, reselected and reached playable gameplay with bundled skin."
+if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.stderr or "SCRIPT ERROR" in result.stdout:
+    print(result.stderr, file=sys.stderr)
+    raise SystemExit("Native UI loading gate failed")
+
+for pid_file in root.rglob("*.pid"):
     try:
         os.kill(int(pid_file.read_text()), 0)
     except ProcessLookupError:
         continue
     raise SystemExit("Controlled helper was not reaped: " + pid_file.name)
+
 PY
 

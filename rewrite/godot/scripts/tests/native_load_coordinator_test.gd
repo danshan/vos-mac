@@ -98,6 +98,28 @@ func _run() -> void:
 	if _errors.size() != 1 or _errors[0][1].get("code") != "SOURCE_CHANGED":
 		_fail("Native structured failure code was lost.")
 		return
+	_errors.clear()
+	var before := _ready_generations.size()
+	for index in range(20):
+		current = coordinator.start_loading(args[0], request, args[2])
+	deadline = Time.get_ticks_msec() + 15000
+	while coordinator.pending_count() > 0 and Time.get_ticks_msec() < deadline:
+		await process_frame
+	if coordinator.pending_count() != 0 or not _errors.is_empty() or _ready_generations.size() != before + 1 or _ready_generations.back() != current:
+		_fail("Rapid selection left workers or published stale gameplay.")
+		return
+	var switch := {"armed": true, "generation": -1}
+	coordinator.progressed.connect(func(_generation: int, _event: Dictionary):
+		if switch["armed"]:
+			switch["armed"] = false
+			switch["generation"] = coordinator.start_loading(args[0], request, args[2]))
+	var replaced: int = coordinator.start_loading(args[0], request, args[2])
+	deadline = Time.get_ticks_msec() + 15000
+	while coordinator.pending_count() > 0 and Time.get_ticks_msec() < deadline:
+		await process_frame
+	if coordinator.pending_count() != 0 or switch["armed"] or _ready_generations.has(replaced) or _ready_generations.back() != switch["generation"]:
+		_fail("Reentrant selection from a progress callback published old gameplay.")
+		return
 	coordinator.free()
 	print("Async native loading yielded frames, discarded cancelled generation and started current gameplay.")
 	quit(0)

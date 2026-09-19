@@ -23,6 +23,7 @@ import sys
 
 root = pathlib.Path(sys.argv[1]).resolve()
 for script, target, marker in [
+    ("native_bundle_cancellation_test.gd", root / "relocated bundle", "Native validation and JSON scanning honour cancellation without changing valid input."),
     ("native_bundle_gameplay_test.gd", root / "relocated bundle", "Native bundle reached Gameplay Ready and judged tap/hold/tap with audio."),
     ("native_bundle_rejection_test.gd", root / "invalid", "Native invalid bundle matrix rejected: 21 cases."),
 ]:

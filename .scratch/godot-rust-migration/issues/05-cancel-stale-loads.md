@@ -23,3 +23,13 @@
 阶段实现 `f4c28c5`, 进度 EOF 审查修复 `13a0d5a`. Spec 发现完成时可能未排空进度文件的 P2, 已用有效前缀超过单帧预算后追加非法序号、末行截断两个真实 helper 反例 RED/GREEN 修复. 当前任务完成后继续分帧读至 EOF, 拒绝残行, 不因 helper 退出而跳过验证. 最终两轴静态复审 Standards 0、Spec 0 未解决发现.
 
 验证日志 `/tmp/vos-ticket05-async.log` 与 `/tmp/vos-ticket05-bundle-regression.log` 包含成功标记且无 SCRIPT ERROR; 原 bundle CLI/gameplay 与 21 类拒绝矩阵继续有效. 本轮无 Rust 修改, 延续 ticket 04 的 83 项累计 native 回归证据. ticket 05 继续 in-progress, 下一步为实际 UI 选择/返回及加载页接入和验证期间取消.
+
+## 实施进度: 真实 UI 与验证取消
+
+main_ui 已接 nativeRequest 选择记录, Loading 的 Back/Escape 接 generation 取消, 成功后实际启动既有 GameplayView/GameplayRuntime, 使用内置固定皮肤. UI 反例在旧 helper 已产出成功结果但尚未退出时返回, 随后用真实 CLI 重选并判定音符, 旧结果不切换页面. 独立 coordinator gate 补充 20 次快速选择与 progress callback 重入选择.
+
+Godot 完整性校验、JSON 扫描、事件验证/转换及 WAV 之间增加取消 callback, native worker 直接传递受锁保护的取消状态. 特别保留 sampleless Note、STOP 与 Mirror options, 不沿用 legacy normalization 的限制丢失 native 语义. 16 个静态 PNG 与冻结布局移入 Godot assets, hash/解码 gate 覆盖实际资源; Java oracle 保留.
+
+仍需本阶段完整迁移门禁和两轴复审后才能关闭 ticket. 单次引擎 JSON.parse/WAV 解码不可强行打断, 其资源上限归 ticket 20/24, 不声称任意输入上的硬实时退出保证.
+
+UI cancellation 补充: native audio pool 禁止主线程 eager decode; 正在预热的旧 pool 在返回后保留到线程结束再释放. 完整 gate 暴露原 Godot render fixture 的失效开发机绝对路径, 仅将其重定位到内置皮肤, Java frozen goldens 未改. 首次 gate 的失败与重跑证据均保留, 不把纹理读取错误静默过滤.

@@ -5,6 +5,7 @@ const AudioManifestLoader = preload("res://scripts/audio_manifest_loader.gd")
 const AudioPlayerPool = preload("res://scripts/audio_player_pool.gd")
 const CatalogStore = preload("res://scripts/catalog_store.gd")
 const ExporterClient = preload("res://scripts/exporter_client.gd")
+const NativeLoadCoordinator = preload("res://scripts/native_load_coordinator.gd")
 const GameplayLoader = preload("res://scripts/gameplay_loader.gd")
 const GameplayRuntime = preload("res://scripts/gameplay_runtime.gd")
 const GameplayView = preload("res://scripts/gameplay_view.gd")
@@ -133,7 +134,14 @@ var _pause_menu: CanvasLayer = null
 var _capturing_key_button: Button = null
 var _capturing_key_previous_text: String = ""
 var _loading_audio_pool: Node = null
+var _retired_audio_pools: Array[Node] = []
 var _selected_export_job: Variant = null
+var _native_coordinator: Node = null
+var _native_converter := ""
+var _native_work_root := ""
+var _native_generation := -1
+var _native_bundle: Dictionary = {}
+var _native_progress: Dictionary = {}
 
 
 func _ready() -> void:
@@ -141,11 +149,14 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	if _native_coordinator != null:
+		_native_coordinator.cancel_loading()
 	_wait_for_selected_export_job()
 	_discard_loading_audio_pool()
 
 
 func _process(delta: float) -> void:
+	_reap_retired_audio_pools()
 	if _loading_pending_gameplay:
 		_advance_loading(delta)
 		return
@@ -180,6 +191,10 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _app_state.current() == AppState.LOADING and _selected_entry.has("nativeRequest") and _is_escape_pressed(event):
+		_on_loading_cancel_pressed()
+		get_viewport().set_input_as_handled()
+		return
 	if _app_state.current() != AppState.GAMEPLAY:
 		return
 	if not _is_escape_pressed(event):
@@ -1211,7 +1226,7 @@ func _on_song_select_back_pressed() -> void:
 
 func _on_song_selected(entry: Dictionary) -> void:
 	_selected_entry = entry.duplicate(true)
-	if _app_state.transition_to(AppState.LOADING):
+	if _app_state.current() == AppState.LOADING or _app_state.transition_to(AppState.LOADING):
 		_show_loading()
 
 
@@ -1231,6 +1246,7 @@ func _on_result_song_select_pressed() -> void:
 
 
 func _show_loading() -> void:
+	_cancel_native_loading()
 	_clear_content()
 	_apply_window_title(DEFAULT_WINDOW_TITLE)
 	_loading_elapsed_ms = 0.0
@@ -1267,13 +1283,19 @@ func _show_loading() -> void:
 	_loading_status_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.82))
 	_loading_status_label.add_theme_constant_override("outline_size", 5)
 	loading_layer.add_child(_loading_status_label)
+	if _selected_entry.has("nativeRequest"):
+		var cancel_button := _button("CancelLoadingButton", "Back")
+		cancel_button.position = Vector2(24, 24)
+		cancel_button.pressed.connect(_on_loading_cancel_pressed)
+		loading_layer.add_child(cancel_button)
+		_start_native_loading()
 	apply_layout_for_size(_layout_size())
 
 
 func _advance_loading(delta: float) -> void:
 	_loading_elapsed_ms += max(delta, 0.0) * 1000.0
 	var bundle_ready := _selected_bundle_paths_ready()
-	if not bundle_ready:
+	if not bundle_ready and not _selected_entry.has("nativeRequest"):
 		bundle_ready = _advance_selected_export()
 	var audio_ready := false
 	if bundle_ready:
@@ -1379,6 +1401,11 @@ func _update_loading_status() -> void:
 
 
 func _loading_status_text() -> String:
+	if _selected_entry.has("nativeRequest") and _native_bundle.is_empty():
+		var phases := {"HASH_SOURCES": "Checking song", "PARSE_CHART": "Reading chart", "COMPILE_TIMING": "Preparing timing", "PREPARE_AUDIO": "Preparing audio", "WRITE_BUNDLE": "Preparing song", "VERIFY_BUNDLE": "Checking prepared song"}
+		if _native_progress.is_empty():
+			return "Loading song..."
+		return "%s... %d/%d" % [phases.get(_native_progress["phase"], "Loading song"), _native_progress["completedUnits"], _native_progress["totalUnits"]]
 	if _selected_bundle_paths_ready():
 		if _loading_audio_pool != null \
 				and _loading_audio_pool.has_method("preload_sample_count") \
@@ -1433,13 +1460,13 @@ func _advance_loading_audio_preload() -> bool:
 
 
 func _start_loading_audio_preload() -> bool:
-	var audio_manifest_path := _selected_bundle_path("audioManifestPath", "audio-manifest.json")
-	if audio_manifest_path.is_empty():
-		_show_loading_export_error("Unable to load audio manifest")
-		return false
-
-	var audio_loader = AudioManifestLoader.new()
-	var audio_manifest: Dictionary = audio_loader.load_from_file(audio_manifest_path)
+	var audio_manifest: Dictionary = {}
+	if _selected_entry.has("nativeRequest"):
+		audio_manifest = _native_bundle.get("audio", {})
+	else:
+		var audio_manifest_path := _selected_bundle_path("audioManifestPath", "audio-manifest.json")
+		if not audio_manifest_path.is_empty():
+			audio_manifest = AudioManifestLoader.new().load_from_file(audio_manifest_path)
 	if audio_manifest.is_empty():
 		_show_loading_export_error("Unable to load audio manifest")
 		return false
@@ -1447,7 +1474,7 @@ func _start_loading_audio_preload() -> bool:
 	_loading_audio_pool = AudioPlayerPool.new()
 	_loading_audio_pool.name = "LoadingAudioPool"
 	add_child(_loading_audio_pool)
-	if not _loading_audio_pool.load_manifest(audio_manifest):
+	if not _loading_audio_pool.load_manifest(audio_manifest, not _selected_entry.has("nativeRequest")):
 		_show_loading_export_error("Unable to load audio samples")
 		return false
 	return true
@@ -1455,6 +1482,10 @@ func _start_loading_audio_preload() -> bool:
 
 func _discard_loading_audio_pool() -> void:
 	if _loading_audio_pool == null:
+		return
+	if _loading_audio_pool.has_method("preload_in_progress") and _loading_audio_pool.preload_in_progress():
+		_retired_audio_pools.append(_loading_audio_pool)
+		_loading_audio_pool = null
 		return
 	var parent := _loading_audio_pool.get_parent()
 	if parent != null:
@@ -1679,6 +1710,15 @@ func _clear_gameplay_runtime() -> void:
 
 
 func _load_selected_gameplay_bundle() -> Dictionary:
+	if _selected_entry.has("nativeRequest"):
+		if _native_bundle.is_empty():
+			return {}
+		var chart: Dictionary = GameplayLoader.new().load_native_chart_with_overrides(_native_bundle["chart"], _gameplay_option_overrides())
+		var render: Dictionary = RenderEntityModel.new().load_from_file("res://assets/o2jam/render-metadata.json")
+		if chart.is_empty() or render.is_empty():
+			return {}
+		_apply_render_metadata_to_chart(chart, render)
+		return {"chart": chart, "audioManifest": _native_bundle["audio"], "renderMetadata": render}
 	if not _selected_bundle_paths_ready():
 		return {}
 
@@ -1718,6 +1758,8 @@ func _apply_render_metadata_to_chart(chart: Dictionary, render_metadata: Diction
 
 
 func _selected_bundle_paths_ready() -> bool:
+	if _selected_entry.has("nativeRequest"):
+		return not _native_bundle.is_empty()
 	var gameplay_path := _selected_bundle_path("gameplayPath", "gameplay.json")
 	var audio_manifest_path := _selected_bundle_path("audioManifestPath", "audio-manifest.json")
 	var render_metadata_path := _selected_bundle_path("renderMetadataPath", "render-metadata.json")
@@ -2133,3 +2175,78 @@ func _apply_gameplay_layout(viewport_size: Vector2) -> void:
 	_gameplay_view.position = (target_size - scaled_size) * 0.5
 	_gameplay_view.size = base_size
 	_gameplay_view.scale = Vector2(scale_factor, scale_factor)
+
+
+func configure_native_converter(converter: String, work_root: String) -> void:
+	_native_converter = converter
+	_native_work_root = work_root
+	if _native_coordinator == null:
+		_native_coordinator = NativeLoadCoordinator.new()
+		_native_coordinator.name = "NativeLoadCoordinator"
+		_native_coordinator.loaded.connect(_on_native_loaded)
+		_native_coordinator.failed.connect(_on_native_failed)
+		_native_coordinator.progressed.connect(_on_native_progressed)
+		add_child(_native_coordinator)
+
+
+func _start_native_loading() -> void:
+	if _native_converter.is_empty():
+		var converter := OS.get_environment("OPEN2JAM_NATIVE_CONVERTER")
+		if converter.is_empty():
+			converter = ProjectSettings.globalize_path("res://../../native/target/debug/open2jam-converter")
+		configure_native_converter(converter, ProjectSettings.globalize_path("user://native-jobs"))
+	if DirAccess.make_dir_recursive_absolute(_native_work_root.path_join("staging")) != OK:
+		_show_loading_export_error("Unable to create song loading directory")
+		return
+	var request: Dictionary = _selected_entry["nativeRequest"].duplicate(true)
+	request["stagingRoot"] = _native_work_root.path_join("staging")
+	_native_generation = _native_coordinator.start_loading(_native_converter, request, _native_work_root)
+
+
+func _cancel_native_loading() -> void:
+	_native_generation = -1
+	if _native_coordinator != null:
+		_native_coordinator.cancel_loading()
+	_native_bundle.clear()
+	_native_progress.clear()
+
+
+func _on_loading_cancel_pressed() -> void:
+	if _app_state.current() != AppState.LOADING:
+		return
+	_cancel_native_loading()
+	_loading_pending_gameplay = false
+	_discard_loading_audio_pool()
+	if _app_state.transition_to(AppState.SONG_SELECT):
+		_show_song_select()
+
+
+func _on_native_loaded(generation: int, bundle: Dictionary) -> void:
+	if generation == _native_generation and _app_state.current() == AppState.LOADING and _loading_pending_gameplay:
+		_native_bundle = bundle
+
+
+func _on_native_failed(generation: int, error: Dictionary) -> void:
+	if generation == _native_generation and _app_state.current() == AppState.LOADING and _loading_pending_gameplay:
+		var messages := {
+			"SOURCE_CHANGED": "Song changed while loading. Select it again.",
+			"CACHE_CORRUPT": "Prepared song is damaged. Try loading again.",
+			"MISSING_ASSET": "A required song file is missing.",
+			"OUT_OF_SPACE": "Not enough free disk space to prepare this song.",
+			"UNSUPPORTED_FORMAT": "This song format is not available yet.",
+			"CONVERTER_CRASHED": "Song loading stopped unexpectedly. Try again.",
+			"CANCELLED": "Song loading was cancelled.",
+		}
+		_show_loading_export_error(messages.get(error.get("code", ""), "Unable to prepare this song. Try again."))
+
+
+func _on_native_progressed(generation: int, event: Dictionary) -> void:
+	if generation == _native_generation and _app_state.current() == AppState.LOADING and _loading_pending_gameplay:
+		_native_progress = event
+
+
+func _reap_retired_audio_pools() -> void:
+	for pool: Node in _retired_audio_pools.duplicate():
+		if not pool.preload_in_progress():
+			_retired_audio_pools.erase(pool)
+			pool.queue_free()

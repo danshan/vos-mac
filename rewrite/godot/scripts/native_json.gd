@@ -3,7 +3,9 @@ extends RefCounted
 const MAX_INTEGER: int = 9007199254740991
 
 
-static func parse_object(text: String) -> Dictionary:
+static func parse_object(text: String, cancel: Callable = Callable()) -> Dictionary:
+	if cancelled(cancel):
+		return {}
 	# V2 uses integer/rational numbers. Reject Godot's relaxed JSON syntax and duplicate keys.
 	if text.to_utf8_buffer().has(0):
 		return {}
@@ -13,11 +15,15 @@ static func parse_object(text: String) -> Dictionary:
 	var index := 0
 	var previous := ""
 	while index < text.length():
+		if index % 16384 == 0 and cancelled(cancel):
+			return {}
 		var ch := text[index]
 		if ch == '"':
 			var start := index
 			index += 1
 			while index < text.length() and text[index] != '"':
+				if index % 16384 == 0 and cancelled(cancel):
+					return {}
 				if text.unicode_at(index) < 32:
 					return {}
 				if text[index] == "\\":
@@ -53,6 +59,8 @@ static func parse_object(text: String) -> Dictionary:
 		elif not ch in [" ", "\t", "\n", "\r"]:
 			var start := index
 			while index < text.length() and not text[index] in [" ", "\t", "\n", "\r", ",", "]", "}", ":", "[", "{", '"']:
+				if index % 16384 == 0 and cancelled(cancel):
+					return {}
 				index += 1
 			var token := text.substr(start, index - start)
 			if not token in ["true", "false", "null"] and number.search(token) == null:
@@ -60,8 +68,10 @@ static func parse_object(text: String) -> Dictionary:
 			index -= 1
 			previous = "value"
 		index += 1
+	if cancelled(cancel):
+		return {}
 	var json := JSON.new()
-	if json.parse(text) != OK or not json.data is Dictionary:
+	if json.parse(text) != OK or not json.data is Dictionary or cancelled(cancel):
 		return {}
 	return json.data
 
@@ -185,3 +195,7 @@ static func shape(value: Variant, required: Array, optional: Array) -> bool:
 		if not required.has(key) and not optional.has(key):
 			return false
 	return true
+
+
+static func cancelled(check: Callable) -> bool:
+	return check.is_valid() and bool(check.call())

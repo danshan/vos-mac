@@ -1,0 +1,76 @@
+{
+  "staticAssetsVersion": "open2jam-gameplay-assets-v1",
+  "layoutSource": "rewrite/godot/test/fixtures/render-metadata.json",
+  "layoutSourceSha256": "40427f075fe8289e3cc11bcfe3c9f7becd4898ce28172943077c3864a28b2d18",
+  "files": [
+    {
+      "path": "Jam.png",
+      "sha256": "59e01a8069bb626f8eba3968beea8034d20d9e6a83bbd5f75faf5379d302c7c4"
+    },
+    {
+      "path": "Note_BG.png",
+      "sha256": "300ae8f10607abc9fb4a3e0e3f1b0d22629ee8d8926379a61deb0931c91e8ff0"
+    },
+    {
+      "path": "Numbers.png",
+      "sha256": "f4134978de4a9c2e1d077234194bd3932916bc1e65a1ffe72a26b224a5df7c23"
+    },
+    {
+      "path": "Playing_BG10.png",
+      "sha256": "d8477997720ffa49d42e549f804848e2b8eac89999b2a6bf0b3a64d94700ff85"
+    },
+    {
+      "path": "Playing_Menu.png",
+      "sha256": "e4bdf79b563b51df28bbbbff6f365919012bf7c3f9af382208ac95646a075246"
+    },
+    {
+      "path": "combo_title.png",
+      "sha256": "f1ca4963d72cccdaf77fc0d953fdbc2926216b453e92c388849ad6112c06ce17"
+    },
+    {
+      "path": "font1.png",
+      "sha256": "e4107717743b317e4f0d824513d34f30fd469f4b76fb27b326c888e5848826c7"
+    },
+    {
+      "path": "jam_numbers.png",
+      "sha256": "58e848ccd534f8fcacf82013600e88416e0c84bc304018d7a33062d7fcf5bfc3"
+    },
+    {
+      "path": "longflare.png",
+      "sha256": "055ab0aac0f7941518a874bc54e7602d8767bcdd92bd94307287d3b62b6738b4"
+    },
+    {
+      "path": "main.png",
+      "sha256": "096d27ac8860fc7ff362d4e7cbf38616b04fd6a5db35871c518a811cc76956c0"
+    },
+    {
+      "path": "note_bad_1.png",
+      "sha256": "fc71d161016cb6a567da3d54492629f84e2ebbd174dcac00255e664ffa9d1ca5"
+    },
+    {
+      "path": "note_click5_3.png",
+      "sha256": "c7bb365cf70ff84f1f67bc86a791479dfd8a4414a82fa5d4b0836afb9d847f3c"
+    },
+    {
+      "path": "note_cool_1.png",
+      "sha256": "23708e8e1ce2750595042b65a84d6d79c490c88f7f8c751928ed886bed90c619"
+    },
+    {
+      "path": "note_good_1.png",
+      "sha256": "f01362774f44ae04aaa35d50b03908e1a1ed833d0f6a34da60097795527d203d"
+    },
+    {
+      "path": "note_miss_1.png",
+      "sha256": "89badd1d679d1549a28264cc8ff7b0b0780b19902ce6e25fc2607ff7393d9428"
+    },
+    {
+      "path": "numbers_1.png",
+      "sha256": "eef568a7acb290924e87e08afd473a395b543734e1cb0df33633e87dc6c94f96"
+    },
+    {
+      "path": "render-metadata.json",
+      "sha256": "924a31c85178d4308a94096dafc7b907627cc88e8ca372f6073d4968d8fdfe14"
+    }
+  ],
+  "layoutSourceRevision": "b4be864"
+}

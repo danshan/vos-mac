@@ -11,3 +11,15 @@ native_load_job 每次分配随机 JobId 和 create-new transport 目录, 将用
 API 依据通过 Context7 核实的 [Godot 4.6 OS 文档](https://docs.godotengine.org/en/4.6/classes/class_os.html). [Godot Unix 实现](https://github.com/godotengine/godot/blob/4.6/drivers/unix/os_unix.cpp) 显示 kill 包含子进程回收, 因此将其放在专属 worker, 并避免 kill 后再次读取已被回收的退出状态. 测试 helper 的 PID 在 Godot 退出后还由 gate 检查不存在, 不只依赖模拟的完成状态.
 
 worker 完成后, 当前 generation 仍继续按帧读取 progress 至 EOF, 并确认不存在截断末行, 才允许交付 bundle. retired generation 仅回收 worker, 不再交付其日志或结果. 对有效前缀超过 16 KiB 后追加错误序号、最终行缺失 LF 的 helper 反例均必须拒绝成功.
+
+## UI 接入与验证期间取消
+
+main_ui 现接受带 nativeRequest 的歌曲选择记录, 在真实 Loading 页面调用协调器. Back 按钮和 Escape 使当前 generation 失效并立即返回选歌, 原任务仍由长期协调器回收. 取消后再次选择、快速连续选择及 progress callback 中重入选择均验证不会启动旧 gameplay. 原始格式的 catalog 尚在迁移, 本阶段由受控选择记录进入 native 路径; ticket 07/后续格式 tickets 负责 discovery, 不把未迁移的 Java catalog 当作 native discovery.
+
+受控 native 路径使用 `res://assets/o2jam` 固定布局与 16 个现有 PNG. 资源来自冻结布局和仓库皮肤, 原始 oracle 不变. asset manifest 冻结 hash, UI gate 同时检查资源 hash 与实际 PNG 解码. native Chart 使用既有 gameplay options 归一化逻辑, 并保留核心合同允许的 sampleless Note 与零 BPM STOP. Java 兼容入口的旧字段校验不变.
+
+Godot verifier 的文件与 JSON 读取在 64 KiB 块之间检查取消, JSON 前置扫描在长 token 内检查, Chart/audio 引用验证与转换逐事件检查, 每个 WAV 解码前后检查. 原子引擎 JSON.parse、UTF-8 转换、单个 WAV 解码本身不能从 GDScript 中断, 仍在 worker 线程执行;取消后不再继续处理其余资源, 结果不会交付. 单文件内存与解码预算继续由 ticket 20/24 验收, 退出 join 不能被称为对任意大恶意输入的硬实时保证.
+
+Native UI 音频登记关闭既有小资产集合的 eager decode, 保留逐帧异步预热. 返回时若 pool 仍在解码, 保留在 retired 列表, 后续帧确认线程结束后释放, 不在 Back 回调中 join. 应用关闭时仍由节点退出回收剩余线程.
+
+完整迁移门禁发现旧 Godot render fixture 的纹理路径指向不存在的开发机目录. 仅替换为本项目 `res://assets/o2jam` 路径, 数值布局不变; `rewrite/golden/java-migration` 冻结内容未改. asset manifest 的 layoutSourceRevision 记录迁移前来源, 避免把可搬移路径更新误写成原始 snapshot 内容.

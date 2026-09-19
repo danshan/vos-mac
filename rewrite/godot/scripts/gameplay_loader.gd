@@ -44,7 +44,13 @@ func load_from_file_with_overrides(path: String, overrides: Dictionary) -> Dicti
 	return normalized_chart
 
 
-func _normalized_chart(chart: Dictionary) -> Dictionary:
+func load_native_chart_with_overrides(chart: Dictionary, overrides: Dictionary) -> Dictionary:
+	var configured := chart.duplicate(true)
+	configured.merge(overrides, true)
+	return _normalized_chart(configured, true)
+
+
+func _normalized_chart(chart: Dictionary, native_values: bool = false) -> Dictionary:
 	if chart.get("schemaVersion") != 1:
 		return {}
 	if not VALID_FORMATS.has(chart.get("format")):
@@ -66,15 +72,15 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	for note: Variant in notes:
 		if not note is Dictionary:
 			return {}
-		var normalized_note: Dictionary = _normalized_note(note, int(keys), chart_format)
+		var normalized_note: Dictionary = _normalized_note(note, int(keys), chart_format, native_values)
 		if normalized_note.is_empty():
 			return {}
 		normalized_notes.append(normalized_note)
 
-	var visual_timing: Array[Dictionary] = _normalized_timing(chart.get("visualTiming"))
+	var visual_timing: Array[Dictionary] = _normalized_timing(chart.get("visualTiming"), native_values)
 	if visual_timing.is_empty():
 		return {}
-	var judgment_timing: Array[Dictionary] = _normalized_timing(chart.get("judgmentTiming"))
+	var judgment_timing: Array[Dictionary] = _normalized_timing(chart.get("judgmentTiming"), native_values)
 	if judgment_timing.is_empty():
 		return {}
 
@@ -163,7 +169,7 @@ func _normalized_chart(chart: Dictionary) -> Dictionary:
 	return normalized_chart
 
 
-func _normalized_note(note: Dictionary, keys: int, chart_format: String) -> Dictionary:
+func _normalized_note(note: Dictionary, keys: int, chart_format: String, allow_sampleless: bool = false) -> Dictionary:
 	if not _has_fields(note, REQUIRED_NOTE_FIELDS):
 		return {}
 	if note.has("id"):
@@ -184,7 +190,7 @@ func _normalized_note(note: Dictionary, keys: int, chart_format: String) -> Dict
 		return {}
 
 	var sample_id: Variant = note.get("sampleId")
-	if chart_format == "OSU":
+	if chart_format == "OSU" or allow_sampleless:
 		if not _is_integer_like(sample_id) or int(sample_id) < 0:
 			return {}
 	else:
@@ -237,7 +243,7 @@ func _normalize_hold_note(note: Dictionary, start_ms: float) -> bool:
 	return true
 
 
-func _normalized_timing(raw_timing: Variant) -> Array[Dictionary]:
+func _normalized_timing(raw_timing: Variant, allow_stops: bool = false) -> Array[Dictionary]:
 	var normalized: Array[Dictionary] = []
 	if not raw_timing is Array or raw_timing.is_empty():
 		return normalized
@@ -246,7 +252,7 @@ func _normalized_timing(raw_timing: Variant) -> Array[Dictionary]:
 			return []
 		if not _is_non_negative_number(raw_change.get("timeMs")):
 			return []
-		if not _is_positive_number(raw_change.get("bpm")):
+		if not (_is_non_negative_number(raw_change.get("bpm")) if allow_stops else _is_positive_number(raw_change.get("bpm"))):
 			return []
 		var change: Dictionary = raw_change.duplicate(true)
 		change["timeMs"] = float(raw_change.get("timeMs"))

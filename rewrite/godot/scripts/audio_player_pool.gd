@@ -21,7 +21,7 @@ func _exit_tree() -> void:
 	_wait_for_preload_thread()
 
 
-func load_manifest(manifest: Dictionary) -> bool:
+func load_manifest(manifest: Dictionary, eager_preload: bool = true) -> bool:
 	_wait_for_preload_thread()
 	var assets: Variant = manifest.get("assets")
 	if not assets is Array:
@@ -33,7 +33,7 @@ func load_manifest(manifest: Dictionary) -> bool:
 	_play_events.clear()
 	_registered_players.clear()
 	_manifest_signature = _manifest_signature_for(manifest)
-	var allow_eager_preload: bool = assets.size() <= MAX_EAGER_PRELOAD_ASSETS
+	var allow_eager_preload: bool = eager_preload and assets.size() <= MAX_EAGER_PRELOAD_ASSETS
 	for asset: Variant in assets:
 		if not asset is Dictionary:
 			return false

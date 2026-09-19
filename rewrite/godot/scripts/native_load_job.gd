@@ -179,7 +179,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 	var expected_path: String = str(request["stagingRoot"]).path_join(request["jobId"])
 	if result["error"] != null or not Wire.fields(output, ["stagingPath", "bundleKey", "manifestPath"]) or output["stagingPath"] != expected_path or output["manifestPath"] != expected_path.path_join("bundle.json") or not Wire.identifier(output["bundleKey"], "sha256:"):
 		return _failure("CACHE_CORRUPT", "Native output does not match job staging ownership.")
-	var bundle: Dictionary = Loader.new().load_bundle(expected_path, output["bundleKey"])
+	var bundle: Dictionary = Loader.new().load_bundle(expected_path, output["bundleKey"], _cancellation_requested)
 	if _cancellation_requested() or FileAccess.file_exists(cancel_path):
 		return _failure("CANCELLED", "Cancelled while validating native output.")
 	if bundle.is_empty() or bundle["chart"]["chartId"] != request["chartId"]:

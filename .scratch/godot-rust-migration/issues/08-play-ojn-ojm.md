@@ -38,3 +38,4 @@
 - 搜索累计最多 32,000,000 次候选检查, 超限 CorruptChart, 搜索期间检查取消. 该安全工作量限制仍需 ticket 24 的真实工作集复核.
 - 验证证据: `/tmp/vos-ticket08-hold-red.log`, `/tmp/vos-ticket08-hold-search-red.log`, `/tmp/vos-ticket08-java-holds.log`, `/tmp/vos-ticket08-holds-tests.log`, `/tmp/vos-ticket08-holds-workspace.log`. 测试还覆盖搜索超限和取消.
 - 待续: 最终 Note/HoldTail 与 playable eventOrder 构造、样本映射、音频准备和 CLI/Godot 闭环. 仍不勾选 ticket 08 完整验收.
+- 长音增量提交 `ba13319`, 固定基点不变, Standards 0 项 / Spec 0 项. 后续构造需注意: 既有 `gameplay_loader.gd::_normalize_hold_note` 拒绝缺少尾部的 holdStart, 因而不能把未闭合 HOLD 静默变成可游玩的 tap 来宣称 parity.

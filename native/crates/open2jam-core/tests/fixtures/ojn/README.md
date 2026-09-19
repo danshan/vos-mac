@@ -14,3 +14,23 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjnHoldOracle.java
 ```
 
 这组 oracle 验证事件修复, 不替代最终 bundle / gameplay 验收. 特别保留 backward repair 移动已遍历 RELEASE 到 autoplay 的行为; Java 不会再次清理此事件的 flag. 没有 tail 的最终 HOLD 也不在该修复步骤中丢弃.
+
+## 音频 fixture
+
+`tone.ogg` 与 `tone-multipage.ogg` 使用本项目生成的正弦波, 无外部音乐内容. 源 PCM 为 8000 Hz mono / 800 frames, 第 i 个 signed 16-bit 样本为 round(12000 * sin(2 * pi * 440 * i / 8000)). 使用 FFmpeg 9.0.1 内置实验性 Vorbis encoder 转为 44100 Hz stereo; 多页版本重复源 40 次. 编码器会引入重采样长度差异, 短文件的最终 granule 为 4416, 不能按输入时长假定 4410 frames.
+
+```bash
+ffmpeg -v error -y -i /tmp/ojn-tone.wav -ac 2 -ar 44100 -c:a vorbis -strict -2 tone.ogg
+ffmpeg -v error -y -stream_loop 39 -i /tmp/ojn-tone.wav -ac 2 -ar 44100 -c:a vorbis -strict -2 tone-multipage.ogg
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java native/crates/open2jam-core/tests/fixtures/ojn/tone.ogg native/crates/open2jam-core/tests/fixtures/ojn/tone-java.pcm
+```
+
+`tone-java.pcm` 为迁移期 Java `OggPcmDecoder` / stb_vorbis 输出, stereo / 44100 Hz / PCM16 little-endian, 共 17664 bytes. 测试要求 Rust 与 Java 的长度相同, 每个 16-bit 样本差异不超过 1 LSB, 允许两个浮点解码器的末位量化差异. 本界限仅由当前 fixture 验证, 真实曲目集合仍在 ticket 24/25 验收.
+
+| 文件 | SHA-256 |
+|---|---|
+| tone.ogg | 0dd2ab1efc0313bbba9db4b45cbf6e130c26449e57425da39c5fa6515ecc0b56 |
+| tone-multipage.ogg | 8b49402dac335276af85ffcea70306398924c24b1126e5c8c75bded0bc0dd7ad |
+| tone-java.pcm | 132a25d298c440ef5bd27451f96d46d46e7ec40cfeccc7a53a41bc4e099b050d |
+
+FFmpeg 与 Java 仅用于一次性生成冻结 fixture, Rust 测试不调用它们. ticket 27 删除 Java generator, 保留 fixtures.

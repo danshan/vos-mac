@@ -49,3 +49,12 @@
 - 验证覆盖同时间 release / 新 tap、tail measure/order、样本关联和源 volume/pan、多 Chart 身份、缺样本、未闭合 HOLD、资源去重、短 duration、取消及重复 BPM. red 证据 `/tmp/vos-ticket08-gameplay-red.log`, `/tmp/vos-ticket08-duplicate-bpm-red.log`; 验证记录 `/tmp/vos-ticket08-gameplay-tests.log`, `/tmp/vos-ticket08-gameplay-workspace.log`.
 - 待续: 字符集解码、基础 OJM 音频准备、持久化 LibraryRootId 请求传递和 raw OJN catalog/bundle/Godot 闭环. 当前仍不等于 ticket 08 完整验收.
 - gameplay 构造增量提交 `4721d5e`, 固定基点不变, Standards 0 项 / Spec 0 项. 完整音频播放和 CLI/Godot 验收仍待后续.
+
+## 当前增量: PCM16 / Ogg 音频准备
+
+- `OjmSampleData::prepare_wav` 将 PCM16 和 Ogg/Vorbis 准备为 RIFF PCM16 WAV, 保留源采样率和声道数, 不将 VOS 专属的 44.1 kHz stereo 要求施加到 OJM. 验证 PCM header、frame alignment 和非空 payload.
+- 新增 Symphonia 0.6.1, 仅 ogg/vorbis features, 更新 Cargo.lock; MPL-2.0 与交付要求见 `native/THIRD_PARTY.md`. Ogg 逐 packet 解码, 不跳过本层返回的解码错误, 检查中途声道/采样率变化.
+- 当前资源上限: encoded Ogg 64 MiB, decoded PCM 256 MiB, mono/stereo, sample rate 1..384000 Hz. 复制与 packet 之间检查取消; 单次 probe / codec 初始化 / packet 解码仍是第三方库的原子调用. 这些上限不等于最终进程 RSS 上限, ticket 24/25 仍须审计恶意 header 展开与真实资源使用.
+- PCM16 输出与原冻结 Java WAV 逐字节比较. 新增自制短 Ogg 的 Java PCM oracle, 长度相同且逐样本 <= 1 LSB; 多页 Ogg 验证中间页损坏拒绝. 另覆盖截断、缺少结束页、坏 PCM header 和取消. 生成来源/hash 见 fixtures/ojn/README.md.
+- red: `/tmp/vos-ticket08-pcm-red.log`, `/tmp/vos-ticket08-ogg-red.log`; 证据: `/tmp/vos-ticket08-ogg-java.log`, `/tmp/vos-ticket08-audio-tests.log`, `/tmp/vos-ticket08-audio-workspace.log`.
+- 待续: 其他 WAV 编码的支持/兼容性核对、字符集、LibraryRootId 请求传递、raw OJN CLI/catalog/bundle/Godot 闭环. 当前明确拒绝非 PCM16 WAV, 不据此勾选基础 OJM 完整播放验收.

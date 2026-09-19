@@ -1,5 +1,7 @@
 use crate::error::{CoreError, ErrorCode};
 
+mod prepare;
+
 const MAX_SOURCE_BYTES: usize = 512 * 1024 * 1024;
 const MAX_SAMPLES: usize = 65_536;
 

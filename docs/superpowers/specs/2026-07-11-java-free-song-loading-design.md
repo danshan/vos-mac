@@ -36,6 +36,8 @@
 - 用户设置、歌曲目录、键位和 gameplay 配置继续保留.
 - Gameplay Artifact Cache 默认 10 GB, Settings 最低允许设置为 5 GB.
 - 首个完整迁移版本的 hard release gate 是签名后的 macOS Apple Silicon Godot application.
+- 2026-09-19 用户确认首发仅本机自用, 使用 ad-hoc 签名. Developer ID、公证、stapling 和公开下载后的 Gatekeeper 验收不作为本次门禁; 无 Java 的隔离环境验收与包内依赖完整性仍须通过.
+- 首发每个用户配置仅运行一个应用实例, 再次打开唤起原实例. helper 与缓存 writer 的生命周期、崩溃恢复和会话归属须与该约束一致.
 - Rust core、bundle、cache 和 path contract 保持平台无关, 但其他桌面安装包不阻塞本次完成.
 
 领域语言以仓库根目录的 `CONTEXT.md` 为准.
@@ -402,6 +404,13 @@ Parser 还必须执行 differential fuzz/mutation tests, old/new implementation 
 
 ## 16. Performance verification
 
+2026-09-19 用户确认验收口径:
+
+- cold 从用户选择 Chart 开始计时, 包含约 300 ms 预热等待; 所选 Chart 派生缓存和全局 MIDI 派生缓存均为空. OS page cache 状态单独记录, 不将其混同于应用 cold cache.
+- cold P95 不超过 5 s 的硬门禁适用于冻结的代表性与压力工作集. 工作集及单 Chart 规模由原型测量后冻结, 不用通过结果反向筛选样本.
+- 超出验收规模但仍在安全资源上限内的曲目继续支持, 允许加载更久且展示真实进度. 安全资源上限与性能验收规模是两项独立合同, 具体数值仍待确定.
+- warm P95 不超过 2 s, 以及其他已批准预算保持不变. 不用提前预热后的 Play 时长代替 cold 等待, 不在完整 artifact 准备完成前宣布 Ready.
+
 Benchmark matrix:
 
 - Library size: 1、100、1,000、full 3,919 Chart.
@@ -503,7 +512,7 @@ rewrite/godot/
 5. macOS arm64 clean machine 无 JDK/JRE/JAR 可完成从空 cache 到 gameplay.
 6. 所有 accepted performance budgets 通过.
 7. Cache mutation、atomicity、cancel 与 stale generation tests 通过.
-8. Packaged application 已签名且不含 Java、Maven、JAR、LWJGL/JNA/VLCJ Java runtime.
+8. 本机自用的 packaged application 已完成 ad-hoc 签名且不含 Java、Maven、JAR、LWJGL/JNA/VLCJ Java runtime. Developer ID 与公证不是本次完成条件.
 9. Repo production surface 不再包含 `OPEN2JAM_JAVA`, `OPEN2JAM_JAR`, `open2jam-java` 或 Java fallback.
 10. Java source、build 与 oracle executables 已删除; 只读 golden provenance 可以保留历史 Java commit/JDK 信息.
 

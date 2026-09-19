@@ -15,4 +15,5 @@ The Godot product must become fully Java-free while preserving raw VOS, OJN/OJM,
 
 - The CLI protocol must support structured progress, cancellation, version reporting, and transactional bundle output.
 - The first release must package and sign the macOS arm64 converter inside the Godot application, while the Rust core and bundle contract remain portable for later platform releases.
+- 2026-09-19 用户明确首发仅本机自用, app 与内嵌 converter 使用 ad-hoc 签名. 公开下载、Developer ID 和公证不纳入本次完成门禁; 包内依赖完整性与无 Java 环境验收继续保留.
 - Migration tests must compare Rust output with frozen Java goldens before all Java, Maven, and JAR surfaces are removed.

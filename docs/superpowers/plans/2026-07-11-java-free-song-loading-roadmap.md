@@ -15,11 +15,14 @@
 - `Start -> Song Selection Ready` warm P95 must be no more than 300 ms.
 - Search and format filtering P95 must be no more than 100 ms.
 - `Chart -> Gameplay Ready` warm P95 must be no more than 2 s and cold P95 no more than 5 s.
+- 2026-09-19 确认: cold 包含 Chart 选择后的约 300 ms 预热等待, 所选 Chart 与全局 MIDI 派生缓存均为空. 5 s 门禁面向原型测量后冻结的代表性及压力工作集; 更大但未超安全资源上限的曲目继续支持, 允许更久加载并展示真实进度.
 - Loading UI must appear within 100 ms and progress must be real, complete, and monotonic.
 - Gameplay cache defaults to 10 GB and Settings must allow values from 5 GB upward.
 - Java bundle v1 and catalog cache are ignored, not migrated, and not automatically deleted.
 - User settings, song roots, key bindings, gameplay settings, and source songs are preserved.
 - First hard release gate is a signed macOS Apple Silicon Godot application.
+- 2026-09-19 确认: 首发仅本机自用, 使用 ad-hoc 签名; Developer ID、公证和公开下载验收不阻塞本次迁移. 原有无 Java 隔离环境与包完整性门禁保留.
+- 首发每个用户配置单实例, 再次打开唤起原实例.
 - Production implementation must follow the Superpowers governance in the approved design.
 - Every implementation task uses TDD and ends in a focused commit.
 
@@ -30,6 +33,15 @@
 The approved design spans parser migration, deterministic synthesis, Godot UI, process control, transactional cache, packaging, performance verification, and destructive Java deletion. A single plan would couple independent subsystems and become stale before later phases start. Each phase below must produce working, testable software and pass its exit gate before `superpowers:writing-plans` creates the next executable phase plan from the then-current tree.
 
 ## Phase Sequence
+
+### Early Feasibility Prototypes
+
+2026-09-19 用户确认将 VOS 离线合成与最小 macOS Godot application 两个可行性原型前置到完整 parser 开发之前. 原型用于尽早验证音频成本与 native helper 分发链路, 不缩减产品格式、Java-free 定义或最终门禁.
+
+- VOS 原型使用已接受的 GeneralUser GS 2.0.3, 验证离线 PCM 行为、重复执行确定性和 release build 成本. cold 口径按上方已接受修订执行; 具体工作集、安全上限与原型停止条件仍待确定.
+- macOS 原型验证 Godot app 内 native helper 的调用、资源定位、目标架构和 ad-hoc 签名, 以本机自用交付为目标.
+- 原型独立于生产 importer, 不将原型通过计作 Phase 2、Phase 3 或 Phase 6 完成. 失败时根据证据修订相关设计, 不增加 Java fallback 或修改冻结 golden expected.
+- 这是下文串行 production phase 顺序的明确例外. 具体原型任务在相关未决项解决、共同理解确认后进入实施.
 
 ### Phase 0: Freeze Golden Truth And Repair Gates
 
@@ -159,4 +171,4 @@ Exit gate:
 
 ## Execution Rule
 
-Only the current phase plan is executable. After its exit gate and review pass, mark that plan complete, inspect the live tree, and invoke `superpowers:writing-plans` for the next phase. Use `superpowers:subagent-driven-development` for execution unless the user explicitly selects inline execution.
+Production implementation 只执行当前 phase plan. 上述 Early Feasibility Prototypes 是用户确认的前置验证例外, 不替代任何 phase exit gate. 当前 phase 通过退出门禁与评审后, 标记完成, 核对 live tree, 再使用 `superpowers:writing-plans` 创建下一阶段计划. 除非用户明确选择 inline execution, 否则按既有约定使用 `superpowers:subagent-driven-development`.

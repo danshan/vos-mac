@@ -8,6 +8,8 @@
 
 **Tech Stack:** Rust 1.96.1, edition 2024, Cargo resolver 3, `serde`, `serde_json`, `sha2`, mise, macOS arm64, existing hermetic Java migration goldens as test-only evidence.
 
+**2026-09-19 设计修订状态:** 当前 grill-with-docs 访谈已接受曲库显式重新定位与来源身份保留, 前置两个可行性原型, 以及 roadmap 中更新的性能、单实例和本机自用发布条件. 本文下方 Task 2/3 的 identity 和领域字段合同仍待完成一致性修订, 不应视为已按新决定重新冻结. 具体已决/未决项见 `docs/rewrite/2026-09-19-godot-rust-design-decisions.md`; 既有 Task 1 的历史验收不因此变为新合同的验收证据.
+
 ### Task 0: Binding execution context, not an implementation task
 
 Task 0 has no code, review or commit. It exists so SDD can extract the complete global contract separately from the selected implementation Task. Before Task 1, and again only if this plan changes, run:
@@ -2301,4 +2303,6 @@ git commit -m "test: gate native Phase 1 contracts"
 
 ## Phase 1 Completion Evidence
 
-Phase 1 is complete only when all nine focused commits are present, every task has approved specification and code-quality reviews, Task 9 serial gates are green, `native/Cargo.lock` is unchanged after `--locked` verification, and the worktree/corpus/task-owned temporary roots are clean. At that point create the Phase 2 OJN/OJM and osu!mania importer plan from the live tree with `superpowers:writing-plans`; do not begin VOS/MIDI work before Phase 2 closes.
+Phase 1 is complete only when all nine focused commits are present, every task has approved specification and code-quality reviews, Task 9 serial gates are green, `native/Cargo.lock` is unchanged after `--locked` verification, and the worktree/corpus/task-owned temporary roots are clean. At that point create the Phase 2 OJN/OJM and osu!mania importer plan from the live tree with `superpowers:writing-plans`.
+
+2026-09-19 用户确认的执行顺序修订: VOS/MIDI production importer 仍在 Phase 2 完成后实施, 但允许按 roadmap 的 Early Feasibility Prototypes 提前验证离线合成与最小 macOS app. 原型不改变本阶段范围, 不替代完整 importer、音频或发布门禁; 具体原型任务在相关设计决定与共同理解确认后执行.

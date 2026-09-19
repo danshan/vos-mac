@@ -24,6 +24,11 @@ var _progress_invalid := false
 func start(converter: String, template: Dictionary, work_root: String, load_generation: int, artifact_root: String = "") -> void:
 	cache_root = artifact_root
 	generation = load_generation
+	if not cache_root.is_empty():
+		var parent := DirAccess.open(cache_root.get_base_dir())
+		if not cache_root.is_absolute_path() or parent == null or parent.is_link(cache_root.get_file()):
+			_immediate = _failure("INVALID_REQUEST", "Cache root must be an owned absolute directory, not a link.")
+			return
 	job_id = "load-" + Crypto.new().generate_random_bytes(16).hex_encode()
 	_directory = work_root.path_join(job_id)
 	if not work_root.is_absolute_path() or DirAccess.make_dir_absolute(_directory) != OK:

@@ -22,6 +22,8 @@ import os
 import subprocess
 import sys
 root = pathlib.Path(sys.argv[1]).resolve()
+(root / "outside-cache").mkdir()
+(root / "linked-cache").symlink_to(root / "outside-cache", target_is_directory=True)
 for name in ["hang-helper", "late-helper", "marker-error-helper", "bad-progress-helper", "truncated-progress-helper", "source-change-helper"]:
     helper = root / name
     body = pathlib.Path("rewrite/tools/native_load_test_helper.py").read_text().split("\n", 1)[1]
@@ -71,7 +73,7 @@ result = subprocess.run([
     "godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "cache.log"),
     "--script", "res://scripts/tests/native_artifact_cache_test.gd", "--",
     str(pathlib.Path("native/target/debug/open2jam-converter").resolve()), str(root / "source"), str(root),
-], capture_output=True, text=True, timeout=30)
+] + ([os.environ["OPEN2JAM_FULL_STAGING"]] if os.environ.get("OPEN2JAM_FULL_STAGING") else []), capture_output=True, text=True, timeout=30)
 print(result.stdout, end="")
 marker = "Native artifact cache published validated output and reused a verified hit."
 if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.stderr or "SCRIPT ERROR" in result.stdout:

@@ -115,6 +115,66 @@ func _run() -> void:
 	if Loader.new().load_bundle(cache.path_join(version_key.trim_prefix("sha256:"))).is_empty():
 		_fail("Source-change race damaged the prior valid version.")
 		return
+	_errors.clear()
+	_bundle = {}
+	coordinator.start_loading(args[0], version_request, work, args[2].path_join("linked-cache"))
+	await _wait(coordinator)
+	if not _bundle.is_empty() or _errors.size() != 1 or _errors[0].get("code") != "INVALID_REQUEST":
+		_fail("Linked cache root allowed publication outside its owned namespace.")
+		return
+	if not DirAccess.get_directories_at(args[2].path_join("outside-cache")).is_empty():
+		_fail("Rejected cache root modified its link target.")
+		return
+	_errors.clear()
+	var blocked_cache := work.path_join("blocked-cache")
+	var blocker := FileAccess.open(blocked_cache, FileAccess.WRITE)
+	blocker.store_string("preserve cache root blocker")
+	blocker.close()
+	coordinator.start_loading(args[0], version_request, work, blocked_cache)
+	await _wait(coordinator)
+	if not _bundle.is_empty() or _errors.size() != 1 or FileAccess.get_file_as_string(blocked_cache) != "preserve cache root blocker":
+		_fail("Cache directory creation failure exposed output or replaced the blocker.")
+		return
+	_errors.clear()
+	var version_path := cache.path_join(version_key.trim_prefix("sha256:"))
+	corrupt = FileAccess.open(version_path.path_join("audio/tone.wav"), FileAccess.WRITE)
+	corrupt.store_string("retain damaged prior entry on rename failure")
+	corrupt.close()
+	var permissions := FileAccess.get_unix_permissions(request["stagingRoot"])
+	var blocked := {"armed": true, "changed": false}
+	coordinator.progressed.connect(func(_generation: int, event: Dictionary):
+		if blocked["armed"] and event["phase"] == "VERIFY_BUNDLE" and event["completedUnits"] == 1:
+			blocked["armed"] = false
+			blocked["changed"] = FileAccess.set_unix_permissions(request["stagingRoot"], 365) == OK)
+	coordinator.start_loading(args[0], version_request, work, cache)
+	await _wait(coordinator)
+	FileAccess.set_unix_permissions(request["stagingRoot"], permissions)
+	if not blocked["changed"] or not _bundle.is_empty() or _errors.size() != 1:
+		_fail("Filesystem rename failure did not reject publication.")
+		return
+	if FileAccess.get_file_as_string(version_path.path_join("audio/tone.wav")) != "retain damaged prior entry on rename failure":
+		_fail("Failed publication did not roll back the quarantined prior entry.")
+		return
+	if args.size() == 4:
+		_errors.clear()
+		coordinator.start_loading(args[0], version_request, work, cache)
+		await _wait(coordinator)
+		if _bundle.is_empty() or not _errors.is_empty():
+			_fail("Unable to restore positive cache control before storage failure.")
+			return
+		_bundle = {}
+		var full_request := version_request.duplicate(true)
+		full_request["stagingRoot"] = args[3]
+		var failed_cache := work.path_join("full-disk-cache")
+		coordinator.start_loading(args[0], full_request, work, failed_cache)
+		await _wait(coordinator)
+		if not _bundle.is_empty() or _errors.size() != 1 or _errors[0].get("code") != "OUT_OF_SPACE":
+			_fail("Real storage exhaustion did not propagate OUT_OF_SPACE: %s" % [_errors])
+			return
+		if DirAccess.dir_exists_absolute(failed_cache) or Loader.new().load_bundle(version_path).is_empty():
+			_fail("Storage exhaustion exposed a partial cache or damaged the valid control.")
+			return
+		print("Real full-volume CLI failure preserved valid cache and published no partial artifact.")
 	coordinator.free()
 	print("Native artifact cache published validated output and reused a verified hit.")
 	quit(0)

@@ -132,3 +132,4 @@
 - 原 OJN gate 改为 Godot coordinator 实际发起 catalog 请求, 消费三个 Chart 后交给公开 MainUi entry 接口, 再通过真实 converter 到判定和音频事件. 覆盖合法重序列化对照及重复、索引越界、同源不同 SongId、负 level、缺 root、缺 Chart 拒绝.
 - red 证据 `/tmp/vos-ojn-catalog-consumer-red.log`, `/tmp/vos-ojn-catalog-missing-chart-red.log`; 验证记录 `/tmp/vos-ojn-catalog-consumer.log`, `/tmp/vos-ojn-consumer-bundle-regression.log`.
 - 本增量仍通过 MainUi.set_song_entries 传入结果, 普通设置驱动扫描的 token 持久化与独立难度选择 UI 尚待实现, 不关闭 ticket.
+- Godot consumer 增量 `143eeb7` 固定基点独立审查: Standards 0 项, Spec 0 项. 原有 bundle catalog 与 OJN catalog/gameplay 门禁证据均保留, 后续继续设置持久化和难度选择.

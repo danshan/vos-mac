@@ -27,3 +27,10 @@
 - red /tmp/vos-omc-red.log, 核心证据 /tmp/vos-omc-core.log, workspace /tmp/vos-omc-workspace.log.
 - 尚未接入 CLI 与 Godot, 当前 production adapter 仍明确拒绝 OMC. 不关闭 ticket, 下一步将核心变换接入捕获 bytes 后、样本准备前, 并保留原始编码源 digest.
 - 核心增量 `bb1f8b0` 固定基点独立审查: Standards 0 项, Spec 0 项. workspace / clippy / fmt 验证证据完整, 生产集成仍待续.
+
+## 当前增量: 生产 OMC 转换与 Godot 链路
+
+- CLI 在捕获和哈希 companion 后检测 OMC signature, 对私有 buffer 执行核心变换, 复用 plain OJM parser 与 PCM/Vorbis 准备. 原始磁盘 bytes 不变, fingerprint 保留编码源 digest, 相同 decoded PCM 的 OMC/OJM 源仍有不同 bundleKey.
+- CLI 回归对实际冻结 OMC fixture 比较 Java PCM16, 验证原始文件未变及编码/明文身份不同. 截断 OMC 返回 CORRUPT_CHART, 不发布残缺 bundle, 已准备的有效 bundle 仍完整, 随后的健康源仍可正常转换. M30 继续明确拒绝.
+- verify_native_ojn_gameplay.sh 增加 omc fixture 参数, 直接读取原始 omc.ojn/omc.ojm, 在 OJN 中补三个轨道的可判定事件; OMC bank bytes 保持冻结原样, 未预解码. 复用真实设置扫描、独立难度选择、native converter、判定/音频与 Result 全链路. 同时保留默认 plain OJM gate.
+- red /tmp/vos-omc-cli-red.log; 验证记录 /tmp/vos-omc-cli.log, /tmp/vos-omc-gameplay.log, /tmp/vos-omc-plain-regression.log, /tmp/vos-omc-integration-workspace.log. 此增量没有 Godot runtime 改动或新增依赖.

@@ -296,9 +296,13 @@ pub fn convert(
         source.companion_bytes(),
         &cancel,
     )?;
-    let companion = CapturedSource::read(companion_path, ojm::MAX_SOURCE_BYTES, &cancel)?;
+    let mut companion = CapturedSource::read(companion_path, ojm::MAX_SOURCE_BYTES, &cancel)?;
     progress.emit(ProgressPhase::HashSources, 2, 2, "files".into(), None)?;
     progress.emit(ProgressPhase::ParseChart, 0, 1, "chart".into(), None)?;
+    // The captured digest remains the identity of the encoded source, not its derived PCM.
+    if companion.bytes.starts_with(b"OMC\0") {
+        ojm::decode_omc_in_place(&mut companion.bytes, &mut || cancel())?;
+    }
     let samples = ojm::parse_plain_ojm(&companion.bytes, &mut || cancel())?;
     progress.emit(ProgressPhase::ParseChart, 1, 1, "chart".into(), None)?;
     let mut fingerprint = CanonicalHasher::new(b"open2jam.source-fingerprint.v1\0");

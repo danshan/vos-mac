@@ -147,7 +147,7 @@ fn raw_ojn_bundle_rejects_missing_unsafe_and_unsupported_inputs() {
         "missing-bank",
         "traversal",
         "missing-sample",
-        "omc",
+        "m30",
         "cancel",
     ] {
         let case = Case::new();
@@ -186,9 +186,9 @@ fn raw_ojn_bundle_rejects_missing_unsafe_and_unsupported_inputs() {
                 fs::write(case.0.join("songs/minimal.ojm"), empty).unwrap();
                 (1, "MISSING_ASSET")
             }
-            "omc" => {
+            "m30" => {
                 let mut bytes = OJM.to_vec();
-                bytes[..4].copy_from_slice(b"OMC\0");
+                bytes[..4].copy_from_slice(b"M30\0");
                 fs::write(case.0.join("songs/minimal.ojm"), bytes).unwrap();
                 (1, "UNSUPPORTED_FORMAT")
             }
@@ -289,4 +289,62 @@ fn ambiguous_legacy_companion_names_fail_instead_of_picking_a_guess() {
     assert_eq!(code, 1, "{result}");
     assert_eq!(result["error"]["code"], "MISSING_COMPANION");
     assert!(!case.0.join("staging/load-one").exists());
+}
+
+#[test]
+fn omc_companion_uses_production_decoding_and_preserves_encoded_source_identity() {
+    let case = Case::new();
+    let encoded = include_bytes!("../../../../rewrite/golden/java-migration/sources/ojn/omc.ojm");
+    fs::write(case.0.join("songs/minimal.ojm"), encoded).unwrap();
+    let (code, result) = case.invoke(&case.request(), "omc");
+    assert_eq!(code, 0, "{result}");
+    let output = PathBuf::from(result["output"]["stagingPath"].as_str().unwrap());
+    load_bundle_documents(&output, None).unwrap();
+    let audio: serde_json::Value =
+        serde_json::from_slice(&fs::read(output.join("audio-manifest.json")).unwrap()).unwrap();
+    let prepared = fs::read(output.join(audio["assets"][0]["path"].as_str().unwrap())).unwrap();
+    let oracle: serde_json::Value = serde_json::from_str(include_str!(
+        "../../open2jam-core/tests/fixtures/ojn/omc-frozen-java.json"
+    ))
+    .unwrap();
+    let pcm_hex: String = prepared[44..]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(pcm_hex, oracle["samples"][0]["pcm16Hex"].as_str().unwrap());
+    assert_eq!(fs::read(case.0.join("songs/minimal.ojm")).unwrap(), encoded);
+    let mut decoded = encoded.to_vec();
+    open2jam_core::ojm::decode_omc_in_place(&mut decoded, &mut || Ok(())).unwrap();
+    fs::write(case.0.join("songs/minimal.ojm"), decoded).unwrap();
+    let mut request = case.request();
+    request["jobId"] = serde_json::json!("decoded-source");
+    let (code, plain) = case.invoke(&request, "plain-equivalent");
+    assert_eq!(code, 0, "{plain}");
+    assert_ne!(result["output"]["bundleKey"], plain["output"]["bundleKey"]);
+}
+
+#[test]
+fn corrupt_omc_does_not_damage_a_previously_prepared_song() {
+    let case = Case::new();
+    let (code, good) = case.invoke(&case.request(), "good");
+    assert_eq!(code, 0, "{good}");
+    let prepared = PathBuf::from(good["output"]["stagingPath"].as_str().unwrap());
+    let encoded = include_bytes!("../../../../rewrite/golden/java-migration/sources/ojn/omc.ojm");
+    for (index, end) in [4, 19, 75, encoded.len() - 1].into_iter().enumerate() {
+        fs::write(case.0.join("songs/minimal.ojm"), &encoded[..end]).unwrap();
+        let mut request = case.request();
+        let job = format!("corrupt-omc-{index}");
+        request["jobId"] = serde_json::json!(job);
+        let (code, result) = case.invoke(&request, &job);
+        assert_eq!(code, 1, "{result}");
+        assert_eq!(result["error"]["code"], "CORRUPT_CHART");
+        assert!(!case.0.join("staging").join(&job).exists());
+        load_bundle_documents(&prepared, None).unwrap();
+    }
+    fs::write(case.0.join("songs/minimal.ojm"), OJM).unwrap();
+    let mut request = case.request();
+    request["jobId"] = serde_json::json!("healthy-after-errors");
+    let (code, result) = case.invoke(&request, "recovered");
+    assert_eq!(code, 0, "{result}");
+    assert_eq!(good["output"]["bundleKey"], result["output"]["bundleKey"]);
 }

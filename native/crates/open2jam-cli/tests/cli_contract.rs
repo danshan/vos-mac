@@ -113,22 +113,27 @@ fn protocol_failures_are_machine_readable_and_do_not_create_progress() {
 }
 
 #[test]
-fn valid_request_reports_unsupported_instead_of_fake_import_success() {
+fn empty_catalog_request_publishes_an_empty_snapshot() {
     let case = Case::new(b"");
+    fs::create_dir(case.0.join("stage")).unwrap();
     fs::write(
         case.0.join("request.json"),
         serde_json::to_vec(&catalog_request(&case)).unwrap(),
     )
     .unwrap();
     let output = case.invoke();
-    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(output.status.code(), Some(0));
     assert!(output.stdout.is_empty());
     let result: serde_json::Value =
         serde_json::from_slice(&fs::read(case.0.join("result.json")).unwrap()).unwrap();
     assert_eq!(result["jobId"], "job-001");
-    assert_eq!(result["error"]["code"], "UNSUPPORTED_FORMAT");
-    assert_eq!(result["status"], "FAILED");
-    assert!(fs::read(case.0.join("progress.jsonl")).unwrap().is_empty());
+    assert_eq!(result["status"], "SUCCEEDED");
+    assert_eq!(result["output"]["sourceCount"], 0);
+    let catalog: serde_json::Value =
+        serde_json::from_slice(&fs::read(case.0.join("stage/job-001/catalog-v2.json")).unwrap())
+            .unwrap();
+    assert_eq!(catalog["entries"], serde_json::json!([]));
+    assert_eq!(catalog["rejected"], serde_json::json!([]));
 }
 
 #[test]

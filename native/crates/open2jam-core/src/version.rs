@@ -23,7 +23,7 @@ impl VersionInfo {
             protocol_schema_version: PROTOCOL_SCHEMA_VERSION,
             catalog_schema_version: CATALOG_SCHEMA_VERSION,
             bundle_schema_version: BUNDLE_SCHEMA_VERSION,
-            catalog_formats: Vec::new(),
+            catalog_formats: vec![Format::Bundle],
             bundle_formats: vec![Format::Bundle],
         }
     }

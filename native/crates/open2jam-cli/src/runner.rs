@@ -45,12 +45,14 @@ pub fn run(
         }
     };
     let mut bundle_request = None;
+    let mut catalog_request = None;
     let decoded: Result<(JobId, Command, std::path::PathBuf), ProtocolError> = match command {
         Command::Catalog => {
             read_request_document::<CatalogRequestV1>(&files.request).and_then(|mut r| {
                 let requested_command = r.command;
                 r.command = Command::Catalog;
                 r.validate()?;
+                catalog_request = Some(r.clone());
                 Ok((
                     r.job_id,
                     requested_command,
@@ -122,6 +124,30 @@ pub fn run(
                 return 4;
             }
         };
+        if let Some(request) = catalog_request {
+            match crate::catalog_service::scan(&request, &mut progress) {
+                Ok(output) => {
+                    result = CommandResultV1::succeeded(
+                        request.job_id,
+                        command,
+                        serde_json::to_value(output).expect("serializable catalog output"),
+                    );
+                    exit_code = 0;
+                }
+                Err(error) if error.code() == ErrorCode::Cancelled => {
+                    result = CommandResultV1::cancelled(request.job_id, command, error.into());
+                    exit_code = 3;
+                }
+                Err(error) => {
+                    exit_code = if error.code() == ErrorCode::InternalError {
+                        4
+                    } else {
+                        1
+                    };
+                    result = CommandResultV1::failed(request.job_id, command, error.into());
+                }
+            }
+        }
         if let Some(request) = bundle_request
             && request.source_kind == open2jam_core::format::SourceKind::BundleV2
         {

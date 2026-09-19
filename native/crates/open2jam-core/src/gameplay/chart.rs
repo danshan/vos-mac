@@ -178,6 +178,12 @@ impl GameplayChartV2 {
     pub fn chart_id(&self) -> ChartId {
         self.chart_id
     }
+    pub fn title(&self) -> &str {
+        &self.title
+    }
+    pub fn artist(&self) -> &str {
+        &self.artist
+    }
     pub fn format(&self) -> Format {
         self.format
     }

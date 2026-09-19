@@ -138,3 +138,17 @@ fn cancellation_corruption_and_identity_changes_never_report_success() {
         assert!(!case.0.join("staging/load-one").exists());
     }
 }
+
+#[test]
+fn internal_staging_failure_uses_internal_exit_code_and_preserves_existing_partial() {
+    let case = Case::new();
+    let request = case.request();
+    fs::create_dir_all(case.0.join("staging/.partial/load-one")).unwrap();
+    let marker = case.0.join("staging/.partial/load-one/keep");
+    fs::write(&marker, b"owned by another attempt").unwrap();
+    let (code, result) = case.invoke(&request, "collision");
+    assert_eq!(result["error"]["code"], "INTERNAL_ERROR");
+    assert_eq!(code, 4);
+    assert_eq!(fs::read(marker).unwrap(), b"owned by another attempt");
+    assert!(!case.0.join("staging/load-one").exists());
+}

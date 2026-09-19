@@ -139,8 +139,12 @@ pub fn run(
                     exit_code = 3;
                 }
                 Err(error) => {
+                    exit_code = if error.code() == ErrorCode::InternalError {
+                        4
+                    } else {
+                        1
+                    };
                     result = CommandResultV1::failed(request.job_id, command, error.into());
-                    exit_code = 1;
                 }
             }
         }

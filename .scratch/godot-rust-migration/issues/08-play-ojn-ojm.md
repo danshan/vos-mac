@@ -141,3 +141,4 @@
 - OJN gate 的三个 Chart 分别在 lane 1/2/3 放置可判定音符, 逐一从歌曲列表和难度面板进入真实 Rust 转换及 gameplay, 检查对应轨道判定与音频事件. 增加同标题/同 bytes 的另一个来源文件, 验证独立 SongId/sourceId 与两行歌曲, 不按名称合并.
 - red `/tmp/vos-ojn-difficulty-red.log`; 当前证据 `/tmp/vos-ojn-difficulty.log`, `/tmp/vos-difficulty-bundle.log`. 共享 UI 全量回归记录 `/tmp/vos-difficulty-regression.log`.
 - 尚待设置驱动扫描的 LibraryRootId 持久化, 以及最终加载/性能门禁. 本 ticket 保持 in-progress.
+- 独立难度选择增量 `b14a7e6` 固定基点两轴审查: Standards 0 项, Spec 0 项. 全量脚本退出 0, Java 汇总 157 tests / 0 failures / 0 errors / 8 existing skips, Godot 链执行至 result_flow_test; 证据见上述 regression 日志.

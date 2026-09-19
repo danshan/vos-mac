@@ -35,6 +35,7 @@ impl OjnSource<'_> {
         }
         let mut timer_ms = 1500.0;
         let mut bpm = f64::from(self.bpm());
+        let mut previous_timing = (timer_ms, bpm);
         let mut measure = 0;
         let mut measure_length = 1.0;
         let mut position = 0.0;
@@ -70,11 +71,15 @@ impl OjnSource<'_> {
                 EventKind::MeasureLength(value) => measure_length = f64::from(value),
                 EventKind::Bpm(value) => {
                     bpm = f64::from(value);
-                    timeline.timing.push(TimingPoint::new(
-                        at,
-                        bpm_ratio(value)?,
-                        timeline.timing.len() as u32,
-                    )?);
+                    // Match the Java exporter's duplicate filtering before microsecond rounding.
+                    if previous_timing != (timer_ms, bpm) {
+                        timeline.timing.push(TimingPoint::new(
+                            at,
+                            bpm_ratio(value)?,
+                            timeline.timing.len() as u32,
+                        )?);
+                        previous_timing = (timer_ms, bpm);
+                    }
                 }
                 EventKind::Sample { .. } => {}
             }

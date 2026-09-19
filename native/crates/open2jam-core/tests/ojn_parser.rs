@@ -1,8 +1,11 @@
 use open2jam_core::{
+    digest::Digest,
     error::{CoreError, ErrorCode},
     gameplay::Ratio,
-    ojn::{EventKind, NoteKind, OjnSource},
+    id::{SampleId, SongId},
+    ojn::{EventKind, NoteKind, OjnMetadata, OjnSource},
 };
+use std::collections::BTreeMap;
 
 const MINIMAL: &[u8] =
     include_bytes!("../../../../rewrite/golden/java-migration/sources/ojn/minimal.ojn");
@@ -437,4 +440,130 @@ fn adversarial_long_note_search_is_bounded_and_cancellable() {
         })
         .unwrap_err();
     assert_eq!(error.code(), ErrorCode::Cancelled);
+}
+
+fn metadata() -> OjnMetadata {
+    OjnMetadata {
+        song_id: SongId::from_digest(Digest::from_bytes([1; 32])),
+        title: "Fixture".into(),
+        artist: "Artist".into(),
+    }
+}
+
+#[test]
+fn gameplay_compiles_paired_holds_sample_links_and_same_time_release_order() {
+    let bytes = with_packages(&[
+        (0, 2, vec![[1, 0, 0xf1, 2]]),
+        (0, 9, vec![[0; 4], [2, 0, 0x88, 0]]),
+        (1, 2, vec![[1, 0, 0, 3]]),
+        (1, 2, vec![[2, 0, 0x1f, 0]]),
+    ]);
+    let first = SampleId::from_digest(Digest::from_bytes([2; 32]));
+    let second = SampleId::from_digest(Digest::from_bytes([3; 32]));
+    let samples = BTreeMap::from([(0, first), (1, second)]);
+    let source = OjnSource::parse(&bytes).unwrap();
+    let chart = source
+        .gameplay(0, metadata(), &samples, &mut || Ok(()))
+        .unwrap();
+    let notes = chart.notes();
+    assert_eq!(notes.len(), 2);
+    assert_eq!(notes[0].start().get(), 1_500_000);
+    assert_eq!(notes[0].event_order(), 0);
+    assert_eq!(notes[0].sample_id(), Some(first));
+    assert_eq!(notes[0].volume(), Ratio::new(15, 16).unwrap());
+    assert_eq!(notes[0].pan(), Ratio::new(-7, 8).unwrap());
+    let tail = notes[0].tail().unwrap();
+    assert_eq!(
+        (tail.at().get(), tail.measure(), tail.event_order()),
+        (3_346_154, 1, 1)
+    );
+    assert_eq!(notes[1].start(), tail.at());
+    assert_eq!(notes[1].event_order(), 2);
+    assert_eq!(notes[1].sample_id(), Some(second));
+    let json = serde_json::to_value(&chart).unwrap();
+    assert_eq!(json["autoPlayEvents"][0]["sampleId"], second.to_string());
+    assert_eq!(json["autoPlayEvents"][0]["atUs"], 2_423_077);
+    assert_eq!(json["durationUs"], 91_000_000);
+    let other = source
+        .gameplay(1, metadata(), &samples, &mut || Ok(()))
+        .unwrap();
+    assert_eq!(chart.song_id(), other.song_id());
+    assert_ne!(chart.chart_id(), other.chart_id());
+}
+
+#[test]
+fn gameplay_rejects_missing_sounding_samples_and_dangling_holds() {
+    let sample = SampleId::from_digest(Digest::from_bytes([2; 32]));
+    let samples = BTreeMap::from([(0, sample)]);
+    for channel in [2, 9] {
+        let bytes = with_packages(&[(0, channel, vec![[2, 0, 0, 0]])]);
+        let error = OjnSource::parse(&bytes)
+            .unwrap()
+            .gameplay(0, metadata(), &samples, &mut || Ok(()))
+            .unwrap_err();
+        assert_eq!(error.code(), ErrorCode::MissingAsset);
+        assert_eq!(error.context().get("sampleIndex").unwrap(), "1");
+    }
+    let bytes = with_packages(&[(0, 2, vec![[1, 0, 0, 2]])]);
+    let error = OjnSource::parse(&bytes)
+        .unwrap()
+        .gameplay(0, metadata(), &samples, &mut || Ok(()))
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::CorruptChart);
+    assert!(error.message().contains("no release"));
+    let bytes = with_packages(&[(0, 2, vec![[1, 0, 0, 2], [99, 0, 0, 3]])]);
+    let chart = OjnSource::parse(&bytes)
+        .unwrap()
+        .gameplay(0, metadata(), &samples, &mut || Ok(()))
+        .unwrap();
+    assert!(chart.notes()[0].tail().is_some());
+}
+
+#[test]
+fn gameplay_covers_events_beyond_declared_duration_and_deduplicates_sample_content() {
+    let mut bytes = with_packages(&[(0, 2, vec![[1, 0, 0, 0], [2, 0, 0, 0]])]);
+    bytes[272..276].copy_from_slice(&0_u32.to_le_bytes());
+    let sample = SampleId::from_digest(Digest::from_bytes([2; 32]));
+    let samples = BTreeMap::from([(0, sample), (1, sample)]);
+    let source = OjnSource::parse(&bytes).unwrap();
+    let chart = source
+        .gameplay(0, metadata(), &samples, &mut || Ok(()))
+        .unwrap();
+    assert_eq!(chart.samples(), &[sample]);
+    assert_eq!(
+        serde_json::to_value(&chart).unwrap()["durationUs"],
+        2_423_077
+    );
+    assert_eq!(
+        source
+            .gameplay(3, metadata(), &samples, &mut || Ok(()))
+            .unwrap_err()
+            .code(),
+        ErrorCode::InvalidRequest
+    );
+    assert_eq!(
+        source
+            .gameplay(0, metadata(), &samples, &mut || Err(CoreError::new(
+                ErrorCode::Cancelled,
+                "cancelled"
+            )))
+            .unwrap_err()
+            .code(),
+        ErrorCode::Cancelled
+    );
+}
+
+#[test]
+fn gameplay_omits_identical_same_time_bpm_points_like_the_java_exporter() {
+    let bytes = with_packages(&[
+        (0, 1, vec![130_f32.to_le_bytes()]),
+        (0, 1, vec![130_f32.to_le_bytes()]),
+    ]);
+    let chart = OjnSource::parse(&bytes)
+        .unwrap()
+        .gameplay(0, metadata(), &BTreeMap::new(), &mut || Ok(()))
+        .unwrap();
+    let json = serde_json::to_value(chart).unwrap();
+    assert_eq!(json["judgmentTiming"].as_array().unwrap().len(), 1);
+    assert_eq!(json["visualTiming"], json["judgmentTiming"]);
 }

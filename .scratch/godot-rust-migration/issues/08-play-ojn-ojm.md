@@ -39,3 +39,12 @@
 - 验证证据: `/tmp/vos-ticket08-hold-red.log`, `/tmp/vos-ticket08-hold-search-red.log`, `/tmp/vos-ticket08-java-holds.log`, `/tmp/vos-ticket08-holds-tests.log`, `/tmp/vos-ticket08-holds-workspace.log`. 测试还覆盖搜索超限和取消.
 - 待续: 最终 Note/HoldTail 与 playable eventOrder 构造、样本映射、音频准备和 CLI/Godot 闭环. 仍不勾选 ticket 08 完整验收.
 - 长音增量提交 `ba13319`, 固定基点不变, Standards 0 项 / Spec 0 项. 后续构造需注意: 既有 `gameplay_loader.gd::_normalize_hold_note` 拒绝缺少尾部的 holdStart, 因而不能把未闭合 HOLD 静默变成可游玩的 tap 来宣称 parity.
+
+## 当前增量: bundle v2 gameplay 构造
+
+- `OjnSource::gameplay` 将 parser、timing 与长音修复串联, 构造经验证的 `GameplayChartV2`. 使用调用方提供的稳定 SongId, 从 OJN chartIndex 派生 ChartId; 同文件三个难度共享 SongId, 不用绝对路径产生临时身份.
+- 修复后分配 playable eventOrder, 构造独立的 HoldTail 时间、小节和顺序. autoplay 独立保留顺序, 不占用 playable 顺序. sounding note / autoplay 必须映射到 SampleId, 缺失时给出 MissingAsset + sampleIndex; RELEASE 不单独播放声音, 不额外要求 tail sample 存在.
+- 未闭合 HOLD 返回 CorruptChart. SampleId 内容相同的多个源 index 可复用同一资源; 列表排序去重. duration 至少覆盖实际事件及小节, 避免 header 时长不足造成无效 v2. 原始 header duration 足够时保持它.
+- 同时间、同 BPM 的连续 timing 点按 Java exporter 规则去重, 比较发生在微秒取整前. judgment / visual tracks 使用相同 OJN timing.
+- 验证覆盖同时间 release / 新 tap、tail measure/order、样本关联和源 volume/pan、多 Chart 身份、缺样本、未闭合 HOLD、资源去重、短 duration、取消及重复 BPM. red 证据 `/tmp/vos-ticket08-gameplay-red.log`, `/tmp/vos-ticket08-duplicate-bpm-red.log`; 验证记录 `/tmp/vos-ticket08-gameplay-tests.log`, `/tmp/vos-ticket08-gameplay-workspace.log`.
+- 待续: 字符集解码、基础 OJM 音频准备、持久化 LibraryRootId 请求传递和 raw OJN catalog/bundle/Godot 闭环. 当前仍不等于 ticket 08 完整验收.

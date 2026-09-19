@@ -13,17 +13,22 @@ static func parse_object(text: String, cancel: Callable = Callable()) -> Diction
 	number.compile("^-?(0|[1-9][0-9]*)$")
 	var stack: Array[Dictionary] = []
 	var index := 0
+	var next_cancel_check := 0
 	var previous := ""
 	while index < text.length():
-		if index % 16384 == 0 and cancelled(cancel):
-			return {}
+		if index >= next_cancel_check:
+			next_cancel_check = index + 16384
+			if cancelled(cancel):
+				return {}
 		var ch := text[index]
 		if ch == '"':
 			var start := index
 			index += 1
 			while index < text.length() and text[index] != '"':
-				if index % 16384 == 0 and cancelled(cancel):
-					return {}
+				if index >= next_cancel_check:
+					next_cancel_check = index + 16384
+					if cancelled(cancel):
+						return {}
 				if text.unicode_at(index) < 32:
 					return {}
 				if text[index] == "\\":
@@ -59,8 +64,10 @@ static func parse_object(text: String, cancel: Callable = Callable()) -> Diction
 		elif not ch in [" ", "\t", "\n", "\r"]:
 			var start := index
 			while index < text.length() and not text[index] in [" ", "\t", "\n", "\r", ",", "]", "}", ":", "[", "{", '"']:
-				if index % 16384 == 0 and cancelled(cancel):
-					return {}
+				if index >= next_cancel_check:
+					next_cancel_check = index + 16384
+					if cancelled(cancel):
+						return {}
 				index += 1
 			var token := text.substr(start, index - start)
 			if not token in ["true", "false", "null"] and number.search(token) == null:

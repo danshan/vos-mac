@@ -32,6 +32,14 @@ func _init() -> void:
 	if Wire.parse_object(text).get("value", "").length() != 100000:
 		_fail("Uncancelled long JSON changed.")
 		return
+	_checks = 0
+	var escaped := '{"text":"' + "\\\\".repeat(50000) + '"}'
+	if not Wire.parse_object(escaped, _cancel_during_long_token).is_empty():
+		_fail("Escaped JSON token skipped cancellation checkpoints.")
+		return
+	if Wire.parse_object(escaped).get("text", "").length() != 50000:
+		_fail("Uncancelled escaped JSON changed.")
+		return
 	var pool = AudioPool.new()
 	if not pool.load_manifest(positive["audio"], false) or pool.preloaded_sample_count() != 0:
 		_fail("Deferred native audio registration decoded on the caller thread.")

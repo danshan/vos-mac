@@ -22,3 +22,13 @@ native worker 对 prepared bundle 的源与缓存重新校验, 比较完整 mani
 真实行为 gate `rewrite/tools/verify_native_load_coordinator.sh` 新增 native_artifact_cache_test, 覆盖首次发布、无需 converter 的有效命中、同长度 hash 损坏、长度变化和缺文件的重建. 第一阶段日志 `/tmp/vos-ticket06-cache-red.log`, `/tmp/vos-ticket06-cache-green.log`, `/tmp/vos-ticket06-repair-red.log`, `/tmp/vos-ticket06-repair-green.log`.
 
 仍须补充 source/version 变化、取消与发布失败/磁盘不足的缓存边界及双轴审查. Raw importer 尚未迁移, 当前命中识别仅接 prepared bundle, 后续原始格式须提供实际内容指纹. 不关闭本 ticket.
+
+## 源变化与取消边界补充
+
+阶段提交 `c4306a2`, key 授权修复 `5810080`. 缓存源字节损坏时拒绝旧命中且保留已有有效缓存; converterVersion 变化使用独立 Python framing 生成新 key, 经真实 Rust CLI 和 Godot 验证后发布到不同条目. helper 已生成结果但 generation 被取消时不会创建缓存目录.
+
+Spec 阶段审查发现 P2: 替换权限仅用 bool, K1 损坏后源更新至 K2 可能错误替换有效 K2. 已补 source-change-helper 反例, 先 RED 再 GREEN, 传递具体 replaceKey 并仅允许替换该 key. 对其他已存在 key 返回 CACHE_CORRUPT, 不修改其内容. 最终行为日志 `/tmp/vos-ticket06-key-race-green.log` 包含 coordinator、真实 UI、缓存成功标记, 无 SCRIPT ERROR.
+
+下一步仍需发布失败/磁盘不足与回滚失败的可观察验证, 核对应用专属缓存路径及恢复责任, 完整门禁与最终 ticket 验收. 当前不关闭 ticket.
+
+`5810080` 两轴阶段复审: Standards 0, Spec 0 未解决发现. 该结论不替代剩余失败场景验收.

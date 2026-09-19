@@ -26,3 +26,4 @@
 - 冻结 Java oracle 覆盖所有 remainder、跨 sample 状态、空槽、原始 OMC fixture, 比较 decoded payload 与最终 PCM16. 另验证畸形完整 bank 在改写前拒绝、Ogg bytes 不变和中途取消.
 - red /tmp/vos-omc-red.log, 核心证据 /tmp/vos-omc-core.log, workspace /tmp/vos-omc-workspace.log.
 - 尚未接入 CLI 与 Godot, 当前 production adapter 仍明确拒绝 OMC. 不关闭 ticket, 下一步将核心变换接入捕获 bytes 后、样本准备前, 并保留原始编码源 digest.
+- 核心增量 `bb1f8b0` 固定基点独立审查: Standards 0 项, Spec 0 项. workspace / clippy / fmt 验证证据完整, 生产集成仍待续.

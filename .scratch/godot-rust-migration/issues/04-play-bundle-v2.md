@@ -32,4 +32,6 @@
 
 本阶段仍没有启用 importer: 有效请求返回 `UNSUPPORTED_FORMAT`, version 能力数组为空, 不伪造成功或 Gameplay Ready. 进度模块尚待实际 bundle 服务驱动; 本阶段未声称完成旧横向 Task 4/6 的全部 job-state、cancellation 和 service composition 要求.
 
-验证: 6 项进度合同、16 项原协议合同、8 项真实 CLI、4 项文件发布、1 项版本握手和 8 项合成回归. 原身份测试仍保留并阻止 workspace 累计门禁通过. 日志: `/tmp/vos-ticket04-progress-green.log`, `/tmp/vos-ticket04-transport-cli-green.log`, `/tmp/vos-ticket04-transport-workspace.log`. 失败后仍需新 transport 路径重试.
+验证: 7 项进度合同、16 项原协议合同、8 项真实 CLI、4 项文件发布、1 项版本握手和 8 项合成回归. 原身份测试仍保留并阻止 workspace 累计门禁通过. 日志: `/tmp/vos-ticket04-progress-green.log`, `/tmp/vos-ticket04-transport-cli-green.log`, `/tmp/vos-ticket04-transport-workspace.log`. 失败后仍需新 transport 路径重试.
+
+阶段实现提交: `a41a8b3`. Spec 审查发现 1 项 P2: 进度 schema 不兼容经 serde 丢失 `UNSUPPORTED_SCHEMA` 稳定码. 已由 `62abbaa` 修复, 精确错误码回归先 RED 后 GREEN. 最终两轴复审均无未解决发现: Standards 0, Spec 0. 44 项限定回归与 release build 通过; fmt 和相关 clippy 通过. 未豁免旧 identity 缺实现导致的 workspace 总门禁失败.

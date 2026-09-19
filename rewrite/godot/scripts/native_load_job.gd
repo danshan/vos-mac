@@ -83,6 +83,22 @@ func finish_on_shutdown() -> void:
 		_thread = null
 
 
+func progress_complete() -> bool:
+	if _progress_invalid:
+		return true
+	var path := _directory.path_join("progress.jsonl")
+	if FileAccess.file_exists(path):
+		var file := FileAccess.open(path, FileAccess.READ)
+		if file == null or file.get_length() < _progress_offset:
+			_progress_invalid = true
+			return true
+		if file.get_length() > _progress_offset:
+			return false
+	if not _progress_pending.is_empty():
+		_progress_invalid = true
+	return true
+
+
 func read_progress() -> Dictionary:
 	if _cancelled or _progress_invalid:
 		return {}

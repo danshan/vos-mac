@@ -18,7 +18,7 @@ import os
 import subprocess
 import sys
 root = pathlib.Path(sys.argv[1]).resolve()
-for name in ["hang-helper", "late-helper", "marker-error-helper"]:
+for name in ["hang-helper", "late-helper", "marker-error-helper", "bad-progress-helper", "truncated-progress-helper"]:
     helper = root / name
     body = pathlib.Path("rewrite/tools/native_load_test_helper.py").read_text().split("\n", 1)[1]
     helper.write_text("#!" + sys.executable + "\n" + body)

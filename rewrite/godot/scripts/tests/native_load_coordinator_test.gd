@@ -78,6 +78,16 @@ func _run() -> void:
 			_fail("Cancelled helper blocked frames or exceeded reclamation deadline.")
 			return
 
+	for helper_name: String in ["bad-progress-helper", "truncated-progress-helper"]:
+		_errors.clear()
+		current = coordinator.start_loading(args[2].path_join(helper_name), request, args[2])
+		deadline = Time.get_ticks_msec() + 5000
+		while coordinator.pending_count() > 0 and Time.get_ticks_msec() < deadline:
+			await process_frame
+		if _ready_generations.has(current) or _errors.size() != 1 or _errors[0][1].get("code") != "INVALID_REQUEST":
+			_fail("Unconsumed or truncated progress allowed success.")
+			return
+	_errors.clear()
 	var changed := request.duplicate(true)
 	changed["chartId"] = "chart:sha256:" + "0".repeat(64)
 	changed["selector"]["chartId"] = changed["chartId"]

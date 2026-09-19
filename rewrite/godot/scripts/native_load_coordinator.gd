@@ -43,6 +43,8 @@ func _process(_delta: float) -> void:
 				progressed.emit(job.generation, progress)
 		if not job.is_done():
 			continue
+		if job == _active and job.generation == _generation and not job.progress_complete():
+			continue
 		var result: Dictionary = job.take_result()
 		_jobs.erase(job)
 		# A progress callback may have cancelled or replaced the active generation.

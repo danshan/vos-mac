@@ -13,7 +13,7 @@ job_dir = request_path.parent
 work = job_dir.parent
 mode = pathlib.Path(sys.argv[0]).name
 (work / (mode + ".pid")).write_text(str(os.getpid()))
-if mode == "late-helper":
+if mode == "late-helper" or "progress-helper" in mode:
     source = pathlib.Path(request["sourcePath"])
     staged = pathlib.Path(request["stagingRoot"]) / request["jobId"]
     shutil.copytree(source, staged)
@@ -21,6 +21,17 @@ if mode == "late-helper":
     result = {"schemaVersion": 1, "jobId": request["jobId"], "command": "BUNDLE", "status": "SUCCEEDED", "error": None,
               "output": {"stagingPath": str(staged), "bundleKey": manifest["bundleKey"], "manifestPath": str(staged / "bundle.json")}}
     (job_dir / "result.json").write_text(json.dumps(result))
+    if "progress-helper" in mode:
+        event = {"schemaVersion": 1, "jobId": request["jobId"], "command": "BUNDLE", "phase": "VERIFY_BUNDLE",
+                 "completedUnits": 1, "totalUnits": 1, "unit": "bundle", "currentItem": None}
+        with (job_dir / "progress.jsonl").open("w") as stream:
+            for sequence in range(1, 301):
+                stream.write(json.dumps(dict(event, sequence=sequence)) + "\n")
+            if mode == "bad-progress-helper":
+                stream.write(json.dumps(dict(event, sequence=999)) + "\n")
+            else:
+                stream.write('{"schemaVersion":1')
+        sys.exit(0)
     (work / (mode + ".ready")).write_text("ready")
     while not (job_dir / "cancel").exists():
         time.sleep(0.005)

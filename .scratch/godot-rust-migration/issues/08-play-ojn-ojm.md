@@ -48,3 +48,4 @@
 - 同时间、同 BPM 的连续 timing 点按 Java exporter 规则去重, 比较发生在微秒取整前. judgment / visual tracks 使用相同 OJN timing.
 - 验证覆盖同时间 release / 新 tap、tail measure/order、样本关联和源 volume/pan、多 Chart 身份、缺样本、未闭合 HOLD、资源去重、短 duration、取消及重复 BPM. red 证据 `/tmp/vos-ticket08-gameplay-red.log`, `/tmp/vos-ticket08-duplicate-bpm-red.log`; 验证记录 `/tmp/vos-ticket08-gameplay-tests.log`, `/tmp/vos-ticket08-gameplay-workspace.log`.
 - 待续: 字符集解码、基础 OJM 音频准备、持久化 LibraryRootId 请求传递和 raw OJN catalog/bundle/Godot 闭环. 当前仍不等于 ticket 08 完整验收.
+- gameplay 构造增量提交 `4721d5e`, 固定基点不变, Standards 0 项 / Spec 0 项. 完整音频播放和 CLI/Godot 验收仍待后续.

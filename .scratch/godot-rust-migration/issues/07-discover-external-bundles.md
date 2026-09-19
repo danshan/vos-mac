@@ -19,3 +19,5 @@ catalog handler 已扫描请求 roots, 递归发现 bundle.json, 使用现有 Ru
 每个任务独占 staging 下的 JobId 目录, catalog 临时文件写完并 sync 后 rename, 不覆盖已有任务输出. catalogFormats 握手现声明 BUNDLE. 真实 CLI 回归覆盖两份相同声明身份的不同来源、缺资源隔离、完整搬移后的声明身份保留、已有输出不可覆盖、取消不产出目录、空 roots 产生空 snapshot.
 
 日志: `/tmp/vos-ticket07-catalog-red.log`, `/tmp/vos-ticket07-catalog-green.log`, `/tmp/vos-ticket07-catalog-boundaries.log`, `/tmp/vos-ticket07-workspace.log`. 尚未接 Godot catalog consumer/UI, 尚未完成从扫描结果选择到 gameplay 的联动验收. root 不可用的 last-known-good 协调归 ticket 17, 持久化 RootId 绑定归 ticket 16; 当前 snapshot 来源不是持久化选择 ID. ticket 07 保持 in-progress.
+
+阶段实现 `c6d5d1e` 的两轴复审未解决项: Standards 0, Spec 0. Native workspace 精确计数 84 passed, 0 failed/ignored, fmt/Clippy 检查通过. 阶段合同见 `docs/rewrite/2026-09-19-native-bundle-catalog.md`. 下一步仍为 Godot catalog consumer/UI 联动, 不关闭 ticket.

@@ -74,3 +74,4 @@
 - 更新当前音频支持范围: integer PCM8/16/24/32、float32/64、A-law、μ-law、Ogg/Vorbis, 均输出 PCM16 mono/stereo WAV. 不支持的 tag/bit depth 组合明确拒绝, 不猜测格式.
 - 验证证据: `/tmp/vos-ticket08-extended-pcm-red.log`, `/tmp/vos-ticket08-extended-pcm-tests.log`, `/tmp/vos-ticket08-wave-formats-workspace.log`. 此增量未新增运行时依赖.
 - 后续集中推进字符集、LibraryRootId 请求传递和 raw OJN CLI/catalog/bundle/Godot 闭环, 尚不勾选 ticket 08 完整验收.
+- 本轮 WAV 兼容性增量提交 `341f8b7`, 固定基点不变, Standards 0 项 / Spec 0 项. 审查范围包含整数/float/companded 转换, 不代表完整 ticket 验收.

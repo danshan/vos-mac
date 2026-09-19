@@ -31,3 +31,11 @@
 - 保持 binary64 累积, 最终时间转换为整数微秒. 数值溢出、过多 measures、各输出轨道倒退明确拒绝. 二分 timing 查询避免每个 note 线性遍历全部 tempo; cancellation 覆盖输入构建和稀疏小节填充.
 - red 记录: /tmp/vos-osu-timing-red.log 与 /tmp/vos-osu-timing-bounds-red.log. 当前测试记录: /tmp/vos-osu-timing-green.log. 本增量不完成 ticket: long-note repair、BPM/scroll Ratio wire 转换、sample/audio、catalog/adapter 与 Godot 加载仍待实现.
 - timing 增量 7fbc199 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace、clippy、fmt 退出 0; 记录 /tmp/vos-osu-timing-workspace.log、/tmp/vos-osu-timing-clippy.log. Java oracle provenance 仍匹配冻结源, 记录 /tmp/vos-osu-timing-provenance.log. 无产品 Java-free 完成声明.
+
+## 当前增量: 完整 osu Chart 构造
+
+- OsuSource.compile + CompiledOsuChart.with_samples 连接 timing、长音修复、稳定 ChartIdentity、音符/尾部顺序和 sample ID 解析, 输出通过验证的 GameplayChartV2. OJN 与 osu 使用共享 legacy_notes 实现, 保留有界搜索与取消.
+- 新增生产 VosGameplayExporter 长音 oracle 对照重叠 holds、转 autoplay 的 notes、同刻顺序与释放时间. sampleless Note 保留; Java 中 index 0 的静音 autoplay 不生成 v2 音频引用. 非零 sample 缺失明确返回 MissingAsset, 未配对 hold 返回 CorruptChart.
+- 0..100 音量按 Java binary32 精确转换为 Ratio. 非整数 BPM/scroll 使用既有 wire bounds 内的连分数, 回转 binary64 相对误差 <= 4 * f64::EPSILON, 否则拒绝; 独立 precision oracle 与超范围测试覆盖该行为. 不更改已冻结整数微秒.
+- duration 覆盖全部事件与 timing, 不直接复制旧 nominal duration. chart_path 相对 beatmap set, 下一步 adapter 负责 catalog source 与 audio 文件绑定.
+- red: /tmp/vos-osu-gameplay-red.log. 当前精度与修复记录: /tmp/vos-osu-gameplay-precision.log, OJN 原有 64 组修复 oracle 继续用于共享算法回归. 尚待 sample/audio 实际解码、catalog/adapter 和 Godot 全链路验收, ticket 保持 in-progress.

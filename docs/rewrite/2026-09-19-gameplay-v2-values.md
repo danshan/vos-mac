@@ -33,3 +33,13 @@ judgmentTiming 与 visualTiming 分开保留编译后的 BPM ratio, 允许零速
 sample ID 集合必须排序且唯一; 非空 Note 引用及所有 autoplay 引用必须命中集合. sampleless Note 在各源格式均可表达, 仍保留 volume/pan; 不因 sampleless 自动丢弃 Note. Note 头尾的 measure 索引必须命中 measures. bundle 是传输来源而非 gameplay 源格式, 因而 Chart format 保留 VOS、O2JAM 或 OSU_MANIA, 不接受 BUNDLE.
 
 该模型尚未完成 audio asset 与 bundle manifest 的跨文件身份/引用校验, BGA 资源表示及实际 Godot adapter. 这些工作继续归迁移范围, 本节不能作为完整 bundle consumer 或 ticket 04 完成的依据. Chart round-trip 只验证字段保留; 最终必须由真实 Rust producer 与 Godot runtime 验证消费语义.
+
+## osu 数值转换与完整 Chart 构造
+
+osu compiler 保持 Java binary64 timing 累积, 输出音符和 timing 时间只做一次整数微秒转换. 在构造 GameplayChartV2 时, BPM 与 scroll 使用有界连分数转换为既有 Ratio, 不更改 wire 字段或分母类型. 将所得 Ratio 重新转为 binary64 后, 与 compiler 值的相对误差必须 <= 4 * f64::EPSILON (约 8.882e-16), 否则明确拒绝为 CorruptChart. 分子仍 <= 2^53-1, 分母仍为非零 u32. 这是显式的数值容差, 不宣称对任意 binary64 都精确可表示; 例如 125.99999999999999 可表示为 126/1. 此转换不回流至音符时间计算.
+
+osu volume 的整数百分比先按 Java binary32 除以 100, 再以 2^30 分母精确编码并约分, 覆盖 0..100 所有值. 不舍入到十进制百分比. pan 为 0/1. 原始 sample index 0 在 playable Note 中表示 null; index 1 为背景轨, 自定义 sample 从 2 起. 所有非零 sounding sample 必须解析为实际 SampleId, 即使音量为 0 也不能跳过缺失检查.
+
+OJN 与 osu 复用同一个 OPEN2JAM 长音修复算法, 每个 importer 保留自身时间和 sample payload. 修复保留原有稳定事件顺序与 32,000,000 次搜索工作上限. 修复后的 playable head/tail 共享顺序计数; 未配对 HOLD 明确拒绝. Java 修复可把 sample index 0 的 osu 音符转为 autoplay; 它不产生音频, v2 不为其虚构资产或输出不可解析的 autoplay 引用. 非零 autoplay 保留, 包括 backward repair 移动的 RELEASE 音频事件.
+
+durationUs 同时覆盖源名义长度、修复后事件、measure、judgment/visual timing 与 scroll. 它可能大于旧 exporter 的 durationMs, 特别是 1500 ms lead-in 或拍号缩放延长时. OsuMetadata 的 chart_path 相对 beatmap set, 用于既有 ChartIdentity::osu, 不是当前磁盘绝对路径. 文件目录如何组成 Song 的规则继续由 catalog/adapter 实现.

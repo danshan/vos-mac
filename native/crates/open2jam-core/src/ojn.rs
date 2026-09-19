@@ -21,12 +21,7 @@ pub struct OjnSource<'a> {
     levels: [i16; 3],
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NoteKind {
-    Tap,
-    Hold,
-    Release,
-}
+pub use crate::legacy_notes::NoteKind;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EventKind {

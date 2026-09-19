@@ -4,7 +4,10 @@ use crate::{
 };
 use std::collections::BTreeMap;
 
+mod gameplay;
+mod holds;
 mod timing;
+pub use gameplay::{CompiledOsuChart, OsuMetadata};
 pub use timing::{OsuNoteKind, OsuScrollChange, OsuTimeline, OsuVelocityChange, TimedOsuSample};
 
 pub const MAX_SOURCE_BYTES: usize = 64 * 1024 * 1024;

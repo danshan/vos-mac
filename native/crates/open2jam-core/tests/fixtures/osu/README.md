@@ -23,4 +23,22 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OsuTimingOracle.ja
 
 边界差异: Rust 明确拒绝 i32 时间差溢出、无限 velocity、超过 1,000,000 measures 或精确微秒范围的 timeline, 以及 Java 拍号缩放产生的各输出轨道时间倒退. 不以 wraparound、重排 notes 或覆盖 golden 隐藏这些问题. 原始事件上限为 notes + timing <= 1,000,000; 展开 hold 尾部与 meter 事件后最多 2,000,001 个内部事件, 未按时间跨度无界分配. TimingMap 查询使用二分, stable sort 前后及逐输入事件/measure 检查取消.
 
-编译器保持 binary64 累积时间, 仅输出时取整数微秒, 不用逐事件舍入后的时间继续累积. BPM/scroll 暂以 binary64 保留 Java compiler 值, 尚未做 bundle Ratio 转换或最终完整 Chart 编译. 该转换必须保留相应精度并在后续 adapter 增量验证, 不能以本组 oracle 宣称已完成 wire 精度验收.
+编译器保持 binary64 累积时间, 仅输出时取整数微秒, 不用逐事件舍入后的时间继续累积. 原始 timeline 的 BPM/scroll 以 binary64 保留 Java compiler 值. 下节另行验证完整 Chart 的 Ratio 转换; 仅凭修复前的原始 timeline oracle 不能宣称已完成 wire 精度验收.
+
+## 完整 Chart 与精度补充
+
+后续 CompiledOsuChart 增量已实现 Ratio wire 转换与 sample ID 绑定. 上述原始 timing oracle 仍代表修复前边界. 新增 hold-repair-gameplay-java.json 直接调用生产 VosGameplayExporter, 因而包含 EventList 修复后的重叠长音、转 autoplay、释放顺序和 volume. 仅将 sourcePath 归一化为 fixture.osu, 不改变其他 expected 字段. sample ID 0 的静音 autoplay 在 v2 中不生成虚构 audio asset; 对照时明确排除此类音频空事件.
+
+precision.osu 的同刻多 tempo/scroll 冻结非整数及接近整数的 Java binary64 值. Rust wire Ratio 与 oracle 的相对误差上限为 4 * f64::EPSILON, 详见 docs/rewrite/2026-09-19-gameplay-v2-values.md. Note 时间仍使用独立整数微秒合同, volume 精确保留 binary32, 不使用上述容差.
+
+```bash
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OsuTimingOracle.java native/crates/open2jam-core/tests/fixtures/osu/hold-repair.osu native/crates/open2jam-core/tests/fixtures/osu/hold-repair-gameplay-java.json gameplay
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OsuTimingOracle.java native/crates/open2jam-core/tests/fixtures/osu/precision.osu native/crates/open2jam-core/tests/fixtures/osu/precision-java.json
+```
+
+| 文件 | SHA-256 |
+|---|---|
+| hold-repair.osu | abcf70fad9d71a9df25b793e00dc564ba7cbba806e821bf1cdb32f6442bf45d0 |
+| hold-repair-gameplay-java.json | cbf99ed96917774c6bc81fcf56194fbfdacb3dd1c7dfcc5a14a1a9d6b0dceb5e |
+| precision.osu | 9b67a77795933e8d18786107ac69379f7683e7e8995810847fec511f62c13947 |
+| precision-java.json | 477c88ae79830fa1588ebdbae31944bb0169302269246ca362551655b0e68469 |

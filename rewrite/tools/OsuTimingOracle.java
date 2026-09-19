@@ -9,6 +9,12 @@ import org.open2jam.render.RenderTimingCompiler;
 // Migration-only oracle before long-note repair; tests consume the frozen JSON.
 class OsuTimingOracle {
     public static void main(String[] args) throws Exception {
+        if (args.length == 3 && args[2].equals("gameplay")) {
+            var input = new File(args[0]);
+            var json = new org.open2jam.export.VosGameplayExporter().exportGameplay(input);
+            Files.writeString(Path.of(args[1]), json.replace(input.getCanonicalPath(), "fixture.osu") + "\n");
+            return;
+        }
         var chart = ChartParser.parseFile(new File(args[0])).get(0);
         var judgment = new TimingData();
         var visual = new TimingData();

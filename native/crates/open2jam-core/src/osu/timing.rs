@@ -3,12 +3,7 @@ use crate::{error::CoreError, gameplay::TimeMicros};
 
 const MAX_MEASURES: u32 = 1_000_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum OsuNoteKind {
-    Tap,
-    Hold,
-    Release,
-}
+pub use crate::legacy_notes::NoteKind as OsuNoteKind;
 
 #[derive(Debug)]
 pub struct TimedOsuSample {

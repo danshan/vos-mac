@@ -11,6 +11,7 @@ pub mod format;
 pub mod gameplay;
 pub mod id;
 pub mod json;
+mod legacy_notes;
 pub mod ojm;
 pub mod ojn;
 pub mod osu;

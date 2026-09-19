@@ -987,6 +987,8 @@ This commit is the Wave A base. Both reviews must be approved before Task 3 or T
 
 ### Task 3: Define the normalized Song, Chart, Event, and Sample domain
 
+2026-09-19 数值合同修订: 已批准迁移 spec 要求保留源格式 volume/pan 精度与长音头尾 measure/order. 本节旧整数百分比、无尾部顺序的 Note 示例由 `docs/rewrite/2026-09-19-gameplay-v2-values.md` 的 TimeMicros、Ratio、Note/HoldTail 合同取代; 完整 Chart、timing 与 consumer 验收仍须完成.
+
 **Files:**
 - Modify: `native/crates/open2jam-core/src/lib.rs`
 - Create: `native/crates/open2jam-core/src/domain/mod.rs`

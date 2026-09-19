@@ -10,7 +10,7 @@ fn version_command_emits_the_frozen_handshake() {
     assert!(output.status.success());
     assert_eq!(
         output.stdout,
-        b"{\"schemaVersion\":1,\"converterVersion\":\"0.1.0\",\"protocolSchemaVersion\":1,\"catalogSchemaVersion\":2,\"bundleSchemaVersion\":2,\"catalogFormats\":[\"O2JAM\",\"BUNDLE\"],\"bundleFormats\":[\"BUNDLE\"]}\n"
+        b"{\"schemaVersion\":1,\"converterVersion\":\"0.1.0\",\"protocolSchemaVersion\":1,\"catalogSchemaVersion\":2,\"bundleSchemaVersion\":2,\"catalogFormats\":[\"O2JAM\",\"BUNDLE\"],\"bundleFormats\":[\"O2JAM\",\"BUNDLE\"]}\n"
     );
     assert!(output.stderr.is_empty());
 }

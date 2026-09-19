@@ -65,11 +65,20 @@ pub struct BundleRequestV1 {
     pub chart_id: ChartId,
     pub source_path: AbsoluteSourcePath,
     pub source_kind: SourceKind,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub library_root: Option<LibraryRootRequest>,
     pub selector: ChartSelector,
     pub staging_root: AbsoluteSourcePath,
     pub cancel_marker_path: AbsoluteSourcePath,
     pub soundfont: SoundFontRequest,
     pub static_assets_version: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LibraryRootRequest {
+    pub id: LibraryRootId,
+    pub path: AbsoluteSourcePath,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -203,6 +212,26 @@ impl BundleRequestV1 {
             return Err(invalid(
                 "bundle command, source kind, and selector must agree",
             ));
+        }
+        if self.source_kind == SourceKind::Ojn && self.library_root.is_none() {
+            return Err(invalid("OJN bundle requires a persistent library root"));
+        }
+        if let Some(root) = &self.library_root {
+            let relative = self
+                .source_path
+                .as_path()
+                .strip_prefix(root.path.as_path())
+                .map_err(|_| invalid("bundle source is outside its library root"))?;
+            SourceRelativePath::parse(
+                relative
+                    .to_str()
+                    .ok_or_else(|| invalid("non-UTF-8 source path"))?,
+            )?;
+            if self.source_kind == SourceKind::BundleV2 {
+                return Err(invalid(
+                    "prepared bundle identity is declared by its manifest",
+                ));
+            }
         }
         if self.static_assets_version != STATIC_ASSETS_VERSION
             || self.soundfont.version.is_empty()

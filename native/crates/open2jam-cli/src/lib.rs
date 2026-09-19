@@ -7,3 +7,4 @@ pub mod runner;
 mod bundle_service;
 
 mod catalog_service;
+mod ojn_bundle;

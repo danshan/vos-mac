@@ -52,3 +52,11 @@ CATALOG request schema 1 新增可选 `rootIds`, 按请求中的绝对 root path
 OJN source 的每个 Chart 返回共同的 rootPath、rootId、relativePath、sourcePath、songId、title、artist, 以及各自的 chartId、chartIndex、level、durationSeconds. sourceKind 为 OJN. 该分支不带外部 bundle 的 soundfont/staticAssetsVersion 字段, 不依赖音频预解码生成元信息. 每个 OJN source 提供三个 Chart, root token 是必需输入. 外部 bundle 的 entry 结构不变.
 
 sourceCount 为有效来源数加被拒绝来源数, songCount 为有效来源下的 Song 数, chartCount 为展开后的 Chart 数. 当前支持的 OJN 和单 Chart bundle 都是一源一 Song, 不跨来源按 declared SongId 去重. Godot 的 OJN catalog 消费与 raw bundle adapter 仍需配套接入, 不能用 bundle-only 计数条件消费多 Chart 输出.
+
+## OJN bundle 请求来源
+
+OJN BUNDLE request 必须携带 `libraryRoot: {id, path}`. path 是本次 root 位置, id 是持久化 LibraryRootId. sourcePath 必须是其下合法非空相对路径, 转换器用该相对路径和 token 重新派生 SongId/ChartId, 拒绝与请求 chartId 不一致的选择. 外部 BUNDLE_V2 继续以 manifest 身份为准, 不接受该字段.
+
+OJN 不使用 SoundFont 合成. 为保持既有 v2 bundle/key 合同, 当前仍携带 request.soundfont 的版本/hash 作为 key 配置输入, 但不打开其 path. 此字段不是 OJN 音色来源, 也不能据此宣称做过 SoundFont 文件校验.
+
+OJN fingerprint 使用既有 v1 framing: 两个 component, PRIMARY=1 与 COMPANION=2, ordinal 均为 0, 分别记录完整源 bytes 长度及 digest, 不记录绝对路径. 解析使用同一打开句柄读取并哈希的不可变 bytes, 最终返回前检查句柄及原路径的 identity/size/mtime, 拒绝文件变化. 当前 Unix adapter 使用 dev/ino 和纳秒 mtime; Windows 原始源 capture 尚未实现, 本次 macOS arm64 交付范围不变.

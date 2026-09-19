@@ -107,3 +107,18 @@
 - red 证据 `/tmp/vos-ojn-catalog-red.log`, `/tmp/vos-ojn-catalog-version-red.log`; 验证记录 `/tmp/vos-ojn-catalog-tests.log`, `/tmp/vos-ojn-catalog-workspace.log`, `/tmp/vos-ojn-catalog-godot.log`. 首次测试调用误将 CLI 参数乱序, 已修正为现有固定顺序并对修改前 catalog 验证实际 sourceCount=0 的 red, 未将用法错误当作缺少 OJN 支持的证据.
 - 下一步: raw bundle request 的稳定来源上下文、OJN companion 安全解析和音频/manifest 组装, 随后更新 Godot 的多 Chart 消费. ticket 保持 in-progress.
 - Raw catalog 增量提交 `2ffd103`, 固定基点两轴审查 Standards 0 项 / Spec 0 项. 当前证据证明 CLI metadata discovery, 不证明 raw OJN 已经在 Godot 可游玩.
+
+## 当前增量: Raw OJN/OJM bundle 到 Gameplay Ready
+
+- OJN BUNDLE request 增加必需的 libraryRoot 上下文, 验证源路径属于 root, 重新派生并核对 ChartId. 原外部 bundle 请求/manifest 身份路径不变.
+- CLI 使用 core OJN parser、timing/长音修复与 OJM 音频准备, 生成 content-addressed PCM16 WAV、audio manifest 和 gameplay JSON, 经既有 BundleStager 验证/原子完成. 不启动 Java, 不打开 request 的 SoundFont path. sample 相同内容去重, 保留 index -> SampleId 关联.
+- core 新增 CompiledOjnChart, 将 timing 编译和 sample 绑定分开, 原 gameplay 接口保留为组合入口. 先编译 timing、后准备音频, 无重复 timing 编译, 进度反映真实阶段和数量. 回归中发现非法 chartIndex 的错误码顺序变化, 已恢复原 INVALID_REQUEST 行为.
+- 源文件读取前限制 regular file 与输入大小, Unix 使用 O_NOFOLLOW / O_NONBLOCK, 64 KiB 读取/哈希取消检查. 解析消费已捕获的不可变 bytes; 同一文件句柄和路径在读取后及最终返回前核对 dev/ino、size、mtime. 这是当前源变化检测, 不宣称已完成 ticket 25 的全部并发文件系统攻击验收.
+- 当前上限沿用 OJN 64 MiB、OJM 512 MiB、单 sample decoded PCM 256 MiB, 另将一次转换的累计 prepared WAV 限为 4 GiB. 音频逐 sample 写 staging, 不同时保留全部 decoded WAV. 这些是当前安全拒绝边界, 不是最终性能验收规模或 RSS 证明, ticket 24 仍须测量复核.
+- Companion 使用 UTF-8 优先; legacy bytes 使用 detector 候选与 EUC-KR/GBK/Big5/Shift_JIS 候选严格解码, 只接受实际存在的唯一 regular file. 拒绝路径越界、链接、无匹配或多候选歧义, 不根据显示乱码或同名猜测文件. 安全的子目录相对路径可用.
+- version 同时声明 catalogFormats / bundleFormats 的 O2JAM 与 BUNDLE; OMC/M30 仍明确 UNSUPPORTED_FORMAT, 分别留给 tickets 09/10.
+- 新 CLI 回归覆盖 prepared bundle 独立搬移、真实 note 与 volume/pan/sample 关联、阶段顺序、重试确定性、companion 内容变更导致 key 变化、缺 root、越界、ChartId 不匹配、缺 companion/sample、取消、链接和 legacy 名称歧义.
+- `rewrite/tools/verify_native_ojn_gameplay.sh` 从真实 CLI catalog 获取 entry, 通过 MainUi 的既有公开入口注入该 entry, 再由 Godot 异步 native converter 转换并到 Gameplay Ready, 完成 note judgment 和 prepared audio 事件. 它证明转换/加载链路, 不证明普通曲库列表已接入 OJN 消费或独立 Difficulty Selection.
+- red 证据 `/tmp/vos-ojn-bundle-red.log`, `/tmp/vos-ojn-bundle-phase-red.log`, `/tmp/vos-ojn-companion-red.log`, `/tmp/vos-ojn-bundle-version-red.log`. 验证记录 `/tmp/vos-ojn-bundle.log`, `/tmp/vos-ojn-bundle-parser.log`, `/tmp/vos-ojn-bundle-workspace.log`, `/tmp/vos-ojn-gameplay.log`, `/tmp/vos-ojn-bundle-catalog-regression.log`.
+- 待续: 普通 Godot catalog 的 OJN 消费、多 Chart 选择和稳定 root 设置持久化, 完整 ticket 08 仍不关闭. SettingsStore 新测试 seam 的确认仍待答复, 现有 UI/CLI 验收边界继续用于独立推进.
+- 补充源文件选中后被删除的 CLI 回归, 从 INTERNAL_ERROR 修正为 SOURCE_CHANGED, red `/tmp/vos-ojn-source-removed-red.log`. 不将源消失误报为 converter 内部崩溃.

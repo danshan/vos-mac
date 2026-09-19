@@ -149,9 +149,18 @@ pub fn run(
             }
         }
         if let Some(request) = bundle_request
-            && request.source_kind == open2jam_core::format::SourceKind::BundleV2
+            && matches!(
+                request.source_kind,
+                open2jam_core::format::SourceKind::BundleV2
+                    | open2jam_core::format::SourceKind::Ojn
+            )
         {
-            match crate::bundle_service::import_bundle(&request, &mut progress) {
+            let conversion = if request.source_kind == open2jam_core::format::SourceKind::Ojn {
+                crate::ojn_bundle::convert(&request, &mut progress)
+            } else {
+                crate::bundle_service::import_bundle(&request, &mut progress)
+            };
+            match conversion {
                 Ok(output) => {
                     result = CommandResultV1::succeeded(
                         request.job_id,

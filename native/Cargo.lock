@@ -185,6 +185,9 @@ dependencies = [
 name = "open2jam-cli"
 version = "0.1.0"
 dependencies = [
+ "chardetng",
+ "encoding_rs",
+ "libc",
  "open2jam-core",
  "rustysynth",
  "serde",

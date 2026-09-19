@@ -6,7 +6,7 @@ use crate::{
 mod gameplay;
 mod holds;
 mod timing;
-pub use gameplay::OjnMetadata;
+pub use gameplay::{CompiledOjnChart, OjnMetadata};
 pub use timing::{OjnTimeline, TimedOjnEvent};
 
 // These bounds constrain parsing work independently of untrusted header counts.

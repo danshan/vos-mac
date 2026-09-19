@@ -387,6 +387,12 @@ fn bundle_request(
         chart_id,
         source_path: AbsoluteSourcePath::parse("/tmp/chart.vos").unwrap(),
         source_kind,
+        library_root: (source_kind == SourceKind::Ojn).then(|| {
+            open2jam_core::protocol::LibraryRootRequest {
+                id: open2jam_core::id::LibraryRootId::from_digest(Digest::from_bytes([0; 32])),
+                path: AbsoluteSourcePath::parse("/tmp").unwrap(),
+            }
+        }),
         selector,
         staging_root: AbsoluteSourcePath::parse("/tmp/staging").unwrap(),
         cancel_marker_path: AbsoluteSourcePath::parse("/tmp/cancel/job-002").unwrap(),

@@ -3,6 +3,7 @@ use crate::{
     gameplay::Ratio,
 };
 
+mod holds;
 mod timing;
 pub use timing::{OjnTimeline, TimedOjnEvent};
 

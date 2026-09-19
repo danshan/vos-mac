@@ -29,3 +29,12 @@
 - public parser/timing seam 覆盖 BPM 变化、短小节、分数拍、4096 事件微秒精度、过大 measure、异常 BPM 和展开期间取消. `/tmp/vos-ticket08-java-timeline.log` 记录 Java `RenderTimingCompiler` 对同一 120 -> 240 BPM / 半小节案例的输出, 小节为 1500000/2500000/3500000 us, 音符为 2000000/3000000/3500000 us. 工作集证据为 `/tmp/vos-ticket08-timeline-workspace.log`, 首个 red 为 `/tmp/vos-ticket08-timeline-red.log`.
 - 此结果仍是带时间的原始事件, 未实施 `EventList.OPEN2JAM` 长音修复及最终 playable eventOrder 分配. 不据此勾选完整 timing / 长音 parity 验收.
 - 时间轴增量提交 `e86359f`, 固定基点不变. Standards 0 项, Spec 0 项; 审查认可当前增量边界, 不代表完整 ticket 验收.
+
+## 当前增量: 长音事件修复
+
+- `OjnTimeline::repair_long_notes` 对照 `EventList.OPEN2JAM` 处理重复 HOLD、tap 插入、前后搜索、孤立 RELEASE 及 autoplay 长音. 只改变事件类别或移除 Java 会删除的事件, 保留时间、sample、volume/pan 和其余事件相对顺序.
+- 保留 backward repair 将已遍历 RELEASE 移入 autoplay 的行为, 不额外规范化 Java 未再次遍历的事件. 没有尾部的最终 HOLD 暂留在修复结果中, 最终 gameplay 转换仍需处理.
+- 64 组固定种子 Java oracle 冻结于 `native/crates/open2jam-core/tests/fixtures/ojn/hold-repair.json`, 生成源与 hash 见同目录 README. 正常 Rust 测试不调用 Java. 不改写原迁移 goldens.
+- 搜索累计最多 32,000,000 次候选检查, 超限 CorruptChart, 搜索期间检查取消. 该安全工作量限制仍需 ticket 24 的真实工作集复核.
+- 验证证据: `/tmp/vos-ticket08-hold-red.log`, `/tmp/vos-ticket08-hold-search-red.log`, `/tmp/vos-ticket08-java-holds.log`, `/tmp/vos-ticket08-holds-tests.log`, `/tmp/vos-ticket08-holds-workspace.log`. 测试还覆盖搜索超限和取消.
+- 待续: 最终 Note/HoldTail 与 playable eventOrder 构造、样本映射、音频准备和 CLI/Godot 闭环. 仍不勾选 ticket 08 完整验收.

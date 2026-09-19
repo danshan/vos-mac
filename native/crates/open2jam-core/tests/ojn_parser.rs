@@ -242,3 +242,199 @@ fn timeline_rejects_unbounded_expansion_backward_time_and_unrepresentable_bpm() 
         .unwrap_err();
     assert_eq!(error.code(), ErrorCode::Cancelled);
 }
+
+#[test]
+fn long_note_repair_matches_legacy_duplicate_hold_and_orphan_release_rules() {
+    let bytes = with_packages(&[
+        (
+            0,
+            2,
+            vec![[1, 0, 0, 2], [2, 0, 0, 2], [2, 0, 0, 3], [9, 0, 0, 3]],
+        ),
+        (1, 9, vec![[1, 0, 0, 2], [1, 0, 0, 3]]),
+    ]);
+    let timeline = OjnSource::parse(&bytes)
+        .unwrap()
+        .timeline(0, &mut || Ok(()))
+        .unwrap()
+        .repair_long_notes(&mut || Ok(()))
+        .unwrap();
+    let samples: Vec<_> = timeline
+        .events
+        .iter()
+        .filter_map(|event| match event.event.kind {
+            EventKind::Sample {
+                lane,
+                sample_index,
+                kind,
+                ..
+            } => Some((lane, sample_index, kind)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        samples,
+        [
+            (Some(0), 0, NoteKind::Tap),
+            (Some(0), 1, NoteKind::Hold),
+            (None, 1, NoteKind::Release),
+            (Some(0), 8, NoteKind::Release),
+            (None, 0, NoteKind::Tap)
+        ]
+    );
+}
+
+#[test]
+fn long_note_repair_searches_forward_and_backward_before_assigning_autoplay() {
+    type ExpectedSample = (Option<u8>, u32, NoteKind);
+    type RepairCase<'a> = (&'a [[u8; 4]], &'a [ExpectedSample]);
+    let cases: &[RepairCase<'_>] = &[
+        (
+            &[[1, 0, 0, 2], [2, 0, 0, 0], [1, 0, 0, 0]],
+            &[
+                (Some(0), 0, NoteKind::Hold),
+                (None, 1, NoteKind::Tap),
+                (Some(0), 0, NoteKind::Release),
+            ],
+        ),
+        (
+            &[[1, 0, 0, 0], [2, 0, 0, 0], [1, 0, 0, 3]],
+            &[
+                (Some(0), 0, NoteKind::Hold),
+                (None, 1, NoteKind::Tap),
+                (Some(0), 0, NoteKind::Release),
+            ],
+        ),
+        (
+            &[[1, 0, 0, 2], [2, 0, 0, 0]],
+            &[
+                (Some(0), 0, NoteKind::Hold),
+                (Some(0), 1, NoteKind::Release),
+            ],
+        ),
+        (
+            &[
+                [1, 0, 0, 2],
+                [2, 0, 0, 0],
+                [3, 0, 0, 0],
+                [4, 0, 0, 2],
+                [4, 0, 0, 3],
+            ],
+            &[
+                (Some(0), 0, NoteKind::Hold),
+                (None, 1, NoteKind::Tap),
+                (Some(0), 2, NoteKind::Release),
+                (Some(0), 3, NoteKind::Hold),
+                (Some(0), 3, NoteKind::Release),
+            ],
+        ),
+    ];
+    for (entries, expected) in cases {
+        let bytes = with_packages(&[(0, 2, entries.to_vec())]);
+        let timeline = OjnSource::parse(&bytes)
+            .unwrap()
+            .timeline(0, &mut || Ok(()))
+            .unwrap()
+            .repair_long_notes(&mut || Ok(()))
+            .unwrap();
+        let samples: Vec<_> = timeline
+            .events
+            .iter()
+            .filter_map(|event| match event.event.kind {
+                EventKind::Sample {
+                    lane,
+                    sample_index,
+                    kind,
+                    ..
+                } => Some((lane, sample_index, kind)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(&samples, expected, "{entries:?}");
+    }
+}
+
+#[test]
+fn long_note_repair_matches_frozen_java_cases_across_lanes() {
+    let oracle: serde_json::Value =
+        serde_json::from_str(include_str!("fixtures/ojn/hold-repair.json")).unwrap();
+    for (case_index, case) in oracle["cases"].as_array().unwrap().iter().enumerate() {
+        let mut packages = Vec::new();
+        for (position, input) in case["input"].as_array().unwrap().iter().enumerate() {
+            let sample = input[0].as_u64().unwrap() as u8;
+            let lane = input[1].as_i64().unwrap();
+            let kind = input[2].as_u64().unwrap() as u8;
+            let mut entries = vec![[0; 4]; 24];
+            entries[position] = [sample + 1, 0, 0xf1, kind];
+            packages.push((0, if lane < 0 { 9 } else { lane as u16 + 2 }, entries));
+        }
+        let bytes = with_packages(&packages);
+        let timeline = OjnSource::parse(&bytes)
+            .unwrap()
+            .timeline(0, &mut || Ok(()))
+            .unwrap()
+            .repair_long_notes(&mut || Ok(()))
+            .unwrap();
+        let actual: Vec<_> = timeline
+            .events
+            .iter()
+            .map(|event| {
+                let EventKind::Sample {
+                    lane,
+                    sample_index,
+                    kind,
+                    volume,
+                    pan,
+                } = event.event.kind
+                else {
+                    panic!("unexpected timing event");
+                };
+                assert_eq!(volume, Ratio::new(15, 16).unwrap());
+                assert_eq!(pan, Ratio::new(-7, 8).unwrap());
+                [
+                    event.event.position.numerator() * 24
+                        / i64::from(event.event.position.denominator()),
+                    i64::from(sample_index),
+                    lane.map(i64::from).unwrap_or(-1),
+                    match kind {
+                        NoteKind::Tap => 0,
+                        NoteKind::Hold => 2,
+                        NoteKind::Release => 3,
+                    },
+                ]
+            })
+            .collect();
+        assert_eq!(
+            serde_json::to_value(actual).unwrap(),
+            case["expected"],
+            "case {case_index}"
+        );
+    }
+}
+
+#[test]
+fn adversarial_long_note_search_is_bounded_and_cancellable() {
+    let bytes = with_packages(&[(0, 2, vec![[1, 0, 0, 3]; 9000])]);
+    let source = OjnSource::parse(&bytes).unwrap();
+    let error = source
+        .timeline(0, &mut || Ok(()))
+        .unwrap()
+        .repair_long_notes(&mut || Ok(()))
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::CorruptChart);
+    assert!(error.message().contains("search work bound"));
+    let mut checkpoints = 0;
+    let error = source
+        .timeline(0, &mut || Ok(()))
+        .unwrap()
+        .repair_long_notes(&mut || {
+            checkpoints += 1;
+            if checkpoints == 100 {
+                Err(CoreError::new(ErrorCode::Cancelled, "cancelled"))
+            } else {
+                Ok(())
+            }
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::Cancelled);
+}

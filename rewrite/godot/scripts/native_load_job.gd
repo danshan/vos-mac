@@ -3,9 +3,11 @@ extends RefCounted
 const Wire = preload("res://scripts/native_json.gd")
 const Integrity = preload("res://scripts/native_bundle_integrity.gd")
 const Loader = preload("res://scripts/native_bundle_loader.gd")
+const CatalogLoader = preload("res://scripts/native_catalog_loader.gd")
 const ArtifactCache = preload("res://scripts/native_artifact_cache.gd")
 const CANCEL_GRACE_MS := 1000
 
+var _command := "BUNDLE"
 var cache_root := ""
 var generation: int
 var job_id: String
@@ -22,6 +24,7 @@ var _progress_invalid := false
 
 
 func start(converter: String, template: Dictionary, work_root: String, load_generation: int, artifact_root: String = "") -> void:
+	_command = str(template.get("command", "BUNDLE"))
 	cache_root = artifact_root
 	generation = load_generation
 	if not cache_root.is_empty():
@@ -132,10 +135,11 @@ func read_progress() -> Dictionary:
 			_progress_invalid = true
 			return {}
 		var event := Wire.parse_object(line.get_string_from_utf8())
-		if not Wire.fields(event, ["schemaVersion", "jobId", "sequence", "command", "phase", "completedUnits", "totalUnits", "unit", "currentItem"]) or event.get("schemaVersion") != 1 or event.get("jobId") != job_id or event.get("command") != "BUNDLE" or event.get("sequence") != _sequence + 1:
+		if not Wire.fields(event, ["schemaVersion", "jobId", "sequence", "command", "phase", "completedUnits", "totalUnits", "unit", "currentItem"]) or event.get("schemaVersion") != 1 or event.get("jobId") != job_id or event.get("command") != _command or event.get("sequence") != _sequence + 1:
 			_progress_invalid = true
 			return {}
-		if not event["phase"] in ["HASH_SOURCES", "PARSE_CHART", "COMPILE_TIMING", "PREPARE_AUDIO", "WRITE_BUNDLE", "VERIFY_BUNDLE"] or not Wire.integer(event["completedUnits"]) or not Wire.integer(event["totalUnits"]) or event["completedUnits"] > event["totalUnits"]:
+		var phases := ["DISCOVER_SOURCES", "FINGERPRINT_SOURCES", "PARSE_SOURCES", "WRITE_CATALOG", "CATALOG_READY"] if _command == "CATALOG" else ["HASH_SOURCES", "PARSE_CHART", "COMPILE_TIMING", "PREPARE_AUDIO", "WRITE_BUNDLE", "VERIFY_BUNDLE"]
+		if not event["phase"] in phases or not Wire.integer(event["completedUnits"]) or not Wire.integer(event["totalUnits"]) or event["completedUnits"] > event["totalUnits"]:
 			_progress_invalid = true
 			return {}
 		if not Wire.text(event["unit"], true) or (event["currentItem"] != null and not Wire.text(event["currentItem"])):
@@ -165,7 +169,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 		replace_key = cached.get("replaceKey", "")
 		if _cancellation_requested():
 			return _failure("CANCELLED", "Cancelled during cache validation.")
-	var child := OS.execute_with_pipe(converter, ["bundle", "--request", directory.path_join("request.json"), "--progress", directory.path_join("progress.jsonl"), "--result", directory.path_join("result.json")], false)
+	var child := OS.execute_with_pipe(converter, [_command.to_lower(), "--request", directory.path_join("request.json"), "--progress", directory.path_join("progress.jsonl"), "--result", directory.path_join("result.json")], false)
 	if child.is_empty():
 		return _failure("CONVERTER_CRASHED", "Unable to start native helper.")
 	var pid: int = child["pid"]
@@ -189,12 +193,27 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 	if forced or cancellation_started >= 0 or _cancellation_requested() or FileAccess.file_exists(cancel_path):
 		return _failure("CANCELLED", "Native helper cancelled and reaped.")
 	var result: Dictionary = Integrity.new().read_json(directory.path_join("result.json"), 1048576)
-	if not Wire.fields(result, ["schemaVersion", "jobId", "command", "status", "output", "error"]) or result["schemaVersion"] != 1 or result["jobId"] != request["jobId"] or result["command"] != "BUNDLE":
+	if not Wire.fields(result, ["schemaVersion", "jobId", "command", "status", "output", "error"]) or result["schemaVersion"] != 1 or result["jobId"] != request["jobId"] or result["command"] != _command:
 		return _failure("CONVERTER_CRASHED", "Native result is absent or does not belong to this job.")
 	if exit_code != 0 or result["status"] != "SUCCEEDED":
 		return _native_failure(result, exit_code)
 	var output: Variant = result["output"]
 	var expected_path: String = str(request["stagingRoot"]).path_join(request["jobId"])
+	if _command == "CATALOG":
+		var catalog_path := expected_path.path_join("catalog-v2.json")
+		if result["error"] != null or not Wire.fields(output, ["catalogPath", "sourceCount", "songCount", "chartCount", "rejectedSourceCount"]) or output["catalogPath"] != catalog_path:
+			return _failure("CACHE_CORRUPT", "Native catalog does not match job ownership.")
+		for count_name: String in ["sourceCount", "songCount", "chartCount", "rejectedSourceCount"]:
+			if not Wire.integer(output[count_name]):
+				return _failure("CACHE_CORRUPT", "Invalid native catalog count.")
+		var catalog: Dictionary = CatalogLoader.new().load_catalog(catalog_path, request["roots"], _cancellation_requested)
+		if catalog.is_empty():
+			return _failure("CACHE_CORRUPT", "Invalid native catalog snapshot.")
+		var count: int = catalog["entries"].size()
+		var rejected: int = catalog["errors"].size()
+		if output["sourceCount"] != count + rejected or output["songCount"] != count or output["chartCount"] != count or output["rejectedSourceCount"] != rejected:
+			return _failure("CACHE_CORRUPT", "Native catalog counts disagree with its snapshot.")
+		return {"ok": true, "catalog": catalog}
 	if result["error"] != null or not Wire.fields(output, ["stagingPath", "bundleKey", "manifestPath"]) or output["stagingPath"] != expected_path or output["manifestPath"] != expected_path.path_join("bundle.json") or not Wire.identifier(output["bundleKey"], "sha256:"):
 		return _failure("CACHE_CORRUPT", "Native output does not match job staging ownership.")
 	var bundle: Dictionary = Loader.new().load_bundle(expected_path, output["bundleKey"], _cancellation_requested)

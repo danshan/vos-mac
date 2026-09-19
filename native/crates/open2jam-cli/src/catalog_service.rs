@@ -1,6 +1,7 @@
 use open2jam_core::{
-    bundle::load_bundle_documents,
+    bundle::{SoundFontIdentity, load_bundle_documents},
     error::{CoreError, ErrorCode, ErrorInfo},
+    format::SourceKind,
     id::{ChartId, SongId},
     path::AbsoluteSourcePath,
     progress::{ProgressOwner, ProgressPhase, ProgressSink, ProgressTracker},
@@ -26,6 +27,9 @@ struct Entry {
     root_path: AbsoluteSourcePath,
     relative_path: String,
     source_path: AbsoluteSourcePath,
+    source_kind: SourceKind,
+    soundfont: SoundFontIdentity,
+    static_assets_version: String,
     song_id: SongId,
     chart_id: ChartId,
     title: String,
@@ -78,7 +82,7 @@ pub fn scan(
         ));
     }
     let staging = staging.canonicalize().map_err(io_error)?;
-    let mut roots: Vec<PathBuf> = Vec::new();
+    let mut roots: Vec<(PathBuf, PathBuf)> = Vec::new();
     for root in &request.roots {
         let path = root.as_path();
         let metadata = fs::symlink_metadata(path).map_err(io_error)?;
@@ -93,14 +97,14 @@ pub fn scan(
             || path.starts_with(&staging)
             || roots
                 .iter()
-                .any(|other| path.starts_with(other) || other.starts_with(&path))
+                .any(|(_, other)| path.starts_with(other) || other.starts_with(&path))
         {
             return Err(CoreError::new(
                 ErrorCode::InvalidRequest,
                 "Catalog roots and staging must not overlap",
             ));
         }
-        roots.push(path);
+        roots.push((root.as_path().to_owned(), path));
     }
     let mut progress = ProgressTracker::new(
         request.job_id.clone(),
@@ -114,12 +118,12 @@ pub fn scan(
         rejected: Vec::new(),
     };
     let mut candidates = Vec::new();
-    for root in roots {
+    for (origin, root) in roots {
         let mut pending = vec![root.clone()];
         while let Some(path) = pending.pop() {
             cancel(request)?;
             if fs::symlink_metadata(path.join("bundle.json")).is_ok() {
-                candidates.push((root.clone(), path));
+                candidates.push((origin.clone(), root.clone(), path));
                 continue;
             }
             let children = match fs::read_dir(&path) {
@@ -160,7 +164,7 @@ pub fn scan(
         "sources".into(),
         None,
     )?;
-    for (index, (root, path)) in candidates.into_iter().enumerate() {
+    for (index, (origin, root, path)) in candidates.into_iter().enumerate() {
         cancel(request)?;
         match load_bundle_documents(&path, None) {
             Ok(documents) => {
@@ -169,9 +173,16 @@ pub fn scan(
                     CoreError::new(ErrorCode::InvalidRequest, "non-UTF-8 relative catalog path")
                 })?;
                 catalog.entries.push(Entry {
-                    root_path: absolute(&root)?,
+                    root_path: absolute(&origin)?,
                     relative_path: relative.into(),
-                    source_path: absolute(&path)?,
+                    source_path: absolute(&origin.join(relative))?,
+                    source_kind: SourceKind::BundleV2,
+                    soundfont: documents.bundle().manifest().soundfont().clone(),
+                    static_assets_version: documents
+                        .bundle()
+                        .manifest()
+                        .static_assets_version()
+                        .into(),
                     song_id: documents.chart().song_id(),
                     chart_id: documents.chart().chart_id(),
                     title: documents.chart().title().into(),

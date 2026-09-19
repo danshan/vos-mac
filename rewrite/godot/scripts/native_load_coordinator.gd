@@ -2,6 +2,7 @@ extends Node
 
 const LoadJob = preload("res://scripts/native_load_job.gd")
 const ArtifactCache = preload("res://scripts/native_artifact_cache.gd")
+signal catalog_loaded(generation: int, catalog: Dictionary)
 signal loaded(generation: int, bundle: Dictionary)
 signal failed(generation: int, error: Dictionary)
 signal progressed(generation: int, event: Dictionary)
@@ -54,7 +55,9 @@ func _process(_delta: float) -> void:
 		_active = null
 		if result.get("ok", false) and not job.cache_root.is_empty() and result.has("stagingPath"):
 			result = ArtifactCache.new().publish(job.cache_root, result["stagingPath"], result["bundle"], result["replaceKey"])
-		if result.get("ok", false):
+		if result.get("ok", false) and result.has("catalog"):
+			catalog_loaded.emit(job.generation, result["catalog"])
+		elif result.get("ok", false):
 			loaded.emit(job.generation, result["bundle"])
 		else:
 			failed.emit(job.generation, result["error"])

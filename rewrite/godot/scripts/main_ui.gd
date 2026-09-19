@@ -136,6 +136,9 @@ var _capturing_key_previous_text: String = ""
 var _loading_audio_pool: Node = null
 var _retired_audio_pools: Array[Node] = []
 var _selected_export_job: Variant = null
+var _native_catalog_coordinator: Node = null
+var _native_catalog_generation := -1
+var _native_catalog_directories: Array[String] = []
 var _native_coordinator: Node = null
 var _native_converter := ""
 var _native_work_root := ""
@@ -149,6 +152,7 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
+	_cancel_native_catalog()
 	if _native_coordinator != null:
 		_native_coordinator.cancel_loading()
 	_wait_for_selected_export_job()
@@ -1220,6 +1224,7 @@ func _on_settings_back_pressed() -> void:
 
 
 func _on_song_select_back_pressed() -> void:
+	_cancel_native_catalog()
 	if _app_state.transition_to(AppState.MAIN_MENU):
 		_show_main_menu()
 
@@ -1849,6 +1854,11 @@ func _refresh_song_entries_from_settings(force_refresh: bool = false) -> void:
 	if not force_refresh:
 		if not _song_entries.is_empty() and _string_arrays_equal(directories, _song_entries_directories):
 			return
+	if _native_converter.is_empty() and not OS.get_environment("OPEN2JAM_NATIVE_CONVERTER").is_empty():
+		configure_native_converter(OS.get_environment("OPEN2JAM_NATIVE_CONVERTER"), ProjectSettings.globalize_path("user://native-jobs"))
+	if not _native_converter.is_empty():
+		_start_native_catalog(directories)
+		return
 	if _exporter_client == null or not _exporter_client.has_method("export_catalog"):
 		_song_catalog_error = "Catalog exporter is unavailable. Run mise run package, then restart Godot."
 		_song_entries.clear()
@@ -2253,3 +2263,47 @@ func _reap_retired_audio_pools() -> void:
 		if not pool.preload_in_progress():
 			_retired_audio_pools.erase(pool)
 			pool.queue_free()
+
+
+func _start_native_catalog(directories: Array[String]) -> void:
+	if DirAccess.make_dir_recursive_absolute(_native_work_root.path_join("catalog-staging")) != OK:
+		_song_catalog_error = "Unable to create library scan directory"
+		return
+	if _native_catalog_coordinator == null:
+		_native_catalog_coordinator = NativeLoadCoordinator.new()
+		_native_catalog_coordinator.name = "NativeCatalogCoordinator"
+		_native_catalog_coordinator.catalog_loaded.connect(_on_native_catalog_loaded)
+		_native_catalog_coordinator.failed.connect(_on_native_catalog_failed)
+		add_child(_native_catalog_coordinator)
+	_native_catalog_directories = _copy_string_array(directories)
+	var roots := _copy_string_array(directories)
+	roots.sort()
+	var request := {"schemaVersion": 1, "command": "CATALOG", "roots": roots,
+		"previousIndexPath": null, "stagingRoot": _native_work_root.path_join("catalog-staging")}
+	_song_catalog_error = "Scanning bundles..."
+	_native_catalog_generation = _native_catalog_coordinator.start_loading(_native_converter, request, _native_work_root)
+
+
+func _cancel_native_catalog() -> void:
+	_native_catalog_generation = -1
+	if _native_catalog_coordinator != null:
+		_native_catalog_coordinator.cancel_loading()
+
+
+func _on_native_catalog_loaded(generation: int, catalog: Dictionary) -> void:
+	if generation != _native_catalog_generation:
+		return
+	_song_entries.assign(catalog["entries"])
+	_song_entries_directories = _copy_string_array(_native_catalog_directories)
+	_song_entries_from_settings = true
+	_song_catalog_error = "\n".join(catalog["errors"])
+	if _app_state.current() == AppState.SONG_SELECT:
+		_show_song_select()
+
+
+func _on_native_catalog_failed(generation: int, error: Dictionary) -> void:
+	if generation != _native_catalog_generation:
+		return
+	_song_catalog_error = "Library scan failed: %s" % str(error.get("message", "Unable to read library"))
+	if _app_state.current() == AppState.SONG_SELECT:
+		_show_song_select()

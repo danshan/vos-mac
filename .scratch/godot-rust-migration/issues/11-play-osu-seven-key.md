@@ -39,3 +39,4 @@
 - 0..100 音量按 Java binary32 精确转换为 Ratio. 非整数 BPM/scroll 使用既有 wire bounds 内的连分数, 回转 binary64 相对误差 <= 4 * f64::EPSILON, 否则拒绝; 独立 precision oracle 与超范围测试覆盖该行为. 不更改已冻结整数微秒.
 - duration 覆盖全部事件与 timing, 不直接复制旧 nominal duration. chart_path 相对 beatmap set, 下一步 adapter 负责 catalog source 与 audio 文件绑定.
 - red: /tmp/vos-osu-gameplay-red.log. 当前精度与修复记录: /tmp/vos-osu-gameplay-precision.log, OJN 原有 64 组修复 oracle 继续用于共享算法回归. 尚待 sample/audio 实际解码、catalog/adapter 和 Godot 全链路验收, ticket 保持 in-progress.
+- core Chart 增量 f12140e 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace 记录 /tmp/vos-osu-gameplay-workspace.log, Clippy /tmp/vos-osu-gameplay-clippy.log, 最终 core /tmp/vos-osu-gameplay-final-core.log, fmt 退出 0. OJN 真实 CLI -> Godot 三难度回归记录 /tmp/vos-osu-shared-holds-ojn-gameplay.log, 退出 0. 这条回归证明共享修复未破坏既有 OJN 链路, 不代表 osu 已在 Godot 可玩.

@@ -220,7 +220,8 @@ func _test_async_export_keeps_loading_until_job_completes() -> bool:
 	ui.get_node("Content/Menu/StartButton").emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.SONG_SELECT, "async song select state"):
 		return false
-	ui.get_node("Content/SongSelectScroll/SongList/Song_vos_async-export-flow").emit_signal("pressed")
+	var song_button := ui.get_node("Content/SongSelectScroll/SongList/Song_vos_async-export-flow")
+	song_button.emit_signal("pressed")
 	if not _expect_string(ui.current_state(), AppState.LOADING, "async loading state before export"):
 		return false
 	ui._process(0.3)
@@ -239,6 +240,10 @@ func _test_async_export_keeps_loading_until_job_completes() -> bool:
 	if not _expect_string(exporter.calls[0].get("sourcePath", ""), "charts/async-canon.vos", "async export source path"):
 		return false
 	if not _expect_int(int(exporter.calls[0].get("chartIndex", -1)), 3, "async export chart index"):
+		return false
+	song_button.emit_signal("pressed")
+	ui._process(0.016)
+	if not _expect_int(exporter.calls.size(), 1, "duplicate selection retains the active legacy export"):
 		return false
 	exporter.write_pending_audio_samples(2)
 	ui._process(1.0)

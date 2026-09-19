@@ -1225,6 +1225,9 @@ func _on_song_select_back_pressed() -> void:
 
 
 func _on_song_selected(entry: Dictionary) -> void:
+	if _app_state.current() == AppState.LOADING:
+		if not _selected_entry.has("nativeRequest") or not entry.has("nativeRequest"):
+			return
 	_selected_entry = entry.duplicate(true)
 	if _app_state.current() == AppState.LOADING or _app_state.transition_to(AppState.LOADING):
 		_show_loading()

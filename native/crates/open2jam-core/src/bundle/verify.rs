@@ -26,7 +26,7 @@ impl fmt::Display for BundleValidationError {
     }
 }
 impl std::error::Error for BundleValidationError {}
-fn corrupt(message: impl Into<String>) -> BundleValidationError {
+pub(super) fn corrupt(message: impl Into<String>) -> BundleValidationError {
     BundleValidationError {
         code: ErrorCode::CacheCorrupt,
         message: message.into(),

@@ -67,3 +67,9 @@
 尚未完成 audio/bundle 跨文件校验、BGA 资源模型、实际 producer 与 Godot consumer, ticket 保持 in-progress. 数值合同补充该阶段的精确边界, 不以序列化 round-trip 代表 Gameplay Ready.
 
 阶段提交 `743510c`. 累计 67 项 native 回归日志无失败: `/tmp/vos-ticket04-gameplay-chart.log`; workspace clippy 无 warning. 独立两轴审查 Standards 0、Spec 0. 下一阶段需要把 audio manifest、Chart 与 bundle identity/hash 做跨文件连接, 再交给真实 Godot consumer.
+
+## 实施进度: Audio manifest 与跨文件校验
+
+新增 AudioManifestV2 与 load_bundle_documents. 在完整目录 size/hash 验证之上校验 Chart/audio/bundle 的 songId、chartId、format、sample 集合及实际资源路径; prepared SampleId 与资源内容 digest 对照. JSON 读取有 64 MiB 上限, 同一批读取字节再次校验 hash 后才反序列化. 测试会同时更新文件清单 hash, 确认文件完整性成功仍不能掩盖跨文件语义冲突.
+
+本层不解码 WAV, 不等于 Gameplay Ready; production importer、真实受控 producer 和 Godot consumer 仍待完成. 原始压缩音频输入继续由后续 audio preparation 转成 WAV, 不缩减产品范围.

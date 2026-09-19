@@ -2,6 +2,7 @@
 
 pub mod version;
 
+pub mod audio;
 pub mod bundle;
 pub mod canonical;
 pub mod digest;

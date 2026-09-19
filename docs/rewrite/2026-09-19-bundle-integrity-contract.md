@@ -25,3 +25,15 @@ selector tag 为 u16: VOS=1, OJN=2, osu=3, Bundle=4. VOS/OJN 追加 u16 index, o
 回归包含搬移、目录大小写冲突、路径深度、错误 schema/key/identity、未知/重复字段、文件顺序/重复/必需项、路径逃逸、数量/字节上限、文件损坏、symlink 与 Unix socket. Unix socket 构造需要沙箱外测试权限. 大小写目录与过深路径回归分别保留先 RED 后 GREEN 的过程.
 
 累计 native workspace 日志: `/tmp/vos-ticket04-bundle-workspace.log`; compile-fail doctest: `/tmp/vos-ticket04-bundle-doc.log`. 后续 ticket 04 仍须完成实际 producer/CLI、gameplay/audio 语义及 Godot 消费链路, 不关闭 ticket.
+
+## 跨文件文档校验
+
+新增 `load_bundle_documents` 在文件完整性验证之上读取严格 GameplayChartV2 和 AudioManifestV2, 检查 songId/chartId、源格式、Chart sample 集合与 audio assets 完全一致. 原始 VOS/OJN/osu selector 必须匹配 gameplay 源格式; BUNDLE_CHART 保留 bundle 内声明的源格式, 不把 gameplay format 改为 BUNDLE.
+
+AudioManifestV2 的 assets 按稳定 SampleId 严格排序且唯一, 每个 asset 保存 sampleId 与 bundle 内 WAV 相对路径. 路径不允许重复或大小写冲突, 且必须出现在已经验证的 bundle 文件清单中. 本次 Godot 准备格式是 WAV, 原始 OGG/MP3/MIDI 等输入仍由对应 importer/audio preparation 转换; 此约束不缩减原始输入格式范围.
+
+用于 bundle 资源的 SampleId 从准备完成的 WAV 文件内容 SHA-256 派生, cross-document 校验会与文件清单中的 digest 对照. 源输入指纹另行参与 bundle key, 不用原始压缩文件 digest 冒充准备后音频内容身份. 相同准备字节可复用同一 SampleId, 不同内容不得共享同一身份.
+
+每个 gameplay/audio JSON 文档最多 64 MiB. 该限制用于有界读取, 不是曲目性能验收规模; 后续安全资源门禁仍需验证并冻结全链路上限. 读取后的同一批 JSON 字节重新核对 size/hash 后才反序列化, 不只相信之前目录遍历的 hash. 不兼容 schema 保留 UNSUPPORTED_SCHEMA, 其他文档错误或跨文件冲突返回 CACHE_CORRUPT.
+
+`BundleDocuments` 表示已验证文档和文件引用, 不表示 WAV 成功解码、BGA 完整或 Gameplay Ready. 当前测试故意可使用不可播放的受控音频字节, 以隔离文件/身份校验边界; 必须继续补上真实 Rust 音频产物和 Godot 资源加载. 仍要求 staging ownership 隔离并发写入, 不承诺防止恶意进程在校验后改写路径.

@@ -23,3 +23,10 @@
 - 测试: frozen seven-key 的七轨与长音、sample 复用/音量、scroll、非 mania/非 7K、畸形输入、4096-note 工作集与取消. red /tmp/vos-osu-parser-red.log, /tmp/vos-osu-number-red.log; 当前记录 /tmp/vos-osu-parser.log, /tmp/vos-osu-parser-workspace.log.
 - 尚待: Java timing/scroll/measure 编译 oracle、完整 sample/audio 准备、osu beatmap-set 身份与 catalog、native bundle adapter 和 Godot 实际加载. ticket 保持 in-progress.
 - 原始解析增量 daff5bc 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace、clippy、fmt 退出 0. 下一步需复刻 Java TimingMap 的 measure 转换与 RenderTimingCompiler 的非 OJN 拍号缩放, 不能直接用源毫秒加固定偏移代替 timing oracle.
+
+## 当前增量: osu timing 编译
+
+- OsuSource.timeline 保留 Java 两阶段编译: 按基础 tempo 积分并归一化 measure, 再按 RenderTimingCompiler 的非 OJN 拍号缩放得到事件时间. 保留 1500 ms lead-in、每小节拍号重置、meter=4 不额外发 reset、同刻 stable order 和 scroll 只改变 visual timing 的行为.
+- 两组新增生产 Java compiler oracle 覆盖负时间、正时间首个 tempo、变速、非整数 beat length、重复 BPM、同刻 scroll、3/4/5 拍号与长音. 原 seven-key gameplay golden 不变, 另有直接对照. fixtures/osu/README.md 记录来源、hash、生成方法与拒绝边界.
+- 保持 binary64 累积, 最终时间转换为整数微秒. 数值溢出、过多 measures、各输出轨道倒退明确拒绝. 二分 timing 查询避免每个 note 线性遍历全部 tempo; cancellation 覆盖输入构建和稀疏小节填充.
+- red 记录: /tmp/vos-osu-timing-red.log 与 /tmp/vos-osu-timing-bounds-red.log. 当前测试记录: /tmp/vos-osu-timing-green.log. 本增量不完成 ticket: long-note repair、BPM/scroll Ratio wire 转换、sample/audio、catalog/adapter 与 Godot 加载仍待实现.

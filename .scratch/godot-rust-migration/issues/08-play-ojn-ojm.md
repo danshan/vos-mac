@@ -122,3 +122,4 @@
 - red 证据 `/tmp/vos-ojn-bundle-red.log`, `/tmp/vos-ojn-bundle-phase-red.log`, `/tmp/vos-ojn-companion-red.log`, `/tmp/vos-ojn-bundle-version-red.log`. 验证记录 `/tmp/vos-ojn-bundle.log`, `/tmp/vos-ojn-bundle-parser.log`, `/tmp/vos-ojn-bundle-workspace.log`, `/tmp/vos-ojn-gameplay.log`, `/tmp/vos-ojn-bundle-catalog-regression.log`.
 - 待续: 普通 Godot catalog 的 OJN 消费、多 Chart 选择和稳定 root 设置持久化, 完整 ticket 08 仍不关闭. SettingsStore 新测试 seam 的确认仍待答复, 现有 UI/CLI 验收边界继续用于独立推进.
 - 补充源文件选中后被删除的 CLI 回归, 从 INTERNAL_ERROR 修正为 SOURCE_CHANGED, red `/tmp/vos-ojn-source-removed-red.log`. 不将源消失误报为 converter 内部崩溃.
+- 转换增量 `865f887` 固定基点两轴审查: Standards 0 项, Spec 0 项. 验证日志保留上述路径, 仅作为当前转换链路证据, 不关闭 ticket.

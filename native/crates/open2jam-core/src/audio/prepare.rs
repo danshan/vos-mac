@@ -1,15 +1,55 @@
-use super::OjmSampleData;
 use crate::error::{CoreError, ErrorCode};
 use std::io::Cursor;
 use symphonia::core::{
-    codecs::audio::AudioDecoderOptions,
+    codecs::audio::{
+        AudioDecoderOptions,
+        well_known::{CODEC_ID_MP3, CODEC_ID_VORBIS},
+    },
     formats::{TrackType, probe::Hint},
     io::MediaSourceStream,
 };
 
 const MAX_PCM_BYTES: usize = 256 * 1024 * 1024;
+pub const MAX_AUDIO_FILE_BYTES: usize = 64 * 1024 * 1024;
 
-impl OjmSampleData<'_> {
+#[derive(Debug, Clone, Copy)]
+pub enum AudioFileFormat {
+    Wave,
+    Ogg,
+    Mp3,
+}
+
+pub fn prepare_audio_file(
+    encoded: &[u8],
+    format: AudioFileFormat,
+    checkpoint: &mut impl FnMut() -> Result<(), CoreError>,
+) -> Result<Vec<u8>, CoreError> {
+    checkpoint()?;
+    if encoded.len() > MAX_AUDIO_FILE_BYTES {
+        return Err(decode_error("audio file exceeds preparation bound"));
+    }
+    match format {
+        AudioFileFormat::Mp3 => prepare_compressed(encoded, "mp3", false, checkpoint),
+        AudioFileFormat::Ogg => SampleData::Ogg(encoded).prepare_wav(checkpoint),
+        AudioFileFormat::Wave => super::wave::parse(encoded, checkpoint)?.prepare_wav(checkpoint),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SampleData<'a> {
+    Wave {
+        format: u16,
+        channels: u16,
+        sample_rate: u32,
+        byte_rate: u32,
+        block_align: u16,
+        bits_per_sample: u16,
+        pcm: &'a [u8],
+    },
+    Ogg(&'a [u8]),
+}
+
+impl SampleData<'_> {
     pub fn prepare_wav(
         self,
         checkpoint: &mut impl FnMut() -> Result<(), CoreError>,
@@ -28,13 +68,13 @@ impl OjmSampleData<'_> {
             let Self::Ogg(encoded) = self else {
                 unreachable!()
             };
-            return prepare_ogg(encoded, checkpoint);
+            return prepare_compressed(encoded, "ogg", true, checkpoint);
         };
         if !matches!(
             (format, bits_per_sample),
             (1, 8 | 16 | 24 | 32) | (3, 32 | 64) | (6 | 7, 8)
         ) {
-            return Err(decode_error("unsupported OJM wave encoding"));
+            return Err(decode_error("unsupported wave encoding"));
         }
         let width = usize::from(bits_per_sample / 8);
         let output_size = (pcm.len() / width)
@@ -48,7 +88,7 @@ impl OjmSampleData<'_> {
             || pcm.is_empty()
             || output_size > MAX_PCM_BYTES
         {
-            return Err(decode_error("invalid or oversized OJM PCM payload"));
+            return Err(decode_error("invalid or oversized PCM payload"));
         }
         let mut wav = Vec::with_capacity(44 + output_size);
         wav.extend(b"RIFF");
@@ -144,13 +184,22 @@ fn mulaw_sample(value: u8) -> i16 {
     }
 }
 
-fn prepare_ogg(
+fn prepare_compressed(
     encoded: &[u8],
+    extension: &str,
+    gapless: bool,
     checkpoint: &mut impl FnMut() -> Result<(), CoreError>,
 ) -> Result<Vec<u8>, CoreError> {
-    if encoded.len() > 64 * 1024 * 1024 {
-        return Err(decode_error("encoded Ogg exceeds audio preparation bound"));
+    if encoded.len() > MAX_AUDIO_FILE_BYTES {
+        return Err(decode_error(
+            "encoded compressed audio exceeds audio preparation bound",
+        ));
     }
+    let mut mp3 = if extension == "mp3" {
+        Some(super::mp3::Mp3Frames::new(encoded, checkpoint)?)
+    } else {
+        None
+    };
     let mut owned = Vec::with_capacity(encoded.len());
     for chunk in encoded.chunks(64 * 1024) {
         checkpoint()?;
@@ -158,18 +207,29 @@ fn prepare_ogg(
     }
     let stream = MediaSourceStream::new(Box::new(Cursor::new(owned)), Default::default());
     let mut hint = Hint::new();
-    hint.with_extension("ogg");
+    hint.with_extension(extension);
     let mut format = symphonia::default::get_probe()
         .probe(&hint, stream, Default::default(), Default::default())
         .map_err(codec_error)?;
     let track = format
         .default_track(TrackType::Audio)
-        .ok_or_else(|| decode_error("Ogg has no audio track"))?;
+        .ok_or_else(|| decode_error("compressed audio has no audio track"))?;
     let parameters = track
         .codec_params
         .as_ref()
         .and_then(|parameters| parameters.audio())
-        .ok_or_else(|| decode_error("Ogg audio parameters are missing"))?;
+        .ok_or_else(|| decode_error("compressed audio parameters are missing"))?;
+    if parameters.codec
+        != if extension == "mp3" {
+            CODEC_ID_MP3
+        } else {
+            CODEC_ID_VORBIS
+        }
+    {
+        return Err(decode_error(
+            "audio codec does not match the selected format",
+        ));
+    }
     if parameters
         .channels
         .as_ref()
@@ -178,17 +238,24 @@ fn prepare_ogg(
             .sample_rate
             .is_some_and(|rate| !(1..=384_000).contains(&rate))
     {
-        return Err(decode_error("unsupported Ogg channel count or sample rate"));
+        return Err(decode_error(
+            "unsupported compressed audio channel count or sample rate",
+        ));
     }
     let mut decoder = symphonia::default::get_codecs()
-        .make_audio_decoder(parameters, &AudioDecoderOptions::default())
+        .make_audio_decoder(parameters, &AudioDecoderOptions::default().gapless(gapless))
         .map_err(codec_error)?;
     let track_id = track.id;
     let mut pcm = Vec::new();
     let mut output_spec = None;
     loop {
         checkpoint()?;
-        let Some(packet) = format.next_packet().map_err(codec_error)? else {
+        let packet = if let Some(frames) = &mut mp3 {
+            frames.next(track_id)?
+        } else {
+            format.next_packet().map_err(codec_error)?
+        };
+        let Some(packet) = packet else {
             break;
         };
         if packet.track_id != track_id {
@@ -198,19 +265,25 @@ fn prepare_ogg(
         let channels = decoded.spec().channels().count();
         let rate = decoded.spec().rate();
         if !(1..=2).contains(&channels) || !(1..=384_000).contains(&rate) {
-            return Err(decode_error("unsupported Ogg channel count or sample rate"));
+            return Err(decode_error(
+                "unsupported compressed audio channel count or sample rate",
+            ));
         }
         let spec = (channels as u16, rate);
         if output_spec.is_some_and(|previous| previous != spec) {
-            return Err(decode_error("Ogg audio format changes within sample"));
+            return Err(decode_error(
+                "compressed audio format changes within sample",
+            ));
         }
         output_spec = Some(spec);
         let size = decoded
             .frames()
             .checked_mul(channels * 2)
-            .ok_or_else(|| decode_error("decoded Ogg size overflow"))?;
+            .ok_or_else(|| decode_error("decoded compressed audio size overflow"))?;
         if size > MAX_PCM_BYTES - pcm.len() {
-            return Err(decode_error("decoded Ogg exceeds audio preparation bound"));
+            return Err(decode_error(
+                "decoded compressed audio exceeds audio preparation bound",
+            ));
         }
         let mut packet_samples: Vec<i16> = Vec::new();
         decoded.copy_to_vec_interleaved(&mut packet_samples);
@@ -219,8 +292,8 @@ fn prepare_ogg(
         }
     }
     let (channels, sample_rate) =
-        output_spec.ok_or_else(|| decode_error("Ogg contains no decoded audio"))?;
-    OjmSampleData::Wave {
+        output_spec.ok_or_else(|| decode_error("compressed audio contains no decoded audio"))?;
+    SampleData::Wave {
         format: 1,
         channels,
         sample_rate,
@@ -235,7 +308,7 @@ fn prepare_ogg(
 fn codec_error(error: symphonia::core::errors::Error) -> CoreError {
     CoreError::new(
         ErrorCode::AudioDecodeFailed,
-        format!("Ogg decode failed: {error}"),
+        format!("compressed audio decode failed: {error}"),
     )
 }
 

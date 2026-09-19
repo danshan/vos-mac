@@ -3,25 +3,12 @@ use crate::error::{CoreError, ErrorCode};
 mod m30;
 mod omc;
 pub use m30::parse_m30_in_place;
-mod prepare;
 pub use omc::decode_omc_in_place;
 
 pub const MAX_SOURCE_BYTES: usize = 512 * 1024 * 1024;
 const MAX_SAMPLES: usize = 65_536;
 
-#[derive(Debug, Clone, Copy)]
-pub enum OjmSampleData<'a> {
-    Wave {
-        format: u16,
-        channels: u16,
-        sample_rate: u32,
-        byte_rate: u32,
-        block_align: u16,
-        bits_per_sample: u16,
-        pcm: &'a [u8],
-    },
-    Ogg(&'a [u8]),
-}
+pub use crate::audio::SampleData as OjmSampleData;
 
 #[derive(Debug, Clone, Copy)]
 pub struct OjmSample<'a> {

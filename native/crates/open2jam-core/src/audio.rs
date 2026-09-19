@@ -9,6 +9,11 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+mod mp3;
+mod prepare;
+mod wave;
+pub use prepare::{AudioFileFormat, MAX_AUDIO_FILE_BYTES, SampleData, prepare_audio_file};
+
 fn invalid(message: &str) -> CoreError {
     CoreError::new(ErrorCode::CorruptChart, message)
 }

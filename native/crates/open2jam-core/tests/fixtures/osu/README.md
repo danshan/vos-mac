@@ -42,3 +42,35 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OsuTimingOracle.ja
 | hold-repair-gameplay-java.json | cbf99ed96917774c6bc81fcf56194fbfdacb3dd1c7dfcc5a14a1a9d6b0dceb5e |
 | precision.osu | 9b67a77795933e8d18786107ac69379f7683e7e8995810847fec511f62c13947 |
 | precision-java.json | 477c88ae79830fa1588ebdbae31944bb0169302269246ca362551655b0e68469 |
+
+## 文件音频 oracle
+
+四个 MP3 由既有自制 tone-java.pcm 编码, 输入为 stereo / 44100 Hz / PCM16 little-endian. FFmpeg 9.0.1 的 libmp3lame 仅用于生成 fixture, Rust 测试不调用 FFmpeg 或 Java. oracle 由生产 JavaSoundPcmDecoder 输出, 通过已有 OjmAudioOracle.java 冻结, 不使用 Rust 输出更新 expected. 自制信号沿用项目许可证.
+
+```bash
+ffmpeg -v error -y -f s16le -ar 44100 -ac 2 -i native/crates/open2jam-core/tests/fixtures/ojn/tone-java.pcm -c:a libmp3lame -b:a 128k -write_xing 0 -id3v2_version 0 tone.mp3
+ffmpeg -v error -y -f s16le -ar 44100 -ac 2 -i native/crates/open2jam-core/tests/fixtures/ojn/tone-java.pcm -c:a libmp3lame -b:a 128k -write_xing 1 -id3v2_version 0 tone-xing.mp3
+ffmpeg -v error -y -f s16le -ar 44100 -ac 2 -i native/crates/open2jam-core/tests/fixtures/ojn/tone-java.pcm -ar 22050 -ac 1 -c:a libmp3lame -q:a 4 -write_xing 1 -id3v2_version 4 -metadata title=Fixture mono-22050.mp3
+ffmpeg -v error -y -f s16le -ar 44100 -ac 2 -i native/crates/open2jam-core/tests/fixtures/ojn/tone-java.pcm -ar 11025 -ac 1 -c:a libmp3lame -q:a 4 -write_xing 1 -id3v2_version 3 -metadata title=Fixture mono-11025.mp3
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java tone.mp3 tone-mp3-java.pcm
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java tone-xing.mp3 tone-xing-java.pcm
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java mono-22050.mp3 mono-22050-java.pcm
+mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.java mono-11025.mp3 mono-11025-java.pcm
+```
+
+| 文件 | PCM 属性 / bytes | SHA-256 |
+|---|---|---|
+| tone.mp3 | MPEG-1, stereo CBR | 67c0443aec43e4fe5f4b3df2ac4dd65b5a77b10339d4c43c6a6ed17200028992 |
+| tone-mp3-java.pcm | 44100 Hz stereo, 23040 | a7d895ef9535a76ad82f47899c60b21529394d06aad1a39cefd604a86c6b11c7 |
+| tone-xing.mp3 | MPEG-1, stereo CBR, Info | 91adc4301e3eb9fd030117987720b1e4b67b0934b13624a586844aec31050e2f |
+| tone-xing-java.pcm | 44100 Hz stereo, 27648 | 4f77ff4465157df808916e01fdcfa30d3711dbbf4024c6b210921ecb40d2c560 |
+| mono-22050.mp3 | MPEG-2, mono VBR, ID3v2.4 | 759d475adef5a8211255400540f035ceb237cd913c16455a433ebd94c30afbba |
+| mono-22050-java.pcm | 22050 Hz mono, 8064 | b2e35e8578cce53a036bb931f4b56036b800194c55295010b62f5668d67d5b34 |
+| mono-11025.mp3 | MPEG-2.5, mono VBR, ID3v2.3 | 3854b339298c4327dc0b25f0dccf06ebbd7358d6bff71a2346328180f518b7af |
+| mono-11025-java.pcm | 11025 Hz mono, 5760 | d04d022bb2c26c6d211ac26f3c8647e973b73471b9ec6f5fd2fc2d4372c2836f |
+
+MP3 PCM 对照要求 sample rate、channels、样本数与对齐完全相同, 数值差异峰值 <= 32 PCM16 LSB、RMS <= 16 LSB. 首两组 stereo 的峰值差异为 17 LSB, RMS 分别约 10.339 和 9.438 LSB. 门限约束不同浮点 decoder 的量化差异, 不容许按音频相关性平移或裁剪后再比较. 32 LSB 约为 signed PCM16 满幅的 0.1%, 这不是 WAV 或 Ogg 的新容差.
+
+生产路径保留 JavaSound 的未裁剪 MP3 时间轴, 包括 Xing/Info/VBRI metadata frame. Symphonia 常规 demuxer 会移除这些帧, 所以 native 使用有限 MPEG frame framing 并关闭 gapless, 实际 frame 解码仍由 Symphonia 完成. 四组中 Info/Xing 已有直接 oracle; VBRI 使用同样完整 frame 路径, 尚无独立 VBRI fixture. ID3v2 footer 和 ID3v1 附加测试验证 metadata 不产生 PCM. 严格拒绝截断帧, 不复刻宽松 EOF/resync. free-bitrate、非 ID3 尾部和 WAV extensible 等当前未支持输入不会静默得到部分音频.
+
+依赖核对: [Symphonia 0.6.1 官方文档](https://docs.rs/symphonia/0.6.1/symphonia/) 确认 mp3 feature; 本地同版本 AudioDecoderOptions 默认开启 gapless, MP3 显式关闭. MPEG header/framing 与 metadata 规则同时核对该版本 bundle-mp3/header.rs、demuxer.rs 和 metadata/id3v2 源码. Context7 library 解析成功, docs 请求 fetch failed 后使用这些来源.

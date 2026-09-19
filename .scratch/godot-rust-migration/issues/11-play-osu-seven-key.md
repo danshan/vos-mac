@@ -40,3 +40,12 @@
 - duration 覆盖全部事件与 timing, 不直接复制旧 nominal duration. chart_path 相对 beatmap set, 下一步 adapter 负责 catalog source 与 audio 文件绑定.
 - red: /tmp/vos-osu-gameplay-red.log. 当前精度与修复记录: /tmp/vos-osu-gameplay-precision.log, OJN 原有 64 组修复 oracle 继续用于共享算法回归. 尚待 sample/audio 实际解码、catalog/adapter 和 Godot 全链路验收, ticket 保持 in-progress.
 - core Chart 增量 f12140e 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace 记录 /tmp/vos-osu-gameplay-workspace.log, Clippy /tmp/vos-osu-gameplay-clippy.log, 最终 core /tmp/vos-osu-gameplay-final-core.log, fmt 退出 0. OJN 真实 CLI -> Godot 三难度回归记录 /tmp/vos-osu-shared-holds-ojn-gameplay.log, 退出 0. 这条回归证明共享修复未破坏既有 OJN 链路, 不代表 osu 已在 Godot 可玩.
+
+## 当前增量: 独立 WAV / Ogg / MP3 文件音频
+
+- 将既有 PCM/Vorbis 准备实现移至 audio 模块, OJM 保留类型 re-export, 实际解码复用同一路径. 新增有界 RIFF chunk 解析, WAV 输出与现有 Java osu audio golden 精确一致; unknown metadata chunk 按 padding 跳过, 重复 fmt/data、截断和错误尺寸明确拒绝.
+- 仅为既有 Symphonia 0.6.1 启用 mp3 feature, native lock 新增同版本 symphonia-bundle-mp3. Context7 library 解析成功但 docs 请求 fetch failed; 交叉核对本地 0.6.1 源与官方 docs.rs, 未凭旧版 API 实现.
+- 发现普通 Symphonia demuxer 会去掉 Xing/Info frame, JavaSound 则将其作为一帧音频保留. Native 对 MP3 使用有界 MPEG-1/2/2.5 Layer III frame 读取并关闭 gapless, 交给同一个 Symphonia decoder, 不自行实现音频 codec. metadata frame 同样解码, 不猜测补静音. 保持 ID3v2.2..2.4/ID3v1 tag 不产生音频; 截断末帧不能当作正常 EOF.
+- 四组 Java PCM oracle 冻结 mono/stereo、CBR/VBR、MPEG-1/2/2.5、ID3/Xing 的长度与时序. MP3 decoder 数值容差明确为峰值 <= 32 PCM16 LSB, RMS <= 16 LSB, 不放宽长度或允许时间偏移. 两组 stereo oracle 的实测峰值为 17 LSB; 该容差只用于 MP3. WAV 精确与 Ogg 1 LSB 约束不变.
+- 输入文件暂限 64 MiB、单个准备后 PCM 256 MiB, 每 chunk/frame 检查取消. 此处不宣称 ticket 20 最终资源策略完成. free-bitrate MP3、任意非 ID3 尾部以及 WAV extensible/未支持编码明确失败, 更广实际歌曲工作集仍需 ticket 24/25 验证.
+- red: /tmp/vos-audio-files-red.log、/tmp/vos-wave-file-red.log, MP3 时序差异记录 /tmp/vos-mp3-parity-probe.log, 文件音频矩阵 /tmp/vos-audio-files-matrix.log. 当前完成 adapter 的音频前置能力; 文件身份/资源捕获、catalog、bundle producer 与 Godot osu 入口仍待接线, ticket 保持 in-progress.

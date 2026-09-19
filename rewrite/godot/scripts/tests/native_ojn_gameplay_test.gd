@@ -28,8 +28,11 @@ func _run() -> void:
 	var catalog_deadline := Time.get_ticks_msec() + 15000
 	while coordinator.pending_count() > 0 and Time.get_ticks_msec() < catalog_deadline:
 		await process_frame
-	if not _errors.is_empty() or _catalog.get("entries", []).size() != 3:
-		_fail("Godot did not accept the three native OJN chart entries.")
+	if not _errors.is_empty() or _catalog.get("entries", []).size() != 6:
+		_fail("Godot did not accept two distinct OJN songs with three charts each.")
+		return
+	if _catalog["entries"][0]["songId"] == _catalog["entries"][3]["songId"] or _catalog["entries"][0]["sourceId"] == _catalog["entries"][3]["sourceId"]:
+		_fail("Identical OJN copies must retain distinct source and song identities.")
 		return
 	var ids := {}
 	var song_id: String = _catalog["entries"][0]["songId"]
@@ -64,29 +67,42 @@ func _run() -> void:
 		if loaded.is_empty() == (mutation == "valid"):
 			_fail("OJN catalog validation disagreed with metadata mutation: " + mutation)
 			return
-	var ui = MainUi.new()
-	ui.set_settings_path(args[2].path_join("settings.cfg"))
-	ui.configure_native_converter(args[0], args[2])
-	ui.set_song_entries(_catalog["entries"])
-	get_root().add_child(ui)
-	ui.get_node("Content/Menu/StartButton").pressed.emit()
-	var song := ui.find_child("Song_" + _catalog["entries"][0]["id"], true, false)
-	if song == null:
-		_fail("OJN entry was absent from the real song selection UI.")
-		return
-	song.pressed.emit()
-	var deadline := Time.get_ticks_msec() + 15000
-	while ui.current_state() == AppState.LOADING and Time.get_ticks_msec() < deadline:
-		await process_frame
-	var runtime := ui.get_node_or_null("GameplayRuntime")
-	if ui.current_state() != AppState.GAMEPLAY or runtime == null or not runtime.is_running():
-		_fail("Raw OJN conversion did not reach running gameplay.")
-		return
-	runtime.advance_to(1500.0)
-	if not runtime.press_action("vos_lane_1", 1500.0).get("accepted", false) or runtime.audio_play_event_count() < 1:
-		_fail("Converted OJN note did not trigger judgment and prepared audio.")
-		return
-	ui.free()
+	for chart_index in range(3):
+		var ui = MainUi.new()
+		ui.set_settings_path(args[2].path_join("settings.cfg"))
+		ui.configure_native_converter(args[0], args[2])
+		ui.set_song_entries(_catalog["entries"])
+		get_root().add_child(ui)
+		ui.get_node("Content/Menu/StartButton").pressed.emit()
+		var songs := ui.find_children("Song_*", "Button", true, false)
+		if songs.size() != 2 or songs[0].text != _catalog["entries"][0]["title"]:
+			_fail("Each OJN source must occupy one title-only song row, even when titles match.")
+			return
+		songs[0].pressed.emit()
+		var difficulties := ui.find_children("Difficulty_*", "Button", true, false)
+		if difficulties.size() != 3 or ui.current_state() == AppState.LOADING:
+			_fail("Selecting a song must open its three difficulties before loading.")
+			return
+		ui.get_node("Content/BackButton").pressed.emit()
+		songs = ui.find_children("Song_*", "Button", true, false)
+		if songs.size() != 2:
+			_fail("Returning from difficulty selection must preserve song grouping.")
+			return
+		songs[0].pressed.emit()
+		difficulties = ui.find_children("Difficulty_*", "Button", true, false)
+		difficulties[chart_index].pressed.emit()
+		var deadline := Time.get_ticks_msec() + 15000
+		while ui.current_state() == AppState.LOADING and Time.get_ticks_msec() < deadline:
+			await process_frame
+		var runtime := ui.get_node_or_null("GameplayRuntime")
+		if ui.current_state() != AppState.GAMEPLAY or runtime == null or not runtime.is_running():
+			_fail("Raw OJN conversion did not reach running gameplay.")
+			return
+		runtime.advance_to(1500.0)
+		if not runtime.press_action("vos_lane_%d" % (chart_index + 1), 1500.0).get("accepted", false) or runtime.audio_play_event_count() < 1:
+			_fail("Converted OJN note did not trigger judgment and prepared audio.")
+			return
+		ui.free()
 	coordinator.free()
 	print("Raw OJN reached Gameplay Ready through the native converter and judged its note with audio.")
 	quit(0)

@@ -133,3 +133,11 @@
 - red 证据 `/tmp/vos-ojn-catalog-consumer-red.log`, `/tmp/vos-ojn-catalog-missing-chart-red.log`; 验证记录 `/tmp/vos-ojn-catalog-consumer.log`, `/tmp/vos-ojn-consumer-bundle-regression.log`.
 - 本增量仍通过 MainUi.set_song_entries 传入结果, 普通设置驱动扫描的 token 持久化与独立难度选择 UI 尚待实现, 不关闭 ticket.
 - Godot consumer 增量 `143eeb7` 固定基点独立审查: Standards 0 项, Spec 0 项. 原有 bundle catalog 与 OJN catalog/gameplay 门禁证据均保留, 后续继续设置持久化和难度选择.
+
+## 当前增量: 独立 Difficulty Selection
+
+- Native catalog 的同一 sourceId 在 Song 列表仅出现一行, 行内只显示 title. 点击 Song 进入独立 Difficulty Selection, OJN 展示 Easy / Normal / Hard 与各自 level, 选择 Chart 后才进入加载. 外部 bundle 也通过单 Chart 难度面板进入加载.
+- AppState 增加 Difficulty Selection -> Song Select / Loading 的合法转换, Back 返回已分组的列表. 既有 Java entry 路径暂保留, 不将其误称为最终 Java-free 产品界面.
+- OJN gate 的三个 Chart 分别在 lane 1/2/3 放置可判定音符, 逐一从歌曲列表和难度面板进入真实 Rust 转换及 gameplay, 检查对应轨道判定与音频事件. 增加同标题/同 bytes 的另一个来源文件, 验证独立 SongId/sourceId 与两行歌曲, 不按名称合并.
+- red `/tmp/vos-ojn-difficulty-red.log`; 当前证据 `/tmp/vos-ojn-difficulty.log`, `/tmp/vos-difficulty-bundle.log`. 共享 UI 全量回归记录 `/tmp/vos-difficulty-regression.log`.
+- 尚待设置驱动扫描的 LibraryRootId 持久化, 以及最终加载/性能门禁. 本 ticket 保持 in-progress.

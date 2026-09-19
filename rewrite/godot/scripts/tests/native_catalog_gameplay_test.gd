@@ -97,6 +97,11 @@ func _run() -> void:
 		_fail("Discovered native chart did not appear in song selection.")
 		return
 	songs[0].pressed.emit()
+	var difficulties := ui.find_children("Difficulty_*", "Button", true, false)
+	if difficulties.size() != 1:
+		_fail("The discovered bundle must offer its chart in difficulty selection.")
+		return
+	difficulties[0].pressed.emit()
 	deadline = Time.get_ticks_msec() + 15000
 	while ui.current_state() == AppState.LOADING and Time.get_ticks_msec() < deadline:
 		await process_frame

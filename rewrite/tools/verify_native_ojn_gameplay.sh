@@ -23,10 +23,12 @@ for directory in ["songs", "catalog", "work"]:
     (root / directory).mkdir()
 fixtures = pathlib.Path("rewrite/golden/java-migration/sources/ojn")
 source = bytearray((fixtures / "minimal.ojn").read_bytes())
-source += struct.pack("<IHH4B", 0, 2, 1, 1, 0, 0xf1, 0)
-for offset in [288, 292, 296]:
-    struct.pack_into("<I", source, offset, len(source))
+for index in range(3):
+    struct.pack_into("<I", source, 284 + index * 4, len(source))
+    source += struct.pack("<IHH4B", 0, 2 + index, 1, 1, 0, 0xf1, 0)
+struct.pack_into("<I", source, 296, len(source))
 (root / "songs/song.ojn").write_bytes(source)
+(root / "songs/copy.ojn").write_bytes(source)
 (root / "songs/minimal.ojm").write_bytes((fixtures / "minimal.ojm").read_bytes())
 converter = str(pathlib.Path("native/target/debug/open2jam-converter").resolve())
 request = {"schemaVersion": 1, "jobId": "catalog", "command": "CATALOG", "roots": [str(root / "songs")],
@@ -37,7 +39,7 @@ subprocess.run([converter, "catalog", "--request", str(root / "request.json"), "
                 "--result", str(root / "result.json")], check=True)
 result = json.loads((root / "result.json").read_text())
 catalog = json.loads(pathlib.Path(result["output"]["catalogPath"]).read_text())
-assert len(catalog["entries"]) == 3
+assert len(catalog["entries"]) == 6
 (root / "entry.json").write_text(json.dumps(catalog["entries"][0]))
 run = subprocess.run(["godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "godot.log"),
                       "--script", "res://scripts/tests/native_ojn_gameplay_test.gd", "--", converter,

@@ -959,7 +959,17 @@ func _populate_song_list(song_list: VBoxContainer) -> void:
 		var empty_filter_label := _label("EmptySongList", "No matching songs", HORIZONTAL_ALIGNMENT_CENTER)
 		song_list.add_child(empty_filter_label)
 	else:
+		var shown_sources := {}
 		for entry: Dictionary in entries:
+			if entry.has("sourceId"):
+				var source_id: String = entry["sourceId"]
+				if shown_sources.has(source_id):
+					continue
+				shown_sources[source_id] = true
+				var source_button := _button("Song_" + _safe_name(source_id), str(entry.get("title", "")))
+				source_button.pressed.connect(_on_native_song_selected.bind(source_id))
+				song_list.add_child(source_button)
+				continue
 			var safe_id := _safe_name(str(entry.get("id", "")))
 			var song_button := _button("Song_%s" % safe_id,
 					"%s - %s" % [str(entry.get("artist", "")), str(entry.get("title", ""))])
@@ -1227,6 +1237,46 @@ func _on_song_select_back_pressed() -> void:
 	_cancel_native_catalog()
 	if _app_state.transition_to(AppState.MAIN_MENU):
 		_show_main_menu()
+
+
+func _on_native_song_selected(source_id: String) -> void:
+	if not _app_state.transition_to(AppState.DIFFICULTY_SELECT):
+		return
+	_clear_content()
+	_content.alignment = BoxContainer.ALIGNMENT_BEGIN
+	var charts: Array[Dictionary] = []
+	for entry: Dictionary in _song_entries:
+		if entry.get("sourceId", "") == source_id:
+			charts.append(entry)
+	_title_label = _label("Title", str(charts[0].get("title", "")) if not charts.is_empty() else "Song unavailable", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_title_label)
+	_subtitle_label = _label("Subtitle", "Select difficulty", HORIZONTAL_ALIGNMENT_CENTER)
+	_content.add_child(_subtitle_label)
+	var scroll := ScrollContainer.new()
+	scroll.name = "DifficultyScroll"
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_content.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.name = "Difficulties"
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	for entry: Dictionary in charts:
+		var name := "Chart"
+		if entry.get("format", "") == "O2JAM":
+			name = ["Easy", "Normal", "Hard"][int(entry["chartIndex"])]
+		var button := _button("Difficulty_" + _safe_name(str(entry["id"])), "%s | Level %s" % [name, _song_level_text(entry)])
+		button.pressed.connect(_on_song_selected.bind(entry.duplicate(true)))
+		list.add_child(button)
+	var back := _button("BackButton", "Back")
+	back.pressed.connect(_on_difficulty_back_pressed)
+	_content.add_child(back)
+	apply_layout_for_size(_layout_size())
+
+
+func _on_difficulty_back_pressed() -> void:
+	if _app_state.transition_to(AppState.SONG_SELECT):
+		_show_song_select()
 
 
 func _on_song_selected(entry: Dictionary) -> void:

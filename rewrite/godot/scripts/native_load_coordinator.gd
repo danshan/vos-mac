@@ -1,6 +1,7 @@
 extends Node
 
 const LoadJob = preload("res://scripts/native_load_job.gd")
+const ArtifactCache = preload("res://scripts/native_artifact_cache.gd")
 signal loaded(generation: int, bundle: Dictionary)
 signal failed(generation: int, error: Dictionary)
 signal progressed(generation: int, event: Dictionary)
@@ -10,10 +11,10 @@ var _jobs: Array = []
 var _active: Variant = null
 
 
-func start_loading(converter: String, request: Dictionary, work_root: String) -> int:
+func start_loading(converter: String, request: Dictionary, work_root: String, cache_root: String = "") -> int:
 	cancel_loading()
 	var job = LoadJob.new()
-	job.start(converter, request, work_root, _generation)
+	job.start(converter, request, work_root, _generation, cache_root)
 	_jobs.append(job)
 	_active = job
 	return _generation
@@ -51,6 +52,8 @@ func _process(_delta: float) -> void:
 		if job != _active or job.generation != _generation:
 			continue
 		_active = null
+		if result.get("ok", false) and not job.cache_root.is_empty() and result.has("stagingPath"):
+			result = ArtifactCache.new().publish(job.cache_root, result["stagingPath"], result["bundle"], result["replaceCorrupt"])
 		if result.get("ok", false):
 			loaded.emit(job.generation, result["bundle"])
 		else:

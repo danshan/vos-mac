@@ -46,6 +46,17 @@ if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.
     print(result.stderr, file=sys.stderr)
     raise SystemExit("Native UI loading gate failed")
 
+result = subprocess.run([
+    "godot", "--headless", "--path", "rewrite/godot", "--log-file", str(root / "cache.log"),
+    "--script", "res://scripts/tests/native_artifact_cache_test.gd", "--",
+    str(pathlib.Path("native/target/debug/open2jam-converter").resolve()), str(root / "source"), str(root),
+], capture_output=True, text=True, timeout=30)
+print(result.stdout, end="")
+marker = "Native artifact cache published validated output and reused a verified hit."
+if result.returncode or marker not in result.stdout or "SCRIPT ERROR" in result.stderr or "SCRIPT ERROR" in result.stdout:
+    print(result.stderr, file=sys.stderr)
+    raise SystemExit("Native artifact cache gate failed")
+
 for pid_file in root.rglob("*.pid"):
     try:
         os.kill(int(pid_file.read_text()), 0)

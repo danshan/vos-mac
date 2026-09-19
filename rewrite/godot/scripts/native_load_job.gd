@@ -3,8 +3,10 @@ extends RefCounted
 const Wire = preload("res://scripts/native_json.gd")
 const Integrity = preload("res://scripts/native_bundle_integrity.gd")
 const Loader = preload("res://scripts/native_bundle_loader.gd")
+const ArtifactCache = preload("res://scripts/native_artifact_cache.gd")
 const CANCEL_GRACE_MS := 1000
 
+var cache_root := ""
 var generation: int
 var job_id: String
 var _directory := ""
@@ -19,7 +21,8 @@ var _sequence := 0
 var _progress_invalid := false
 
 
-func start(converter: String, template: Dictionary, work_root: String, load_generation: int) -> void:
+func start(converter: String, template: Dictionary, work_root: String, load_generation: int, artifact_root: String = "") -> void:
+	cache_root = artifact_root
 	generation = load_generation
 	job_id = "load-" + Crypto.new().generate_random_bytes(16).hex_encode()
 	_directory = work_root.path_join(job_id)
@@ -147,6 +150,16 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 	var cancel_path: String = request["cancelMarkerPath"]
 	if _cancellation_requested() or FileAccess.file_exists(cancel_path):
 		return _failure("CANCELLED", "Cancelled before helper startup.")
+	var replace_corrupt := false
+	if not cache_root.is_empty():
+		var cached: Dictionary = ArtifactCache.new().lookup(cache_root, request, _cancellation_requested)
+		if cached.has("bundle"):
+			return {"ok": true, "bundle": cached["bundle"]}
+		if cached.get("conflict", false):
+			return _failure("CACHE_CORRUPT", "Valid cache and source disagree under the same bundle key.")
+		replace_corrupt = cached.get("replace", false)
+		if _cancellation_requested():
+			return _failure("CANCELLED", "Cancelled during cache validation.")
 	var child := OS.execute_with_pipe(converter, ["bundle", "--request", directory.path_join("request.json"), "--progress", directory.path_join("progress.jsonl"), "--result", directory.path_join("result.json")], false)
 	if child.is_empty():
 		return _failure("CONVERTER_CRASHED", "Unable to start native helper.")
@@ -184,7 +197,7 @@ func _run(converter: String, request: Dictionary, directory: String) -> Dictiona
 		return _failure("CANCELLED", "Cancelled while validating native output.")
 	if bundle.is_empty() or bundle["chart"]["chartId"] != request["chartId"]:
 		return _failure("CACHE_CORRUPT", "Native bundle validation failed.")
-	return {"ok": true, "bundle": bundle}
+	return {"ok": true, "bundle": bundle, "stagingPath": expected_path, "replaceCorrupt": replace_corrupt}
 
 
 static func _failure(code: String, message: String) -> Dictionary:

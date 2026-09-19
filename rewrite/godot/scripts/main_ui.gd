@@ -2203,7 +2203,7 @@ func _start_native_loading() -> void:
 		return
 	var request: Dictionary = _selected_entry["nativeRequest"].duplicate(true)
 	request["stagingRoot"] = _native_work_root.path_join("staging")
-	_native_generation = _native_coordinator.start_loading(_native_converter, request, _native_work_root)
+	_native_generation = _native_coordinator.start_loading(_native_converter, request, _native_work_root, _native_work_root.path_join("artifacts-v2"))
 
 
 func _cancel_native_loading() -> void:

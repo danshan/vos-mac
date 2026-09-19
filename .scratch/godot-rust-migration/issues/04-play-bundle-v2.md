@@ -81,3 +81,5 @@
 新增开发 controlled-bundle-probe, 使用共享 core 生成严格 Chart/audio/bundle 和真实 44.1 kHz stereo PCM16 WAV. fixture 含 tap/hold、同刻长音释放后新音头、亚毫秒时间、离散比例及不同 timing 轨道. 重复输出路径拒绝覆盖, 搬移后 bundle 仍有效.
 
 独立 Python wave 解码与 Godot 4.6.3 AudioStreamWAV 加载已提供真实音频资源证据, 详见 `docs/rewrite/2026-09-19-controlled-bundle-probe.md`. 尚未接通正式 CLI bundle 服务与完整 Godot v2 adapter, 不将音频解码 smoke 当成 Gameplay Ready.
+
+阶段提交 `15460f5`. 累计 72 项 native 回归日志无失败: `/tmp/vos-ticket04-controlled-bundle.log`; fmt/clippy 无新增问题. 独立两轴审查 Standards 0、Spec 0. 真实 Godot WAV 加载 gate 退出码为 0, production Chart adapter 与正式 CLI 服务仍是下一步, ticket 不关闭.

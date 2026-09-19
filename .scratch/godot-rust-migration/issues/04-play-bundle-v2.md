@@ -43,3 +43,9 @@
 完整 native workspace 现有 49 项测试通过, workspace all-target clippy 通过. 日志: `/tmp/vos-ticket04-identity-workspace.log`. 先前 identity 缺实现导致的累计门禁失败已解除, 不代表 ticket 04 的 bundle/gameplay 验收完成. bundle declared wire ID 保留, catalog 来源组合与 root 持久化仍归 ticket 16.
 
 身份阶段提交 `8463df2`, Spec 发现 root-level osu set 表达缺口, 已由 `a3f0750` 修复并通过新回归与复审. 最终 Standards 0、Spec 0 未解决发现. 当前完整 workspace 49 项通过, 没有因身份草稿跳过测试. 下一步接入实际 bundle v2 生成、严格验证和 Godot runtime 消费.
+
+## 实施进度: Bundle 文件完整性
+
+补齐严格 BundleManifestV2、完整内容 key v1 和 bounded verifier. 校验文件集合、size/hash、schema/key/identity、目录组件大小写冲突、symlink 与非普通文件; 支持整个目录搬移. 独立 Python framing vectors 覆盖四种 selector. Manifest 限制 1 MiB、65,536 文件和每路径 64 组件, 防止路径前缀索引放大. 详细边界见 `docs/rewrite/2026-09-19-bundle-integrity-contract.md`.
+
+该层仅完成文件完整性审计, 不证明 gameplay/audio schema 或 Gameplay Ready. 仍无 production importer 能力声明, 不关闭上方完整链路验收项. 验证日志: `/tmp/vos-ticket04-bundle-workspace.log`, `/tmp/vos-ticket04-bundle-doc.log`.

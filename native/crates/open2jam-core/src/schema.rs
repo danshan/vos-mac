@@ -1,0 +1,12 @@
+pub const PROTOCOL_SCHEMA_VERSION: u16 = 1;
+pub const REQUEST_SCHEMA_VERSION: u16 = 1;
+pub const RESULT_SCHEMA_VERSION: u16 = 1;
+pub const PROGRESS_SCHEMA_VERSION: u16 = 1;
+pub const CATALOG_SCHEMA_VERSION: u16 = 2;
+pub const BUNDLE_SCHEMA_VERSION: u16 = 2;
+pub const GAMEPLAY_SCHEMA_VERSION: u16 = 2;
+pub const AUDIO_MANIFEST_SCHEMA_VERSION: u16 = 2;
+pub const ID_ALGORITHM_VERSION: u16 = 1;
+pub const SOURCE_FINGERPRINT_VERSION: u16 = 1;
+pub const BUNDLE_KEY_ALGORITHM_VERSION: u16 = 1;
+pub const STATIC_ASSETS_VERSION: &str = "open2jam-gameplay-assets-v1";

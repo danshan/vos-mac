@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-pub const PROTOCOL_SCHEMA_VERSION: u16 = 1;
-pub const CATALOG_SCHEMA_VERSION: u16 = 2;
-pub const BUNDLE_SCHEMA_VERSION: u16 = 2;
+use crate::format::Format;
+use crate::schema::{BUNDLE_SCHEMA_VERSION, CATALOG_SCHEMA_VERSION, PROTOCOL_SCHEMA_VERSION};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -12,8 +11,8 @@ pub struct VersionInfo {
     pub protocol_schema_version: u16,
     pub catalog_schema_version: u16,
     pub bundle_schema_version: u16,
-    pub catalog_formats: Vec<String>,
-    pub bundle_formats: Vec<String>,
+    pub catalog_formats: Vec<Format>,
+    pub bundle_formats: Vec<Format>,
 }
 
 impl VersionInfo {

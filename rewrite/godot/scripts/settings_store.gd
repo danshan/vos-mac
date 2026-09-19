@@ -1,5 +1,6 @@
 extends RefCounted
 
+const Wire = preload("res://scripts/native_json.gd")
 const InputMapStore = preload("res://scripts/input_map_store.gd")
 const SettingsI18n = preload("res://scripts/settings_i18n.gd")
 
@@ -20,6 +21,8 @@ const SETTINGS_LANGUAGE_ZH: String = SettingsI18n.LANGUAGE_ZH
 const SETTINGS_LANGUAGES: Array[String] = SettingsI18n.LANGUAGE_ORDER
 
 var _song_directories: Array[String] = []
+var _library_root_ids: Dictionary = {}
+var _library_identity_valid := true
 var _settings_language: String = SETTINGS_LANGUAGE_EN
 var _fullscreen_enabled: bool = false
 var _vsync_enabled: bool = true
@@ -45,6 +48,37 @@ var _judgment_type: String = JUDGMENT_TYPE_DEFAULT
 
 func set_song_directories(paths: Array[String]) -> void:
 	_song_directories = paths.duplicate()
+	for root: String in _library_root_ids.keys():
+		if not paths.has(root):
+			_library_root_ids.erase(root)
+
+
+func persist_library_root_ids(settings_path: String) -> Dictionary:
+	if not _ensure_library_root_ids() or not save_to_file(settings_path):
+		return {}
+	return _library_root_ids.duplicate()
+
+
+func _ensure_library_root_ids() -> bool:
+	if not _library_identity_valid:
+		return false
+	var next := {}
+	var seen := {}
+	for root: String in _song_directories:
+		if not root.is_absolute_path() or next.has(root):
+			return false
+		var token: String = _library_root_ids.get(root, "")
+		if token.is_empty():
+			var bytes := Crypto.new().generate_random_bytes(32)
+			if bytes.size() != 32:
+				return false
+			token = "library:" + Wire.sha256(bytes)
+		if seen.has(token):
+			return false
+		seen[token] = true
+		next[root] = token
+	_library_root_ids = next
+	return true
 
 
 func song_directories() -> Array[String]:
@@ -254,9 +288,13 @@ func judgment_type() -> String:
 
 
 func save_to_file(path: String) -> bool:
+	if not _library_identity_valid or (not _library_root_ids.is_empty() and not _ensure_library_root_ids()):
+		return false
 	var config := ConfigFile.new()
 	config.set_value("ui", "settings_language", _settings_language)
 	config.set_value("songs", "directories", _song_directories)
+	if not _library_root_ids.is_empty():
+		config.set_value("songs", "root_ids", _library_root_ids)
 	config.set_value("display", "fullscreen", _fullscreen_enabled)
 	config.set_value("display", "vsync", _vsync_enabled)
 	config.set_value("gameplay", "autoplay", _autoplay_enabled)
@@ -290,6 +328,20 @@ func load_from_file(path: String) -> bool:
 
 	set_settings_language(_string_value(config.get_value("ui", "settings_language", _settings_language), _settings_language))
 	set_song_directories(_string_array_value(config.get_value("songs", "directories", song_directories()), song_directories()))
+	_library_root_ids.clear()
+	_library_identity_valid = true
+	if config.has_section_key("songs", "root_ids"):
+		var stored: Variant = config.get_value("songs", "root_ids")
+		var seen := {}
+		_library_identity_valid = stored is Dictionary and stored.size() == _song_directories.size()
+		if _library_identity_valid:
+			for root: Variant in stored:
+				if not root is String or not _song_directories.has(root) or not Wire.identifier(stored[root], "library:sha256:") or seen.has(stored[root]):
+					_library_identity_valid = false
+					break
+				seen[stored[root]] = true
+		if _library_identity_valid:
+			_library_root_ids = stored.duplicate()
 	set_fullscreen_enabled(_bool_value(config.get_value("display", "fullscreen", _fullscreen_enabled), _fullscreen_enabled))
 	set_vsync_enabled(_bool_value(config.get_value("display", "vsync", _vsync_enabled), _vsync_enabled))
 	set_autoplay_enabled(_bool_value(config.get_value("gameplay", "autoplay", _autoplay_enabled), _autoplay_enabled))

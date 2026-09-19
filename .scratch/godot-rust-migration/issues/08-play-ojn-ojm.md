@@ -142,3 +142,13 @@
 - red `/tmp/vos-ojn-difficulty-red.log`; 当前证据 `/tmp/vos-ojn-difficulty.log`, `/tmp/vos-difficulty-bundle.log`. 共享 UI 全量回归记录 `/tmp/vos-difficulty-regression.log`.
 - 尚待设置驱动扫描的 LibraryRootId 持久化, 以及最终加载/性能门禁. 本 ticket 保持 in-progress.
 - 独立难度选择增量 `b14a7e6` 固定基点两轴审查: Standards 0 项, Spec 0 项. 全量脚本退出 0, Java 汇总 157 tests / 0 failures / 0 errors / 8 existing skips, Godot 链执行至 result_flow_test; 证据见上述 regression 日志.
+
+## 当前增量: 设置驱动扫描与持久化来源身份
+
+- SettingsStore 为新来源生成随机 32-byte seed 的 SHA-256 token, 保存在 songs.root_ids. 已保存 token 在重载与同目录设置更新时复用; 删除后重新添加的来源获得新 token. 旧配置缺 root_ids 时在首次 native scan 前迁移保存, 不根据路径或歌曲内容派生身份.
+- MainUi 在发起 CATALOG 前先持久化完整 rootIds, 保存失败或身份配置损坏时展示错误并停止扫描. 畸形、部分映射或重复 token 不静默重建, 后续设置保存也不覆盖损坏身份配置.
+- OJN gate 不再调用 set_song_entries, 而是准备旧版目录设置, 通过 Start 触发实际扫描、歌曲分组、难度选择、Rust 转换、判定/音频与结果页. 每个 Chart 使用重新创建的 MainUi 和重新加载的设置, 检查来源选择 ID 跨重载不变. 另注入损坏身份配置, 验证用户可见错误且磁盘配置 bytes 不变.
+- 新增独立 SettingsStore 测试 seam 尚未确认, 本增量全部新增验收仍通过已批准的 UI/CLI 行为边界.
+- Context7 在沙箱外返回 fetch failed; 使用 Godot 官方 Crypto 文档核实 generate_random_bytes, https://docs.godotengine.org/en/stable/classes/class_crypto.html. 无新增依赖.
+- red `/tmp/vos-root-persistence-red.log`; 验证记录 `/tmp/vos-root-persistence.log`, `/tmp/vos-root-persistence-bundle.log`, `/tmp/vos-root-persistence-regression.log`. 结果页验证首次恰好停在既有 10 s finish delay 边界, 调整为越过该严格大于边界, 未修改 runtime 行为.
+- 完整重新定位、多 root 管理、跨重启 Chart 选择恢复及配置的崩溃恢复仍由 tickets 16/23 完成, 本增量只提供稳定 token 和 ordinary scan 的前置能力.

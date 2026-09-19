@@ -2316,6 +2316,10 @@ func _reap_retired_audio_pools() -> void:
 
 
 func _start_native_catalog(directories: Array[String]) -> void:
+	var root_ids: Dictionary = _settings_store.persist_library_root_ids(_settings_path)
+	if root_ids.size() != directories.size():
+		_song_catalog_error = "Unable to preserve library identity. Check library settings and storage access."
+		return
 	if DirAccess.make_dir_recursive_absolute(_native_work_root.path_join("catalog-staging")) != OK:
 		_song_catalog_error = "Unable to create library scan directory"
 		return
@@ -2328,9 +2332,9 @@ func _start_native_catalog(directories: Array[String]) -> void:
 	_native_catalog_directories = _copy_string_array(directories)
 	var roots := _copy_string_array(directories)
 	roots.sort()
-	var request := {"schemaVersion": 1, "command": "CATALOG", "roots": roots,
+	var request := {"schemaVersion": 1, "command": "CATALOG", "roots": roots, "rootIds": root_ids,
 		"previousIndexPath": null, "stagingRoot": _native_work_root.path_join("catalog-staging")}
-	_song_catalog_error = "Scanning bundles..."
+	_song_catalog_error = "Scanning songs..."
 	_native_catalog_generation = _native_catalog_coordinator.start_loading(_native_converter, request, _native_work_root)
 
 

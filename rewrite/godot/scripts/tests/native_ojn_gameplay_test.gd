@@ -1,5 +1,6 @@
 extends SceneTree
 
+const Settings = preload("res://scripts/settings_store.gd")
 const MainUi = preload("res://scripts/main_ui.gd")
 const CatalogLoader = preload("res://scripts/native_catalog_loader.gd")
 const Coordinator = preload("res://scripts/native_load_coordinator.gd")
@@ -67,14 +68,29 @@ func _run() -> void:
 		if loaded.is_empty() == (mutation == "valid"):
 			_fail("OJN catalog validation disagreed with metadata mutation: " + mutation)
 			return
+	var settings = Settings.new()
+	settings.set_song_directories([songs_root])
+	if not settings.save_to_file(args[2].path_join("settings.cfg")):
+		_fail("Unable to prepare library settings.")
+		return
+	var previous_song_names: Array[String] = []
 	for chart_index in range(3):
 		var ui = MainUi.new()
 		ui.set_settings_path(args[2].path_join("settings.cfg"))
 		ui.configure_native_converter(args[0], args[2])
-		ui.set_song_entries(_catalog["entries"])
 		get_root().add_child(ui)
 		ui.get_node("Content/Menu/StartButton").pressed.emit()
+		var scan_deadline := Time.get_ticks_msec() + 15000
+		while ui.find_children("Song_*", "Button", true, false).is_empty() and Time.get_ticks_msec() < scan_deadline:
+			await process_frame
 		var songs := ui.find_children("Song_*", "Button", true, false)
+		var song_names: Array[String] = []
+		for song: Button in songs:
+			song_names.append(str(song.name))
+		if chart_index > 0 and song_names != previous_song_names:
+			_fail("Library song identity changed when reopening the UI.")
+			return
+		previous_song_names = song_names
 		if songs.size() != 2 or songs[0].text != _catalog["entries"][0]["title"]:
 			_fail("Each OJN source must occupy one title-only song row, even when titles match.")
 			return
@@ -102,7 +118,33 @@ func _run() -> void:
 		if not runtime.press_action("vos_lane_%d" % (chart_index + 1), 1500.0).get("accepted", false) or runtime.audio_play_event_count() < 1:
 			_fail("Converted OJN note did not trigger judgment and prepared audio.")
 			return
+		runtime.advance_to(120000.0)
+		runtime.advance_to(130001.0)
+		if ui.current_state() != AppState.RESULT:
+			_fail("The selected OJN chart did not finish into the result screen.")
+			return
 		ui.free()
+	var settings_path := args[2].path_join("settings.cfg")
+	var config := ConfigFile.new()
+	if config.load(settings_path) != OK:
+		_fail("Unable to inspect the persisted settings fixture.")
+		return
+	config.set_value("songs", "root_ids", {songs_root: "library:sha256:broken"})
+	config.save(settings_path)
+	var damaged := FileAccess.get_file_as_bytes(settings_path)
+	var invalid_ui = MainUi.new()
+	invalid_ui.set_settings_path(settings_path)
+	invalid_ui.configure_native_converter(args[0], args[2])
+	get_root().add_child(invalid_ui)
+	invalid_ui.get_node("Content/Menu/StartButton").pressed.emit()
+	var status := invalid_ui.get_node_or_null("Content/CatalogStatus")
+	if status == null or not str(status.text).contains("identity") or not invalid_ui.find_children("Song_*", "Button", true, false).is_empty():
+		_fail("Damaged library identity must stop scanning with a visible error.")
+		return
+	invalid_ui.free()
+	if FileAccess.get_file_as_bytes(settings_path) != damaged:
+		_fail("Damaged library identity must not be silently replaced.")
+		return
 	coordinator.free()
 	print("Raw OJN reached Gameplay Ready through the native converter and judged its note with audio.")
 	quit(0)

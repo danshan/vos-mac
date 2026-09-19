@@ -60,3 +60,7 @@ OJN BUNDLE request 必须携带 `libraryRoot: {id, path}`. path 是本次 root �
 OJN 不使用 SoundFont 合成. 为保持既有 v2 bundle/key 合同, 当前仍携带 request.soundfont 的版本/hash 作为 key 配置输入, 但不打开其 path. 此字段不是 OJN 音色来源, 也不能据此宣称做过 SoundFont 文件校验.
 
 OJN fingerprint 使用既有 v1 framing: 两个 component, PRIMARY=1 与 COMPANION=2, ordinal 均为 0, 分别记录完整源 bytes 长度及 digest, 不记录绝对路径. 解析使用同一打开句柄读取并哈希的不可变 bytes, 最终返回前检查句柄及原路径的 identity/size/mtime, 拒绝文件变化. 当前 Unix adapter 使用 dev/ino 和纳秒 mtime; Windows 原始源 capture 尚未实现, 本次 macOS arm64 交付范围不变.
+
+## 设置持久化前置能力
+
+Godot SettingsStore 在 songs.root_ids 保存 path -> LibraryRootId, token 为安全随机 32-byte seed 的 SHA-256, 不从路径或文件内容派生. 旧配置未保存该字段时, 首次 native catalog 之前生成并保存; 只有保存成功后才传给 CLI. 已存在但畸形、部分或复用 token 的配置不能静默重建. 删除来源后再新增不恢复原 token. 显式重新定位与多 root UI 属于 ticket 16, 配置崩溃恢复属于 ticket 23.

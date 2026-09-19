@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 2,
+  "format": "O2JAM",
+  "keys": 7,
+  "title": "Native controlled chart",
+  "artist": "Migration fixture",
+  "durationUs": 3000500,
+  "notes": [
+    {"lane":0,"startUs":1000125,"measure":0,"eventOrder":2,"volume":{"numerator":15,"denominator":16},"pan":{"numerator":-7,"denominator":8},"tail":null},
+    {"lane":1,"startUs":1500125,"measure":0,"eventOrder":3,"volume":{"numerator":1,"denominator":2},"pan":{"numerator":7,"denominator":8},"tail":{"atUs":2500250,"measure":1,"eventOrder":4}},
+    {"lane":1,"startUs":2500250,"measure":1,"eventOrder":5,"volume":{"numerator":1,"denominator":1},"pan":{"numerator":0,"denominator":1},"tail":null}
+  ],
+  "measures": [0,2000000],
+  "judgmentTiming": [{"atUs":0,"bpm":{"numerator":120,"denominator":1},"eventOrder":0}],
+  "visualTiming": [
+    {"atUs":0,"bpm":{"numerator":120,"denominator":1},"eventOrder":0},
+    {"atUs":500125,"bpm":{"numerator":180,"denominator":1},"eventOrder":1}
+  ],
+  "scroll": [{"atUs":500125,"multiplier":{"numerator":3,"denominator":2},"eventOrder":1}],
+  "autoPlayEvents": [{"atUs":125,"eventOrder":1,"volume":{"numerator":1,"denominator":2},"pan":{"numerator":0,"denominator":1}}]
+}

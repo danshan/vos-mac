@@ -75,3 +75,9 @@
 本层不解码 WAV, 不等于 Gameplay Ready; production importer、真实受控 producer 和 Godot consumer 仍待完成. 原始压缩音频输入继续由后续 audio preparation 转成 WAV, 不缩减产品范围.
 
 阶段提交 `59307a3`. 累计 71 项 native 回归日志无失败: `/tmp/vos-ticket04-bundle-documents.log`; workspace clippy 无 warning. 独立审查 Standards 0、Spec 0. 下一步生成真实可解码的受控 WAV/bundle, 接入 native CLI 和 Godot runtime; 不把本阶段的文档一致性验证当作音频或游玩证据.
+
+## 实施进度: 真实受控 bundle 与 Godot WAV 解码
+
+新增开发 controlled-bundle-probe, 使用共享 core 生成严格 Chart/audio/bundle 和真实 44.1 kHz stereo PCM16 WAV. fixture 含 tap/hold、同刻长音释放后新音头、亚毫秒时间、离散比例及不同 timing 轨道. 重复输出路径拒绝覆盖, 搬移后 bundle 仍有效.
+
+独立 Python wave 解码与 Godot 4.6.3 AudioStreamWAV 加载已提供真实音频资源证据, 详见 `docs/rewrite/2026-09-19-controlled-bundle-probe.md`. 尚未接通正式 CLI bundle 服务与完整 Godot v2 adapter, 不将音频解码 smoke 当成 Gameplay Ready.

@@ -13,6 +13,10 @@ path = "src/main.rs"
 name = "vos-synth-probe"
 path = "src/bin/vos_synth_probe.rs"
 
+[[bin]]
+name = "controlled-bundle-probe"
+path = "src/bin/controlled_bundle_probe.rs"
+
 [dependencies]
 open2jam-core = { path = "../open2jam-core" }
 serde_json.workspace = true

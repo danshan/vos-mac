@@ -4,7 +4,7 @@ native_load_coordinator 是场景中的长期协调器, 使用递增 generation 
 
 native_load_job 每次分配随机 JobId 和 create-new transport 目录, 将用户选择的请求复制后写入专属 request. worker 调用 OS.execute_with_pipe 的非阻塞模式, 独占返回的 PID, 持续排空 stdout/stderr. 主线程不执行或等待 helper, 不按进程名搜索或终止进程. 取消采用受 Mutex 保护的内存标志与磁盘 marker, 1 s 宽限后由唯一 PID owner 终止并 reap. marker 无法写入也不会丢失本进程内的取消请求. 对完成目录的消费还要求成功 result 的 job、命令、schema、路径和 key 与请求一致, 再由 Godot 独立 loader 验证.
 
-主线程每帧读取最多 16 KiB progress, 保留最多 64 KiB 未完成行, 验证 job/sequence/phase/单位. worker 在非 UI 线程完成 bundle 校验与 WAV 解码后才发送结果. 取消发生在验证期间时会丢弃结果, 但目前不会在每个文件块或单次 WAV 解码内部打断. 场景退出会取消全部任务并 join; 大文件解码时仍可能等待. UI 选择/返回接入、块级取消和资源预算仍是后续实施, 不能据此关闭 ticket 05.
+主线程每帧读取最多 16 KiB progress, 保留最多 64 KiB 未完成行, 验证 job/sequence/phase/单位. worker 在非 UI 线程完成 bundle 校验与 WAV 解码后才发送结果. 取消在文件块、扫描区间和事件之间传播, 单次引擎 WAV 解码仍不可中断. 场景退出会取消全部任务并 join; 大文件解码时仍可能等待. UI 接入和块级取消已完成, 资源预算继续由 ticket 20/24 验收.
 
 工作目录与 stagingRoot 应由应用创建并传入规范化绝对路径. helper 无需 shell wrapper, 生产 converter 当前不启动子进程. 不支持任意多进程 shell pipeline 的所有权推断. 应用异常退出后的孤儿 helper 与 staging 恢复仍属于 ticket 22; 活跃任务取消不替代该责任.
 
@@ -23,3 +23,5 @@ Godot verifier 的文件与 JSON 读取在 64 KiB 块之间检查取消, JSON �
 Native UI 音频登记关闭既有小资产集合的 eager decode, 保留逐帧异步预热. 返回时若 pool 仍在解码, 保留在 retired 列表, 后续帧确认线程结束后释放, 不在 Back 回调中 join. 应用关闭时仍由节点退出回收剩余线程.
 
 完整迁移门禁发现旧 Godot render fixture 的纹理路径指向不存在的开发机目录. 仅替换为本项目 `res://assets/o2jam` 路径, 数值布局不变; `rewrite/golden/java-migration` 冻结内容未改. asset manifest 的 layoutSourceRevision 记录迁移前来源, 避免把可搬移路径更新误写成原始 snapshot 内容.
+
+JSON 取消检查按跨越扫描区间触发, 不依赖游标恰好等于区间倍数, 连续转义不会跳过检查. Loading 重入仅允许 native -> native, 在修改选择记录前拒绝 legacy 活跃加载的重复请求, 避免丢失旧导出任务所有权.

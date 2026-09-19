@@ -4,12 +4,12 @@
 
 **Blocked by:** 04: 打通 bundle v2 到 Gameplay Ready.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] converter 调用不阻塞 Godot 主线程, 每个任务具有可追踪的进程所有权与 Load Generation.
-- [ ] 取消传递到所属 helper, 有界等待后处理未退出进程; 不按模糊进程名终止无关进程.
-- [ ] 切换和返回使旧 generation 失效, 迟到进度、结果和退出事件不能污染当前状态.
-- [ ] 通过取消前后竞态、快速连续选择及晚到成功结果验证不启动旧 Chart, 并回收任务资源.
+- [x] converter 调用不阻塞 Godot 主线程, 每个任务具有可追踪的进程所有权与 Load Generation.
+- [x] 取消传递到所属 helper, 有界等待后处理未退出进程; 不按模糊进程名终止无关进程.
+- [x] 切换和返回使旧 generation 失效, 迟到进度、结果和退出事件不能污染当前状态.
+- [x] 通过取消前后竞态、快速连续选择及晚到成功结果验证不启动旧 Chart, 并回收任务资源.
 
 
 ## 实施进度: Native worker 与 generation 协调
@@ -33,3 +33,11 @@ Godot 完整性校验、JSON 扫描、事件验证/转换及 WAV 之间增加取
 仍需本阶段完整迁移门禁和两轴复审后才能关闭 ticket. 单次引擎 JSON.parse/WAV 解码不可强行打断, 其资源上限归 ticket 20/24, 不声称任意输入上的硬实时退出保证.
 
 UI cancellation 补充: native audio pool 禁止主线程 eager decode; 正在预热的旧 pool 在返回后保留到线程结束再释放. 完整 gate 暴露原 Godot render fixture 的失效开发机绝对路径, 仅将其重定位到内置皮肤, Java frozen goldens 未改. 首次 gate 的失败与重跑证据均保留, 不把纹理读取错误静默过滤.
+
+## 完成验收
+
+UI 接入 `fc63a29`, 长转义 JSON 取消修复 `8f9f00f`, legacy 重入所有权修复 `32f7eba`. 两个边界均先补失败反例再修复. 重入只允许 native -> native, 修改选择前拒绝 legacy 活跃加载重入, 保留导出任务引用.
+
+完整迁移门禁日志 `/tmp/vos-ticket05-ui-full.log` 退出码 0, Java 主测试集合 157 项, 0 failures/errors, 8 项既有 skips. 最终 bundle 验证日志 `/tmp/vos-ticket05-escaped-green.log` 与 native coordinator/UI 日志 `/tmp/vos-ticket05-final-native.log` 包含成功标记, 无 SCRIPT ERROR; legacy UI 回归 `/tmp/vos-ticket05-reentry-green.log` 退出码 0. 完整门禁之后的两项局部修复分别由对应行为回归覆盖. 两轴复审未解决项 Standards 0, Spec 0.
+
+以上关闭本 ticket 的四项验收. 单次引擎解码、恶意输入资源预算归 ticket 20/24, 崩溃后磁盘残留恢复归 ticket 22. 下一个顺序 ticket 为 06, 不等同于完成 Java-free 全部迁移.

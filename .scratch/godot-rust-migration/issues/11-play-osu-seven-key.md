@@ -30,3 +30,4 @@
 - 两组新增生产 Java compiler oracle 覆盖负时间、正时间首个 tempo、变速、非整数 beat length、重复 BPM、同刻 scroll、3/4/5 拍号与长音. 原 seven-key gameplay golden 不变, 另有直接对照. fixtures/osu/README.md 记录来源、hash、生成方法与拒绝边界.
 - 保持 binary64 累积, 最终时间转换为整数微秒. 数值溢出、过多 measures、各输出轨道倒退明确拒绝. 二分 timing 查询避免每个 note 线性遍历全部 tempo; cancellation 覆盖输入构建和稀疏小节填充.
 - red 记录: /tmp/vos-osu-timing-red.log 与 /tmp/vos-osu-timing-bounds-red.log. 当前测试记录: /tmp/vos-osu-timing-green.log. 本增量不完成 ticket: long-note repair、BPM/scroll Ratio wire 转换、sample/audio、catalog/adapter 与 Godot 加载仍待实现.
+- timing 增量 7fbc199 固定基点独立审查: Standards 0 项 / Spec 0 项. workspace、clippy、fmt 退出 0; 记录 /tmp/vos-osu-timing-workspace.log、/tmp/vos-osu-timing-clippy.log. Java oracle provenance 仍匹配冻结源, 记录 /tmp/vos-osu-timing-provenance.log. 无产品 Java-free 完成声明.

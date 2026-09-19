@@ -11,3 +11,10 @@
 - [ ] 畸形或截断 OMC 可诊断失败, 不破坏已可用的其他歌曲.
 - [ ] 既有基础 OJM 行为保持通过, 记录任何经明确接受的语义差异.
 
+
+## 前置代码核对
+
+- Java OJMParser.parseOMC 对 OMC 的 WAV payload 先按 17 段 permutation 重排, 再应用累计 XOR; Ogg payload 不走这两步.
+- XOR 状态每个 bank 初始化 key=0xff/counter=0, 跨非空 WAV sample 延续, 不允许每个 sample 重置. 每 8 bytes 的下一 key 来自变换前 byte, 空槽只推进 sample index.
+- 重排 key 为 (length % 17) * 17, 每段长度 floor(length/17), 尾部 remainder 保持原位置. 后续固定 oracle 必须覆盖跨 sample 状态和不同 remainder, 不能只验证一个短 sample.
+- 已有原始 fixture 位于 rewrite/golden/java-migration/sources/ojn/omc.ojn 与 omc.ojm. 仍须核对样本覆盖度并用生产 decoder 贯通, 本记录不代表实现或验收完成.

@@ -4,13 +4,13 @@
 
 **Blocked by:** 04: 打通 bundle v2 到 Gameplay Ready.
 
-**Status:** in-progress
+**Status:** done
 
-- [ ] 原始 OJN 经 Rust catalog、bundle 与 Godot 显示和加载, 不调用 Java exporter.
-- [ ] 同一 OJN 的多个 chartIndex 归于同一 Song, 各 Chart 的音符和音频关联正确.
-- [ ] 基础 OJM 样本可解码并播放, timing、长音、事件顺序和源 volume/pan 精度与冻结 oracle 对照.
-- [ ] 截断数据、无效长度和缺失音频有可诊断结果, 不崩溃、挂起或无界分配.
-- [ ] 仅声明本 ticket 覆盖的基础 OJM 路径, 不把 OMC/M30 变体算作已完成.
+- [x] 原始 OJN 经 Rust catalog、bundle 与 Godot 显示和加载, 不调用 Java exporter.
+- [x] 同一 OJN 的多个 chartIndex 归于同一 Song, 各 Chart 的音符和音频关联正确.
+- [x] 基础 OJM 样本可解码并播放, timing、长音、事件顺序和源 volume/pan 精度与冻结 oracle 对照.
+- [x] 截断数据、无效长度和缺失音频有可诊断结果, 不崩溃、挂起或无界分配.
+- [x] 仅声明本 ticket 覆盖的基础 OJM 路径, 不把 OMC/M30 变体算作已完成.
 
 ## 当前增量: 有界二进制解析
 
@@ -153,3 +153,14 @@
 - red `/tmp/vos-root-persistence-red.log`; 验证记录 `/tmp/vos-root-persistence.log`, `/tmp/vos-root-persistence-bundle.log`, `/tmp/vos-root-persistence-regression.log`. 结果页验证首次恰好停在既有 10 s finish delay 边界, 调整为越过该严格大于边界, 未修改 runtime 行为.
 - 完整重新定位、多 root 管理、跨重启 Chart 选择恢复及配置的崩溃恢复仍由 tickets 16/23 完成, 本增量只提供稳定 token 和 ordinary scan 的前置能力.
 - 首轮 Spec 审查发现 ConfigFile 整体语法损坏仍可能被默认设置覆盖. 已补真实 UI 回归: 损坏文件 -> Settings -> Back 保存 -> Start, 要求 bytes 不变且显示 identity 错误; red `/tmp/vos-root-broken-config-red.log`. 缺文件允许首次初始化, 已存在但不可加载文件锁住身份保存.
+
+## 最终 ticket 验收
+
+- 状态: done. 基础 OJN/OJM 范围完整闭环, 不包含 OMC/M30, 不代表整个迁移完成.
+- 原始输入: verify_native_ojn_gameplay.sh 通过真实目录设置、Start 扫描与 native catalog, 两个同标题独立 Song 各含三个 Chart; 不调用 Java exporter, 不再注入 MainUi entries.
+- 可玩与样本关联: 三个 Chart 各从难度面板加载, 分别判定 lane 1/2/3, 验证 prepared audio 事件并进入 Result. core 测试覆盖 holds、eventOrder、volume/pan、缺失 sample 与 Java timing/hold/PCM oracle; Ogg 依据冻结 Java PCM 使用声明的 1 LSB 容差.
+- 异常与边界: CLI/core 已有截断、输入/输出上限、取消、缺 companion/sample、链接、编码歧义与 SourceChanged 回归. OMC/M30 仍明确拒绝, 留给 09/10.
+- 设置身份: 重建 UI/重载设置不改变歌曲选择 ID; root_ids 损坏或整个配置解析失败时保留原 bytes 并显示错误, 不静默生成替代身份.
+- 验证证据: /tmp/vos-root-persistence.log 与 /tmp/vos-root-persistence-bundle.log; 修复后完整脚本 /tmp/vos-root-persistence-final-regression.log 退出 0, Godot 执行至 result_flow_test. Rust workspace 证据 /tmp/vos-ojn-bundle-workspace.log, 后续未修改 Rust.
+- 两轴审查: 547e323 首次 Spec P2 已由 6652f25 修复并复审, 剩余 Standards 0 项 / Spec 0 项. 独立 reviewer 支持在最终 gate 通过后关闭.
+- 后续: ticket 16 完整多 root / relocation / selection 恢复, ticket 23 配置崩溃恢复, ticket 24/25 最终工作集与性能安全门禁.

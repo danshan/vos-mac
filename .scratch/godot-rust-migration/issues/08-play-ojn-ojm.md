@@ -58,3 +58,4 @@
 - PCM16 输出与原冻结 Java WAV 逐字节比较. 新增自制短 Ogg 的 Java PCM oracle, 长度相同且逐样本 <= 1 LSB; 多页 Ogg 验证中间页损坏拒绝. 另覆盖截断、缺少结束页、坏 PCM header 和取消. 生成来源/hash 见 fixtures/ojn/README.md.
 - red: `/tmp/vos-ticket08-pcm-red.log`, `/tmp/vos-ticket08-ogg-red.log`; 证据: `/tmp/vos-ticket08-ogg-java.log`, `/tmp/vos-ticket08-audio-tests.log`, `/tmp/vos-ticket08-audio-workspace.log`.
 - 待续: 其他 WAV 编码的支持/兼容性核对、字符集、LibraryRootId 请求传递、raw OJN CLI/catalog/bundle/Godot 闭环. 当前明确拒绝非 PCM16 WAV, 不据此勾选基础 OJM 完整播放验收.
+- 音频准备增量提交 `cd570b4`, 固定基点不变, Standards 0 项 / Spec 0 项. 下一增量已有 Java PCM8/24/32 探针: `/tmp/ojn-pcm8.wav` 的输入 0/1/127/128/129/254/255 对应 -32768/-32512/-256/0/258/32508/32767; 不能直接以左移 8 位宣称 Java 量化 parity. 临时 PCM 原始对照文件为 `/tmp/ojn-pcm8.raw`, `/tmp/ojn-pcm24.raw`, `/tmp/ojn-pcm32.raw`.

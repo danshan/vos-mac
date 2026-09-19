@@ -145,6 +145,22 @@ func _run() -> void:
 	if FileAccess.get_file_as_bytes(settings_path) != damaged:
 		_fail("Damaged library identity must not be silently replaced.")
 		return
+	var broken_file := FileAccess.open(settings_path, FileAccess.WRITE)
+	broken_file.store_string('[songs]\ndirectories=["unterminated')
+	broken_file.close()
+	damaged = FileAccess.get_file_as_bytes(settings_path)
+	var broken_ui = MainUi.new()
+	broken_ui.set_settings_path(settings_path)
+	broken_ui.configure_native_converter(args[0], args[2])
+	get_root().add_child(broken_ui)
+	broken_ui.get_node("Content/Menu/SettingsButton").pressed.emit()
+	broken_ui.get_node("Content/BackButton").pressed.emit()
+	broken_ui.get_node("Content/Menu/StartButton").pressed.emit()
+	status = broken_ui.get_node_or_null("Content/CatalogStatus")
+	if FileAccess.get_file_as_bytes(settings_path) != damaged or status == null or not str(status.text).contains("identity"):
+		_fail("Unreadable existing settings must retain their bytes and report an identity error.")
+		return
+	broken_ui.free()
 	coordinator.free()
 	print("Raw OJN reached Gameplay Ready through the native converter and judged its note with audio.")
 	quit(0)

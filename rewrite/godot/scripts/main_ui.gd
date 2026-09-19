@@ -1892,6 +1892,9 @@ func _configure_exporter_from_environment() -> void:
 
 func _refresh_song_entries_from_settings(force_refresh: bool = false) -> void:
 	_song_catalog_error = ""
+	if not _settings_store.library_identity_valid():
+		_song_catalog_error = "Unable to read library identity. Restore or repair the saved settings."
+		return
 	var directories := _settings_store.song_directories()
 	_configure_exporter_from_environment()
 	if directories.is_empty():

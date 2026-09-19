@@ -81,6 +81,10 @@ func _ensure_library_root_ids() -> bool:
 	return true
 
 
+func library_identity_valid() -> bool:
+	return _library_identity_valid
+
+
 func song_directories() -> Array[String]:
 	return _song_directories.duplicate()
 
@@ -324,6 +328,7 @@ func save_to_file(path: String) -> bool:
 func load_from_file(path: String) -> bool:
 	var config := ConfigFile.new()
 	if config.load(path) != OK:
+		_library_identity_valid = not FileAccess.file_exists(path)
 		return false
 
 	set_settings_language(_string_value(config.get_value("ui", "settings_language", _settings_language), _settings_language))

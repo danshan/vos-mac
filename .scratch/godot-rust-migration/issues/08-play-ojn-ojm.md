@@ -152,3 +152,4 @@
 - Context7 在沙箱外返回 fetch failed; 使用 Godot 官方 Crypto 文档核实 generate_random_bytes, https://docs.godotengine.org/en/stable/classes/class_crypto.html. 无新增依赖.
 - red `/tmp/vos-root-persistence-red.log`; 验证记录 `/tmp/vos-root-persistence.log`, `/tmp/vos-root-persistence-bundle.log`, `/tmp/vos-root-persistence-regression.log`. 结果页验证首次恰好停在既有 10 s finish delay 边界, 调整为越过该严格大于边界, 未修改 runtime 行为.
 - 完整重新定位、多 root 管理、跨重启 Chart 选择恢复及配置的崩溃恢复仍由 tickets 16/23 完成, 本增量只提供稳定 token 和 ordinary scan 的前置能力.
+- 首轮 Spec 审查发现 ConfigFile 整体语法损坏仍可能被默认设置覆盖. 已补真实 UI 回归: 损坏文件 -> Settings -> Back 保存 -> Start, 要求 bytes 不变且显示 identity 错误; red `/tmp/vos-root-broken-config-red.log`. 缺文件允许首次初始化, 已存在但不可加载文件锁住身份保存.

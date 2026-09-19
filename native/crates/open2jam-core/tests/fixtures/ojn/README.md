@@ -52,3 +52,9 @@ mise exec -- java -cp target/open2jam-0.1.2.jar rewrite/tools/OjmAudioOracle.jav
 ```
 
 JSON SHA-256: `45de1ecb5d20faf05f2e4f47d2298a2237a60af5815b25d4974c34909979135b`.
+
+## Metadata 编码样本
+
+`ojn_parser.rs` 的 display metadata 测试使用固定 source bytes 与独立 Unicode 期望值. 四个 legacy 样本分别通过 Python 标准库的 euc_kr、gbk、big5、shift_jis 编码得到, 运行测试不再编码期望值. 原文分别为 `아름다운 세상`, `美丽的音乐世界`, `美麗的音樂世界`, `美しい音楽の世界`. UTF-8 样本为 `音楽の世界`. 测试还验证首个 NUL 后的垃圾字节不会影响显示, 不同字段可使用不同编码, 原始 source bytes 保留.
+
+这组期望值不是 Java 显示 oracle. 对相同文本补零至 64 bytes 后调用旧 `ByteHelper.toString`, Java detector 分别误判四个 legacy 样本为 GB2312、EUC-KR、US-ASCII 和 GB18030. Native 保持有效 UTF-8 原文, 否则逐字段使用 chardetng 检测并通过 encoding_rs 严格解码, 不复刻已观察到的乱码. 此策略不保证任意短字段都可正确推断编码; companion 匹配必须在 file adapter 结合实际目录处理, 不把显示文本的猜测当作路径授权.

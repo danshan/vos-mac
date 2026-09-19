@@ -13,6 +13,21 @@ const STRESS: &[u8] =
     include_bytes!("../../../../rewrite/golden/java-migration/sources/ojn/stress-4096.ojn");
 
 #[test]
+fn display_metadata_decodes_utf8_and_stops_at_the_first_nul() {
+    let mut bytes = MINIMAL.to_vec();
+    bytes[108..172].fill(0xff);
+    let title = "\u{97f3}\u{697d}\u{306e}\u{4e16}\u{754c}";
+    bytes[108..108 + title.len()].copy_from_slice(title.as_bytes());
+    bytes[108 + title.len()] = 0;
+    bytes[172..204].fill(0);
+    bytes[172..178].copy_from_slice(b"Artist");
+    let source = OjnSource::parse(&bytes).unwrap();
+    assert_eq!(source.title().unwrap(), title);
+    assert_eq!(source.artist().unwrap(), "Artist");
+    assert_eq!(source.companion_bytes(), b"minimal.ojm");
+}
+
+#[test]
 fn frozen_ojn_sources_expose_three_difficulties_and_actual_events() {
     let minimal = OjnSource::parse(MINIMAL).unwrap();
     assert_eq!(minimal.title_bytes(), b"Minimal O2Jam");
@@ -566,4 +581,41 @@ fn gameplay_omits_identical_same_time_bpm_points_like_the_java_exporter() {
     let json = serde_json::to_value(chart).unwrap();
     assert_eq!(json["judgmentTiming"].as_array().unwrap().len(), 1);
     assert_eq!(json["visualTiming"], json["judgmentTiming"]);
+}
+
+#[test]
+fn display_metadata_decodes_legacy_east_asian_fields_independently() {
+    let cases: &[(&[u8], &str)] = &[
+        (
+            b"\xbe\xc6\xb8\xa7\xb4\xd9\xbf\xee\x20\xbc\xbc\xbb\xf3",
+            "\u{c544}\u{b984}\u{b2e4}\u{c6b4} \u{c138}\u{c0c1}",
+        ),
+        (
+            b"\xc3\xc0\xc0\xf6\xb5\xc4\xd2\xf4\xc0\xd6\xca\xc0\xbd\xe7",
+            "\u{7f8e}\u{4e3d}\u{7684}\u{97f3}\u{4e50}\u{4e16}\u{754c}",
+        ),
+        (
+            b"\xac\xfc\xc4\x52\xaa\xba\xad\xb5\xbc\xd6\xa5\x40\xac\xc9",
+            "\u{7f8e}\u{9e97}\u{7684}\u{97f3}\u{6a02}\u{4e16}\u{754c}",
+        ),
+        (
+            b"\x94\xfc\x82\xb5\x82\xa2\x89\xb9\x8a\x79\x82\xcc\x90\xa2\x8a\x45",
+            "\u{7f8e}\u{3057}\u{3044}\u{97f3}\u{697d}\u{306e}\u{4e16}\u{754c}",
+        ),
+    ];
+    for (raw, expected) in cases {
+        let mut bytes = MINIMAL.to_vec();
+        bytes[108..172].fill(0);
+        bytes[108..108 + raw.len()].copy_from_slice(raw);
+        bytes[172..204].fill(0);
+        let artist = b"\x94\xfc\x82\xb5\x82\xa2\x89\xb9\x8a\x79\x82\xcc\x90\xa2\x8a\x45";
+        bytes[172..172 + artist.len()].copy_from_slice(artist);
+        let source = OjnSource::parse(&bytes).unwrap();
+        assert_eq!(source.title().unwrap(), *expected);
+        assert_eq!(
+            source.artist().unwrap(),
+            "\u{7f8e}\u{3057}\u{3044}\u{97f3}\u{697d}\u{306e}\u{4e16}\u{754c}"
+        );
+        assert_eq!(source.title_bytes(), *raw);
+    }
 }

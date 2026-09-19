@@ -88,7 +88,13 @@ impl<'a> OjnSource<'a> {
         })
     }
 
-    // Text decoding belongs to the source adapter; retain the original encoding here.
+    pub fn title(&self) -> Result<String, CoreError> {
+        decode_text(self.title_bytes())
+    }
+    pub fn artist(&self) -> Result<String, CoreError> {
+        decode_text(self.artist_bytes())
+    }
+    // Retain source bytes for diagnostics and companion resolution by the file adapter.
     pub fn title_bytes(&self) -> &'a [u8] {
         text(&self.bytes[108..172])
     }
@@ -197,6 +203,21 @@ impl<'a> OjnSource<'a> {
         checkpoint()?;
         Ok(events)
     }
+}
+
+fn decode_text(bytes: &[u8]) -> Result<String, CoreError> {
+    if let Ok(text) = std::str::from_utf8(bytes) {
+        return Ok(text.to_owned());
+    }
+    // OJN has no encoding label. Guess each bounded field independently so mixed
+    // encodings do not contaminate one another; never use this guess as a file path.
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    detector.feed(bytes, true);
+    detector
+        .guess(None, chardetng::Utf8Detection::Allow)
+        .decode_without_bom_handling_and_without_replacement(bytes)
+        .map(|text| text.into_owned())
+        .ok_or_else(|| corrupt("invalid OJN metadata encoding"))
 }
 
 fn text(bytes: &[u8]) -> &[u8] {

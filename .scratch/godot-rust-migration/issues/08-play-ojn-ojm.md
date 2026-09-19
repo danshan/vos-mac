@@ -75,3 +75,12 @@
 - 验证证据: `/tmp/vos-ticket08-extended-pcm-red.log`, `/tmp/vos-ticket08-extended-pcm-tests.log`, `/tmp/vos-ticket08-wave-formats-workspace.log`. 此增量未新增运行时依赖.
 - 后续集中推进字符集、LibraryRootId 请求传递和 raw OJN CLI/catalog/bundle/Godot 闭环, 尚不勾选 ticket 08 完整验收.
 - 本轮 WAV 兼容性增量提交 `341f8b7`, 固定基点不变, Standards 0 项 / Spec 0 项. 审查范围包含整数/float/companded 转换, 不代表完整 ticket 验收.
+
+## 当前增量: OJN 显示文本解码
+
+- `OjnSource::title/artist` 对首个 NUL 前的有界字段解码, 有效 UTF-8 原样保留, legacy 字节使用 chardetng + encoding_rs, 不静默插入 replacement characters. 各字段独立检测, 原有 raw bytes 接口保留.
+- 新增 chardetng 1.0.0 与 encoding_rs 0.8.41, 已有依赖锁定版本不变. 默认 alloc feature 用于严格解码, 许可证及用途见 native/THIRD_PARTY.md.
+- 独立固定字节样本覆盖 UTF-8、EUC-KR、GBK、Big5、Shift_JIS 和混合字段编码. Java 探针发现旧 detector 对这些 legacy 短文本存在乱码, 因此以原文 Unicode 作为期望值, 不复刻误判; 来源说明见 fixtures/ojn/README.md.
+- 编码检测仍有歧义, 当前接口只用于显示文本. companion 文件名保留原始字节, 文件 adapter 尚须结合真实目录安全匹配. 不将猜测文本用作身份或路径依据.
+- red 证据 `/tmp/vos-ticket08-text-red.log`, `/tmp/vos-ticket08-text-legacy-red.log`; 验证命令为 workspace locked tests、clippy 和 fmt, workspace 日志 `/tmp/vos-ticket08-text-workspace.log`.
+- 后续: 持久化 LibraryRootId 请求传递、companion 解析、raw OJN catalog/bundle/Godot 闭环. 本 ticket 仍为 in-progress.

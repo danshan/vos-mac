@@ -286,3 +286,18 @@ fn progress_creation_never_follows_an_existing_symlink() {
     assert!(JsonlProgressWriter::create(&link).is_err());
     assert_eq!(fs::read(&target).unwrap(), b"keep");
 }
+
+#[test]
+fn progress_schema_mismatch_retains_unsupported_schema_error_code() {
+    use open2jam_core::error::ErrorCode;
+    use open2jam_core::json::decode_contract;
+    use open2jam_core::progress::ProgressEventV1;
+    let bytes = br#"{"schemaVersion":2,"jobId":"job-001","sequence":1,"command":"BUNDLE","phase":"HASH_SOURCES","completedUnits":0,"totalUnits":1,"unit":"files","currentItem":null}"#;
+    assert_eq!(
+        decode_contract::<ProgressEventV1>(bytes)
+            .unwrap_err()
+            .code(),
+        ErrorCode::UnsupportedSchema
+    );
+    assert!(serde_json::from_slice::<ProgressEventV1>(bytes).is_err());
+}

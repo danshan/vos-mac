@@ -139,6 +139,7 @@ impl CatalogRequestV1 {
     }
 }
 impl Contract for CatalogRequestV1 {
+    const SCHEMA_VERSION: u16 = REQUEST_SCHEMA_VERSION;
     fn validate(&self) -> Result<(), ProtocolError> {
         self.validate()
     }
@@ -171,6 +172,7 @@ impl BundleRequestV1 {
     }
 }
 impl Contract for BundleRequestV1 {
+    const SCHEMA_VERSION: u16 = REQUEST_SCHEMA_VERSION;
     fn validate(&self) -> Result<(), ProtocolError> {
         self.validate()
     }
@@ -249,6 +251,7 @@ impl<T> CommandResultV1<T> {
     }
 }
 impl<T: Serialize + DeserializeOwned> Contract for CommandResultV1<T> {
+    const SCHEMA_VERSION: u16 = RESULT_SCHEMA_VERSION;
     fn validate(&self) -> Result<(), ProtocolError> {
         self.validate()
     }

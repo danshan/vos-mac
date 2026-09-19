@@ -172,6 +172,7 @@ impl ProgressEventV1 {
 }
 
 impl Contract for ProgressEventV1 {
+    const SCHEMA_VERSION: u16 = PROGRESS_SCHEMA_VERSION;
     fn validate(&self) -> Result<(), ProtocolError> {
         self.validate_fields().map_err(Into::into)
     }

@@ -65,3 +65,5 @@
 新增 GameplayChartV2、TimingPoint、ScrollPoint、AutoplayEvent. judgment/visual timing 分离, scroll ratio 与 measure 索引独立保留. 同一构造/serde 边界拒绝缺失引用、乱序/重复事件、头尾 order 冲突和 duration 越界. sampleless Note 在所有源格式保留音量与声像. Schema、未知/重复字段以及停止速度的回归也已加入.
 
 尚未完成 audio/bundle 跨文件校验、BGA 资源模型、实际 producer 与 Godot consumer, ticket 保持 in-progress. 数值合同补充该阶段的精确边界, 不以序列化 round-trip 代表 Gameplay Ready.
+
+阶段提交 `743510c`. 累计 67 项 native 回归日志无失败: `/tmp/vos-ticket04-gameplay-chart.log`; workspace clippy 无 warning. 独立两轴审查 Standards 0、Spec 0. 下一阶段需要把 audio manifest、Chart 与 bundle identity/hash 做跨文件连接, 再交给真实 Godot consumer.

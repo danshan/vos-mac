@@ -24,3 +24,4 @@
 - ZIP64 采用同样的目录数量/大小限制, extensible sector 也受 16 MiB 上限. /tmp/vos-osz-archive-boundaries.log 覆盖合法 ZIP64、伪造 count、尺寸/压缩比/加密拒绝, 共 8 项 core 测试. 读取时到 EOF 才接受 CRC 和长度, 不调用 extract, 取消后不继续展开剩余内容.
 - 本次 metadata 限额是 core 的内存/输入边界. 完整 job 时限需要 adapter 的 checkpoint/deadline 与 helper 管理落实, 尚未宣称已交付 OSZ 的端到端资源安全门禁.
 - 文档来源: Context7 /zip-rs/zip2, https://docs.rs/zip/8.6.0/zip/read/struct.ZipFile.html, https://github.com/zip-rs/zip2/blob/v8.6.0/Cargo.toml, 以及已下载 8.6.0 的 read/zip_archive.rs、read/magic_finder.rs 和 spec.rs. 加密和其他压缩算法不属于首版 OSZ reader 支持范围.
+- core 增量 93a6d97 固定基点双轴复审: Standards 0 项 / Spec 0 项. workspace /tmp/vos-osz-core-workspace.log、Clippy /tmp/vos-osz-core-clippy.log、fmt 与 diff check 退出 0. 审查核对了锁定 zip 8.6 的 MagicFinder 会在返回候选前 seek 到其记录起点, 与 wrapper 的拦截边界一致. 产品接线与完整 OSZ gate 仍未完成, ticket 保持 in-progress.

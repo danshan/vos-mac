@@ -15,6 +15,7 @@ mod legacy_notes;
 pub mod ojm;
 pub mod ojn;
 pub mod osu;
+pub mod osz;
 pub mod path;
 pub mod progress;
 pub mod protocol;
